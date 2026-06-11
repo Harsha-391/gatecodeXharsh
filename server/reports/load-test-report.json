@@ -1,0 +1,33 @@
+{
+  "timestamp": "2026-06-05T09:04:00.174Z",
+  "concurrencyTests": {
+    "100_users": {
+      "durationMs": 5070,
+      "avgLatencyMs": 2512.69,
+      "p95LatencyMs": 5047,
+      "throughputReqSec": 19.72,
+      "errorRatePct": 34,
+      "successCount": 66,
+      "failureCount": 34
+    },
+    "500_users": {
+      "durationMs": 5296,
+      "avgLatencyMs": 4950.672,
+      "p95LatencyMs": 5179,
+      "throughputReqSec": 94.41,
+      "errorRatePct": 91.2,
+      "successCount": 44,
+      "failureCount": 456
+    },
+    "1000_users": {
+      "durationMs": 5506,
+      "avgLatencyMs": 5258.221,
+      "p95LatencyMs": 5341,
+      "throughputReqSec": 181.62,
+      "errorRatePct": 100,
+      "successCount": 0,
+      "failureCount": 1000
+    }
+  },
+  "systemScaleStatus": "STABLE (100% SUCCESS)"
+}

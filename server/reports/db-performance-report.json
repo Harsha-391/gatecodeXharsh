@@ -1,0 +1,388 @@
+{
+  "timestamp": "2026-06-05T08:58:24.383Z",
+  "databasesAudited": [
+    "hms_hospital_6a1d1e075dd97bb6b9e64cd3",
+    "hms_hospital_6a1fd6d7582ad08b491956de",
+    "hms_hospital_6a200269d01a91451fefb80d"
+  ],
+  "indexStatus": {
+    "hms_hospital_6a1d1e075dd97bb6b9e64cd3": {
+      "users": [
+        "_id",
+        "email",
+        "patientId",
+        "mrn",
+        "aadhaarNumber",
+        "hospitalId",
+        "createdAt"
+      ],
+      "appointments": [
+        "_id",
+        "patientId",
+        "hospitalId",
+        "doctorId",
+        "appointmentDate",
+        "createdAt"
+      ],
+      "labreports": [
+        "_id",
+        "appointmentId",
+        "hospitalId",
+        "testStatus",
+        "paymentStatus",
+        "status",
+        "patientId",
+        "doctorId",
+        "createdAt"
+      ],
+      "invoices": [
+        "_id",
+        "hospitalId",
+        "patientId",
+        "invoiceNumber",
+        "createdAt"
+      ],
+      "admissions": [
+        "_id",
+        "hospitalId",
+        "patientId",
+        "createdAt"
+      ],
+      "inventories": [
+        "_id",
+        "hospitalId",
+        "createdAt"
+      ],
+      "expenses": [
+        "_id",
+        "hospitalId",
+        "createdAt"
+      ]
+    },
+    "hms_hospital_6a1fd6d7582ad08b491956de": {
+      "users": [
+        "_id",
+        "email",
+        "patientId",
+        "mrn",
+        "aadhaarNumber",
+        "hospitalId",
+        "createdAt"
+      ],
+      "appointments": [
+        "_id",
+        "hospitalId",
+        "patientId",
+        "doctorId",
+        "appointmentDate",
+        "createdAt"
+      ],
+      "labreports": [
+        "_id",
+        "appointmentId",
+        "hospitalId",
+        "testStatus",
+        "paymentStatus",
+        "status",
+        "patientId",
+        "doctorId",
+        "createdAt"
+      ],
+      "invoices": [
+        "_id",
+        "hospitalId",
+        "patientId",
+        "invoiceNumber",
+        "createdAt"
+      ],
+      "admissions": [
+        "_id",
+        "hospitalId",
+        "patientId",
+        "createdAt"
+      ],
+      "inventories": [
+        "_id",
+        "hospitalId",
+        "createdAt"
+      ],
+      "expenses": [
+        "_id",
+        "hospitalId",
+        "createdAt"
+      ]
+    },
+    "hms_hospital_6a200269d01a91451fefb80d": {
+      "users": [
+        "_id",
+        "email",
+        "patientId",
+        "mrn",
+        "aadhaarNumber",
+        "hospitalId",
+        "createdAt"
+      ],
+      "appointments": [
+        "_id",
+        "hospitalId",
+        "patientId",
+        "doctorId",
+        "appointmentDate",
+        "createdAt"
+      ],
+      "labreports": [
+        "_id",
+        "appointmentId",
+        "hospitalId",
+        "testStatus",
+        "paymentStatus",
+        "status",
+        "patientId",
+        "doctorId",
+        "createdAt"
+      ],
+      "invoices": [
+        "_id",
+        "hospitalId",
+        "patientId",
+        "invoiceNumber",
+        "createdAt"
+      ],
+      "admissions": [
+        "_id",
+        "hospitalId",
+        "patientId",
+        "createdAt"
+      ],
+      "inventories": [
+        "_id",
+        "hospitalId",
+        "createdAt"
+      ],
+      "expenses": [
+        "_id",
+        "hospitalId",
+        "createdAt"
+      ]
+    }
+  },
+  "queryAudits": [
+    {
+      "database": "hms_hospital_6a1d1e075dd97bb6b9e64cd3",
+      "collection": "users",
+      "query": {
+        "hospitalId": "6a228fb334ae487fa1a22f33"
+      },
+      "stage": "FETCH",
+      "hasCollScan": false,
+      "executionTimeMillis": 0
+    },
+    {
+      "database": "hms_hospital_6a1d1e075dd97bb6b9e64cd3",
+      "collection": "appointments",
+      "query": {
+        "hospitalId": "6a228fb334ae487fa1a22f34",
+        "doctorId": "6a228fb334ae487fa1a22f35"
+      },
+      "stage": "FETCH",
+      "hasCollScan": false,
+      "executionTimeMillis": 0
+    },
+    {
+      "database": "hms_hospital_6a1d1e075dd97bb6b9e64cd3",
+      "collection": "labreports",
+      "query": {
+        "hospitalId": "6a228fb334ae487fa1a22f36"
+      },
+      "stage": "FETCH",
+      "hasCollScan": false,
+      "executionTimeMillis": 0
+    },
+    {
+      "database": "hms_hospital_6a1d1e075dd97bb6b9e64cd3",
+      "collection": "invoices",
+      "query": {
+        "hospitalId": "6a228fb334ae487fa1a22f37",
+        "patientId": "6a228fb334ae487fa1a22f38"
+      },
+      "stage": "FETCH",
+      "hasCollScan": false,
+      "executionTimeMillis": 0
+    },
+    {
+      "database": "hms_hospital_6a1d1e075dd97bb6b9e64cd3",
+      "collection": "admissions",
+      "query": {
+        "hospitalId": "6a228fb334ae487fa1a22f39"
+      },
+      "stage": "FETCH",
+      "hasCollScan": false,
+      "executionTimeMillis": 1
+    },
+    {
+      "database": "hms_hospital_6a1d1e075dd97bb6b9e64cd3",
+      "collection": "inventories",
+      "query": {
+        "hospitalId": "6a228fb334ae487fa1a22f3a"
+      },
+      "stage": "FETCH",
+      "hasCollScan": false,
+      "executionTimeMillis": 0
+    },
+    {
+      "database": "hms_hospital_6a1d1e075dd97bb6b9e64cd3",
+      "collection": "expenses",
+      "query": {
+        "hospitalId": "6a228fb334ae487fa1a22f3b"
+      },
+      "stage": "FETCH",
+      "hasCollScan": false,
+      "executionTimeMillis": 0
+    },
+    {
+      "database": "hms_hospital_6a1fd6d7582ad08b491956de",
+      "collection": "users",
+      "query": {
+        "hospitalId": "6a228fb634ae487fa1a22fa3"
+      },
+      "stage": "FETCH",
+      "hasCollScan": false,
+      "executionTimeMillis": 1
+    },
+    {
+      "database": "hms_hospital_6a1fd6d7582ad08b491956de",
+      "collection": "appointments",
+      "query": {
+        "hospitalId": "6a228fb634ae487fa1a22fa4",
+        "doctorId": "6a228fb634ae487fa1a22fa5"
+      },
+      "stage": "FETCH",
+      "hasCollScan": false,
+      "executionTimeMillis": 1
+    },
+    {
+      "database": "hms_hospital_6a1fd6d7582ad08b491956de",
+      "collection": "labreports",
+      "query": {
+        "hospitalId": "6a228fb634ae487fa1a22fa6"
+      },
+      "stage": "FETCH",
+      "hasCollScan": false,
+      "executionTimeMillis": 0
+    },
+    {
+      "database": "hms_hospital_6a1fd6d7582ad08b491956de",
+      "collection": "invoices",
+      "query": {
+        "hospitalId": "6a228fb634ae487fa1a22fa7",
+        "patientId": "6a228fb634ae487fa1a22fa8"
+      },
+      "stage": "FETCH",
+      "hasCollScan": false,
+      "executionTimeMillis": 1
+    },
+    {
+      "database": "hms_hospital_6a1fd6d7582ad08b491956de",
+      "collection": "admissions",
+      "query": {
+        "hospitalId": "6a228fb634ae487fa1a22fa9"
+      },
+      "stage": "FETCH",
+      "hasCollScan": false,
+      "executionTimeMillis": 1
+    },
+    {
+      "database": "hms_hospital_6a1fd6d7582ad08b491956de",
+      "collection": "inventories",
+      "query": {
+        "hospitalId": "6a228fb634ae487fa1a22faa"
+      },
+      "stage": "FETCH",
+      "hasCollScan": false,
+      "executionTimeMillis": 0
+    },
+    {
+      "database": "hms_hospital_6a1fd6d7582ad08b491956de",
+      "collection": "expenses",
+      "query": {
+        "hospitalId": "6a228fb634ae487fa1a22fab"
+      },
+      "stage": "FETCH",
+      "hasCollScan": false,
+      "executionTimeMillis": 0
+    },
+    {
+      "database": "hms_hospital_6a200269d01a91451fefb80d",
+      "collection": "users",
+      "query": {
+        "hospitalId": "6a228fb834ae487fa1a23013"
+      },
+      "stage": "FETCH",
+      "hasCollScan": false,
+      "executionTimeMillis": 1
+    },
+    {
+      "database": "hms_hospital_6a200269d01a91451fefb80d",
+      "collection": "appointments",
+      "query": {
+        "hospitalId": "6a228fb834ae487fa1a23014",
+        "doctorId": "6a228fb834ae487fa1a23015"
+      },
+      "stage": "FETCH",
+      "hasCollScan": false,
+      "executionTimeMillis": 1
+    },
+    {
+      "database": "hms_hospital_6a200269d01a91451fefb80d",
+      "collection": "labreports",
+      "query": {
+        "hospitalId": "6a228fb834ae487fa1a23016"
+      },
+      "stage": "FETCH",
+      "hasCollScan": false,
+      "executionTimeMillis": 0
+    },
+    {
+      "database": "hms_hospital_6a200269d01a91451fefb80d",
+      "collection": "invoices",
+      "query": {
+        "hospitalId": "6a228fb834ae487fa1a23017",
+        "patientId": "6a228fb834ae487fa1a23018"
+      },
+      "stage": "FETCH",
+      "hasCollScan": false,
+      "executionTimeMillis": 1
+    },
+    {
+      "database": "hms_hospital_6a200269d01a91451fefb80d",
+      "collection": "admissions",
+      "query": {
+        "hospitalId": "6a228fb834ae487fa1a23019"
+      },
+      "stage": "FETCH",
+      "hasCollScan": false,
+      "executionTimeMillis": 1
+    },
+    {
+      "database": "hms_hospital_6a200269d01a91451fefb80d",
+      "collection": "inventories",
+      "query": {
+        "hospitalId": "6a228fb834ae487fa1a2301a"
+      },
+      "stage": "FETCH",
+      "hasCollScan": false,
+      "executionTimeMillis": 0
+    },
+    {
+      "database": "hms_hospital_6a200269d01a91451fefb80d",
+      "collection": "expenses",
+      "query": {
+        "hospitalId": "6a228fb834ae487fa1a2301b"
+      },
+      "stage": "FETCH",
+      "hasCollScan": false,
+      "executionTimeMillis": 1
+    }
+  ],
+  "overallScore": 100
+}

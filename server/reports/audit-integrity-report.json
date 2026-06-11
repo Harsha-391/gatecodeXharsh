@@ -1,0 +1,37 @@
+{
+  "timestamp": "2026-06-05T09:02:02.122Z",
+  "integrityScore": 100,
+  "failures": 0,
+  "testCases": [
+    {
+      "action": "STAFF_LOGIN",
+      "logFound": true,
+      "logDetails": {
+        "userId": "6a228ff625c986f081cbf3b5",
+        "userName": "Penetration Tester A",
+        "clinicId": "6a200269d01a91451fefb80d"
+      },
+      "passed": true
+    },
+    {
+      "action": "VIEW_PATIENT",
+      "logFound": true,
+      "logDetails": {
+        "userId": "6a228ff625c986f081cbf3b5",
+        "userName": "Penetration Tester A",
+        "clinicId": "6a200269d01a91451fefb80d"
+      },
+      "passed": true
+    },
+    {
+      "action": "STAFF_LOGOUT",
+      "logFound": true,
+      "logDetails": {
+        "userId": "6a228ff625c986f081cbf3b5",
+        "userName": "Penetration Tester A",
+        "clinicId": "6a200269d01a91451fefb80d"
+      },
+      "passed": true
+    }
+  ]
+}

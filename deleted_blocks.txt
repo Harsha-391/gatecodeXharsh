@@ -1,0 +1,874 @@
+-import React, { useState, useEffect } from 'react';
+
+=========================================
+
+-import { receptionAPI, publicAPI, hospitalAPI, uploadAPI, admissionAPI } from '../../utils/api';
+
+=========================================
+
+-import { useAuth } from '../../store/hooks';
+
+=========================================
+
+-    const [hospitalizeForm, setHospitalizeForm] = useState({ ward: '', bedNumber: '', admissionDate: new Date().toISOString().split('T')[0], notes: '', facilityDays: {} });
+
+=========================================
+
+-    const [editAdmissionForm, setEditAdmissionForm] = useState({ ward: '', bedNumber: '', notes: '', admissionDate: '' });
+
+=========================================
+
+-            const response = await receptionAPI.getAllAppointments(targetDate, isFuture, isTomorrow);
+
+=========================================
+
+-                    
+
+=========================================
+
+-                                    <select 
+-                                        name="doctor" 
+-                                        value={intakeForm.doctor} 
+
+=========================================
+
+-                                style={{ padding: '7px 16px', borderRadius: '6px', border: 'none', fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer',
+
+=========================================
+
+-                                    boxShadow: admissionStatusTab === t.id ? '0 1px 4px rgba(0,0,0,0.1)' : 'none' }}>
+
+=========================================
+
+-                                                    <div style={{ fontSize: '1.1rem' }}>🛏️</div>
+-                                                    <div style={{ fontSize: '0.65rem', color: '#1d4ed8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Bed No.</div>
+
+=========================================
+
+-                                                        setEditAdmissionForm({ ward: adm.ward || '', bedNumber: adm.bedNumber || '', notes: adm.notes || '', admissionDate: rawDate });
+
+=========================================
+
+-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
+
+=========================================
+
+-                                    <input type="text" placeholder="e.g. General Ward, ICU"
+
+=========================================
+
+-                                        onChange={e => setEditAdmissionForm(p => ({ ...p, ward: e.target.value }))}
+-                                        style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e2e8f0', borderRadius: '8px', fontSize: '0.9rem', boxSizing: 'border-box' }}
+-                                    />
+
+=========================================
+
+-                                    <input type="text" placeholder="e.g. B-12, ICU-3"
+
+=========================================
+
+-                                        style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e2e8f0', borderRadius: '8px', fontSize: '0.9rem', boxSizing: 'border-box' }}
+-                                    />
+
+=========================================
+
+-        <div className="reception-dashboard">
+-            {/* DYNAMIC HEADER */}
+-            <div className="dashboard-header" style={{
+-                background: 'linear-gradient(135deg, #1e293b, #0f172a)',
+-                borderRadius: '16px', padding: '20px 28px',
+-                marginBottom: '20px', color: '#f8fafc',
+-                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+-                flexWrap: 'wrap', gap: '12px'
+-            }}>
+-                <div>
+-                    <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800 }}>
+-                        {greeting()}, {currentUser?.name || 'Reception'} 👋
+-                    </h1>
+-                    <p style={{ margin: '4px 0 0', color: '#94a3b8', fontSize: '0.85rem' }}>
+-                        {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} 
+-                        • {hospitalContext?.name || 'Hospital'} 
+-                        {hospitalContext?.appointmentMode === 'token' && ' 🎟️ Token Mode'}
+-                        <span style={{ marginLeft: '8px', opacity: 0.6, fontSize: '0.75rem' }}>Auto-refreshes every 30s</span>
+-                    </p>
+-                </div>
+-                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+-                    <button className="btn-cancel" onClick={() => { fetchTransactions(); setViewMode('transactions'); }} 
+-                        style={{ padding: '10px 20px', fontSize: '0.9rem', background: 'rgba(255,255,255,0.08)', color: '#e2e8f0', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '10px', cursor: 'pointer', fontWeight: 600 }}>
+-                        💰 Transactions
+-                    </button>
+-                    <button className="btn-cancel" onClick={() => {
+-                        if (profilePatient) {
+-                            navigate(`/billing/patient?search=${encodeURIComponent(profilePatient.patientId || profilePatient.name)}`);
+-                        } else if (searchQuery) {
+-                            navigate(`/billing/patient?search=${encodeURIComponent(searchQuery)}`);
+-                        } else {
+-                            navigate('/billing/patient');
+-                        }
+-                    }} 
+-                        style={{ padding: '10px 20px', fontSize: '0.9rem', background: 'rgba(16,185,129,0.15)', color: '#6ee7b7', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '10px', cursor: 'pointer', fontWeight: 600 }}>
+-                        🧾 Billing
+-                    </button>
+-                    <button onClick={() => { fetchAdmissions(); setViewMode('admitted'); }}
+-                        style={{
+-                            position: 'relative',
+-                            padding: '10px 20px',
+-                            fontSize: '0.9rem',
+-                            background: 'rgba(251,191,36,0.15)',
+-                            color: '#fbbf24',
+-                            border: '1px solid rgba(251,191,36,0.3)',
+-                            borderRadius: '10px',
+-                            cursor: 'pointer',
+-                            fontWeight: 600,
+-                            display: 'inline-flex',
+-                            alignItems: 'center',
+-                            gap: '8px'
+-                        }}
+-                    >
+-                        🏥 Admitted Patients
+-                        {pendingAllocationCount > 0 && (
+-                            <span style={{
+-                                background: '#ef4444',
+-                                color: '#fff',
+-                                borderRadius: '10px',
+-                                padding: '2px 8px',
+-                                fontSize: '0.75rem',
+-                                fontWeight: 800,
+-                                display: 'inline-flex',
+-                                alignItems: 'center',
+-                                justifyContent: 'center'
+-                            }}>
+-                                {pendingAllocationCount}
+-                            </span>
+
+=========================================
+
+-                    </button>
+-                    <button onClick={handleNewWalkIn} 
+-                        style={{ padding: '10px 24px', fontSize: '0.9rem', background: 'linear-gradient(135deg, #06b6d4, #0d9488)', color: '#fff', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 700, boxShadow: '0 4px 16px rgba(13,148,136,0.3)' }}>
+-                        + New Registration
+-                    </button>
+-                </div>
+-            </div>
+
+=========================================
+
+-            {/* DYNAMIC STATS BANNER */}
+-            <div style={{
+-                display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+-                gap: '12px', marginBottom: '20px'
+-            }}>
+-                {[
+-                    { label: 'Total Today', value: totalToday, icon: '📋', color: '#3b82f6', bg: '#eff6ff' },
+-                    { label: 'Pending', value: pendingToday, icon: '⏳', color: '#d97706', bg: '#fffbeb' },
+-                    { label: 'Confirmed', value: confirmedToday, icon: '✅', color: '#059669', bg: '#f0fdf4' },
+-                    { label: 'Completed', value: completedToday, icon: '✔️', color: '#1d4ed8', bg: '#eff6ff' },
+-                    { label: 'Cancelled', value: cancelledToday, icon: '❌', color: '#dc2626', bg: '#fef2f2' },
+-                    { label: 'Revenue', value: `₹${revenueToday.toLocaleString('en-IN')}`, icon: '💰', color: '#7c3aed', bg: '#f5f3ff' },
+-                    { label: 'Unique Patients', value: totalUniquePatients, icon: '👥', color: '#0891b2', bg: '#ecfeff' },
+-                ].map((s, i) => (
+-                    <div key={i} style={{
+-                        background: s.bg, borderRadius: '12px', padding: '16px',
+-                        border: `1px solid ${s.color}20`, textAlign: 'center'
+-                    }}>
+-                        <div style={{ fontSize: '1.5rem', marginBottom: '4px' }}>{s.icon}</div>
+-                        <div style={{ fontSize: '1.4rem', fontWeight: 800, color: s.color }}>{s.value}</div>
+-                        <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{s.label}</div>
+
+=========================================
+
+-                ))}
+-            </div>
+
+=========================================
+
+-            {/* SEARCH + QUICK BOOK ROW */}
+-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
+-                {/* SEARCH SECTION */}
+-                <div className="search-section card" style={{ padding: '16px', position: 'relative', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+-                    <h4 style={{ margin: '0 0 8px', fontSize: '0.82rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>🔍 Find Patient</h4>
+-                    <div style={{ display: 'flex', gap: '8px' }}>
+-                        <input
+-                            type="text"
+-                            placeholder="Search by Name, Mobile or MRN..."
+-                            value={searchQuery}
+-                            onChange={handleSearch}
+-                            style={{ flex: 1, padding: '10px 14px', fontSize: '0.9rem', borderRadius: '8px', border: '1.5px solid #e2e8f0', outline: 'none' }}
+-                        />
+-                    </div>
+-                    {searchResults.length > 0 && (
+-                        <div className="search-results-dropdown" style={{
+-                            position: 'absolute', top: '76px', left: '16px', right: '16px',
+-                            background: 'white', border: '1px solid #e2e8f0', boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+-                            zIndex: 1000, maxHeight: '280px', overflowY: 'auto', borderRadius: '10px'
+
+=========================================
+
+-                            {searchResults.map(p => (
+-                                <div key={p._id} style={{ padding: '12px 14px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+-                                    <div>
+-                                        <div style={{ fontWeight: 600, fontSize: '0.95rem', color: '#1e293b' }}>{p.name} <span style={{ color: '#94a3b8', fontSize: '0.8rem' }}>({p.patientId || 'N/A'})</span></div>
+-                                        <div style={{ fontSize: '0.82rem', color: '#94a3b8' }}>📱 {p.phone}</div>
+-                                    </div>
+-                                    <div style={{ display: 'flex', gap: '6px' }}>
+-                                        <button onClick={() => handleViewProfile(p)}
+-                                            style={{ padding: '5px 12px', fontSize: '0.8rem', background: '#f0f4ff', color: '#3b82f6', border: '1.5px solid #3b82f6', borderRadius: '6px', cursor: 'pointer', fontWeight: 600 }}>
+-                                            View
+-                                        </button>
+-                                        <button onClick={() => handleEditPatient(p)}
+-                                            style={{ padding: '5px 12px', fontSize: '0.8rem', background: '#0d9488', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 600 }}>
+-                                            Book
+-                                        </button>
+-                                        <button onClick={() => navigate(`/billing/patient?search=${encodeURIComponent(p.patientId || p.name)}`)}
+-                                            style={{ padding: '5px 12px', fontSize: '0.8rem', background: 'rgba(16,185,129,0.15)', color: '#10b981', border: '1px solid #10b981', borderRadius: '6px', cursor: 'pointer', fontWeight: 600 }}>
+-                                            🧾 Billing
+-                                        </button>
+-                                    </div>
+-                                </div>
+-                            ))}
+
+=========================================
+
+-                    )}
+
+=========================================
+
+-                {/* AVAILABILITY WIDGET */}
+-                <div className="availability-widget card" style={{ padding: '16px', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+-                    <h4 style={{ margin: '0 0 8px', fontSize: '0.82rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>📅 Quick Availability</h4>
+-                    <div className="widget-controls" style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
+-                        <select className="avail-select" onChange={(e) => setAvailabilityCheck({ ...availabilityCheck, doctorId: e.target.value })}
+-                            style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1.5px solid #e2e8f0', fontSize: '0.85rem' }}>
+-                            <option value="">Select Doctor</option>
+-                            {doctorsList.map(d => <option key={d._id} value={d._id}>{d.name}</option>)}
+-                        </select>
+-                        <input type="date" value={availabilityCheck.date} onChange={(e) => setAvailabilityCheck({ ...availabilityCheck, date: e.target.value })}
+-                            style={{ padding: '10px', borderRadius: '8px', border: '1.5px solid #e2e8f0', fontSize: '0.85rem' }} />
+-                    </div>
+-                    {availabilityCheck.doctorId && (
+-                        <div className="slot-grid" style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+-                            {timeSlots.map(t => {
+-                                const isBooked = availabilityCheck.bookedSlots.includes(t);
+-                                const isPast = intakeForm.visitDate === todayStr && (() => {
+-                                    const [h, m] = t.split(':').map(Number);
+-                                    const now = new Date();
+-                                    return new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m) <= now;
+-                                })();
+-                                return (
+-                                    <button key={t} type="button"
+-                                        className={`slot-btn ${isBooked ? 'booked' : ''}`}
+-                                        onClick={() => !isBooked && !isPast && handleSlotClick(t)}
+-                                        disabled={isBooked || isPast}
+-                                        style={{
+-                                            padding: '6px 10px', fontSize: '0.78rem', borderRadius: '6px', border: '1px solid #e2e8f0',
+-                                            background: isBooked ? '#fee2e2' : isPast ? '#f1f5f9' : '#fff',
+-                                            color: isBooked ? '#dc2626' : isPast ? '#94a3b8' : '#1e293b',
+-                                            cursor: isBooked || isPast ? 'not-allowed' : 'pointer', fontWeight: 600,
+-                                            opacity: isBooked || isPast ? 0.6 : 1
+
+=========================================
+
+-                                        {t}
+
+=========================================
+
+-                            })}
+
+=========================================
+
+-                    )}
+-                </div>
+-            </div>
+
+=========================================
+
+-            {/* TODAY'S QUEUE WITH STATUS FILTER */}
+-            <div className="appointments-list" style={{ background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+-                <div style={{
+-                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+-                    padding: '16px 20px', borderBottom: '1px solid #e2e8f0', flexWrap: 'wrap', gap: '10px'
+-                }}>
+-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+-                        <h3 style={{ margin: 0, fontSize: '1.05rem', color: '#1e293b', fontWeight: 700 }}>
+-                            {dateTab === 'today' ? "Today's Queue" : dateTab === 'tomorrow' ? "Tomorrow's Schedule" : dateTab === 'future' ? "Future Schedule" : "Patient Queue"}
+-                        </h3>
+-                        
+-                        {/* Date Range Tabs Selector */}
+-                        <div style={{ display: 'flex', background: '#f1f5f9', padding: '3px', borderRadius: '8px', gap: '2px' }}>
+-                            {[
+-                                { id: 'today', label: 'Today' },
+-                                { id: 'tomorrow', label: 'Tomorrow' },
+-                                { id: 'future', label: 'Future' }
+-                            ].map(t => (
+
+=========================================
+
+-                                    key={t.id}
+-                                    type="button"
+-                                    onClick={() => {
+-                                        setDateTab(t.id);
+-                                        if (t.id === 'today') {
+-                                            setSelectedQueueDate(todayStr);
+-                                            fetchAppointments(todayStr, false, false);
+-                                        } else if (t.id === 'tomorrow') {
+-                                            const tom = new Date(); tom.setDate(tom.getDate() + 1);
+-                                            const tomStr = getLocalDateString(tom);
+-                                            setSelectedQueueDate(tomStr);
+-                                            fetchAppointments(tomStr, false, true);
+-                                        } else {
+-                                            setSelectedQueueDate('');
+-                                            fetchAppointments('', true, false);
+-                                        }
+-                                    }}
+
+=========================================
+
+-                                        padding: '4px 10px',
+-                                        borderRadius: '6px',
+-                                        border: 'none',
+-                                        fontSize: '0.78rem',
+-                                        fontWeight: '700',
+-                                        cursor: 'pointer',
+-                                        background: dateTab === t.id ? '#fff' : 'transparent',
+-                                        color: dateTab === t.id ? '#1e293b' : '#64748b',
+-                                        boxShadow: dateTab === t.id ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+-                                        transition: 'all 0.15s'
+
+=========================================
+
+-                                    {t.label}
+
+=========================================
+
+-                            ))}
+
+=========================================
+
+-                        {dateTab !== 'future' && (
+-                            <input
+-                                type="date"
+-                                value={selectedQueueDate}
+-                                onChange={(e) => {
+-                                    const newDate = e.target.value;
+-                                    setSelectedQueueDate(newDate);
+-                                    const tom = new Date(); tom.setDate(tom.getDate() + 1);
+-                                    const tomStr = tom.toISOString().split('T')[0];
+-                                    setDateTab(newDate === todayStr ? 'today' : newDate === tomStr ? 'tomorrow' : 'custom');
+-                                    fetchAppointments(newDate, false);
+-                                }}
+-                                style={{
+-                                    padding: '5px 10px',
+-                                    borderRadius: '8px',
+-                                    border: '1.5px solid #e2e8f0',
+-                                    fontSize: '0.8rem',
+-                                    color: '#475569',
+-                                    fontWeight: '600',
+-                                    outline: 'none',
+-                                    cursor: 'pointer',
+-                                    background: '#f8fafc'
+-                                }}
+-                            />
+-                        )}
+
+=========================================
+
+-                        <span style={{ background: '#f1f5f9', color: '#475569', padding: '2px 10px', borderRadius: '20px', fontSize: '0.78rem', fontWeight: 600 }}>
+-                            {filteredAppointments.length} patients
+-                        </span>
+
+=========================================
+
+-                    <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+-                        {[
+-                            { key: 'all', label: 'All', color: '#3b82f6' },
+-                            { key: 'pending', label: 'Pending', color: '#d97706' },
+-                            { key: 'confirmed', label: 'Confirmed', color: '#059669' },
+-                            { key: 'completed', label: 'Completed', color: '#1d4ed8' },
+-                            { key: 'cancelled', label: 'Cancelled', color: '#dc2626' },
+-                        ].map(f => (
+-                            <button key={f.key}
+-                                onClick={() => setStatusFilter(f.key)}
+-                                style={{
+-                                    padding: '6px 14px', borderRadius: '8px', border: '1.5px solid',
+-                                    borderColor: statusFilter === f.key ? f.color : '#e2e8f0',
+-                                    background: statusFilter === f.key ? `${f.color}10` : '#fff',
+-                                    color: statusFilter === f.key ? f.color : '#64748b',
+-                                    cursor: 'pointer', fontWeight: 600, fontSize: '0.78rem',
+-                                    transition: 'all 0.15s'
+-                                }}>
+-                                {f.label}
+-                            </button>
+-                        ))}
+-                    </div>
+-                </div>
+
+=========================================
+
+-                {statusFilter === 'completed' && (
+-                    <div style={{ padding: '12px 20px', borderBottom: '1px solid #e2e8f0' }}>
+-                        <input
+-                            type="text"
+-                            placeholder="Search completed patients by name or ID..."
+-                            value={searchQuery}
+-                            onChange={e => setSearchQuery(e.target.value)}
+-                            style={{ width: '100%', boxSizing: 'border-box', padding: '10px 14px', borderRadius: '8px', border: '1.5px solid #e2e8f0', fontSize: '0.9rem', outline: 'none' }}
+-                        />
+-                    </div>
+-                )}
+-
+-                <div className="table-responsive">
+-                    {statusFilter === 'completed' ? (
+-                        <>
+-                        <table className="reception-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+-                            <thead>
+-                                <tr style={{ background: '#f8fafc' }}>
+-                                    <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '0.72rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #e2e8f0' }}>Patient Name</th>
+-                                    <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '0.72rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #e2e8f0' }}>UHID (ID)</th>
+-                                    <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '0.72rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #e2e8f0' }}>Doctor Name</th>
+-                                    <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '0.72rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #e2e8f0' }}>Completion Date</th>
+-                                    <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '0.72rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #e2e8f0' }}>Completion Time</th>
+-                                    <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '0.72rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #e2e8f0' }}>Consultation Status</th>
+-                                    <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '0.72rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #e2e8f0' }}>Actions</th>
+-                                </tr>
+-                            </thead>
+-                            <tbody>
+-                                {completedAppointments.filter(a => {
+-                                    const q = searchQuery.toLowerCase().trim();
+-                                    if (!q) return true;
+-                                    return (a.userId?.name || '').toLowerCase().includes(q) || (a.userId?.patientId || a.patientId || '').toLowerCase().includes(q);
+-                                }).length === 0 ? (
+-                                        <tr><td colSpan="7" style={{ textAlign: 'center', color: '#888', padding: '30px' }}>No completed consultations found.</td></tr>
+-                                    ) : (
+-                                        completedAppointments.filter(a => {
+-                                            const q = searchQuery.toLowerCase().trim();
+-                                            if (!q) return true;
+-                                            return (a.userId?.name || '').toLowerCase().includes(q) || (a.userId?.patientId || a.patientId || '').toLowerCase().includes(q);
+-                                        }).map((a, idx) => {
+-                                            const compDate = a.completedAt ? new Date(a.completedAt) : new Date(a.updatedAt);
+-                                            const isCurrentlyAdmitted = admissions.some(adm => (adm.appointmentId?._id || adm.appointmentId) === a._id && (adm.status === 'Admitted' || adm.status === 'Pending Allocation'));
+-                                            return (
+-                                                <tr key={a._id || idx}
+-                                                    style={{ borderBottom: '1px solid #f1f5f9', transition: 'background 0.15s' }}
+-                                                    onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
+-                                                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+-                                                    <td style={{ padding: '12px 16px', fontWeight: 'bold', color: '#1e293b' }}>
+-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+-                                                            <span>{a.userId?.name || 'Walk-in Patient'}</span>
+-                                                            {a.recommendAdmission && !isCurrentlyAdmitted && (
+-                                                                <span style={{
+-                                                                    background: '#fee2e2',
+-                                                                    color: '#b91c1c',
+-                                                                    fontSize: '10px',
+-                                                                    fontWeight: 800,
+-                                                                    padding: '2px 8px',
+-                                                                    borderRadius: '12px',
+-                                                                    border: '1px solid #fca5a5',
+-                                                                    display: 'inline-flex',
+-                                                                    alignItems: 'center',
+-                                                                    gap: '3px',
+-                                                                    animation: 'pulse 2s infinite'
+-                                                                }} title={`Recommended by Doctor. Notes: ${a.recommendAdmissionNotes || 'None'}`}>
+-                                                                    🚨 Admit Recommended
+-                                                                </span>
+-                                                            )}
+-                                                            {isCurrentlyAdmitted && (
+-                                                                <span style={{
+-                                                                    background: '#e0f2fe',
+-                                                                    color: '#0369a1',
+-                                                                    fontSize: '10px',
+-                                                                    fontWeight: 800,
+-                                                                    padding: '2px 8px',
+-                                                                    borderRadius: '12px',
+-                                                                    border: '1px solid #bae6fd',
+-                                                                    display: 'inline-flex',
+-                                                                    alignItems: 'center',
+-                                                                    gap: '3px'
+-                                                                }}>
+-                                                                    🏥 Admitted
+-                                                                </span>
+-                                                            )}
+-                                                        </div>
+-                                                    </td>
+-                                                    <td style={{ padding: '12px 16px' }}>
+-                                                        {a.userId?.patientId || a.patientId || 'N/A'}
+-                                                    </td>
+-                                                    <td style={{ padding: '12px 16px', color: '#0d9488', fontWeight: 600 }}>
+-                                                        Dr. {a.doctorName || 'General'}
+-                                                    </td>
+-                                                    <td style={{ padding: '12px 16px' }}>
+-                                                        {compDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+-                                                    </td>
+-                                                    <td style={{ padding: '12px 16px' }}>
+-                                                        {compDate.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+-                                                    </td>
+-                                                    <td style={{ padding: '12px 16px' }}>
+-                                                        <span style={{ padding: '4px 10px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 'bold', background: '#dbeafe', color: '#1e40af' }}>
+-                                                            {a.status || 'completed'}
+-                                                        </span>
+-                                                    </td>
+-                                                    <td style={{ padding: '12px 16px' }}>
+-                                                        <div style={{ display: 'flex', gap: '4px' }}>
+-                                                            {a.recommendAdmission && !isCurrentlyAdmitted && (
+-                                                                <button onClick={() => openHospitalizeModal(a)}
+-                                                                    style={{ padding: '5px 10px', fontSize: '0.72rem', background: '#dbeafe', color: '#1d4ed8', border: '1px solid #93c5fd', borderRadius: '6px', cursor: 'pointer', fontWeight: 600 }}>
+-                                                                    🏥 Admit
+-                                                                </button>
+-                                                            )}
+-                                                        </div>
+-                                                    </td>
+-                                                </tr>
+-                                            );
+-                                        })
+-                                    )}
+-                            </tbody>
+-                            </table>
+-                        </>
+-                    ) : (
+-                        <table className="reception-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+-                            <thead>
+-                                <tr style={{ background: '#f8fafc' }}>
+-                                    <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '0.72rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #e2e8f0' }}>#</th>
+-                                    <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '0.72rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #e2e8f0' }}>Patient</th>
+-                                    <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '0.72rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #e2e8f0' }}>Doctor</th>
+-                                    <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '0.72rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #e2e8f0' }}>{hospitalContext?.appointmentMode === 'token' ? 'Token' : 'Time'}</th>
+-                                    <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '0.72rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #e2e8f0' }}>Payment</th>
+-                                    <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '0.72rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #e2e8f0' }}>Status</th>
+-                                    <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '0.72rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #e2e8f0' }}>Actions</th>
+-                                </tr>
+-                            </thead>
+-                        <tbody>
+-                            {filteredAppointments.length === 0 ? (
+-                                <tr>
+-                                    <td colSpan="7" style={{ textAlign: 'center', padding: '40px 20px', color: '#94a3b8' }}>
+-                                        <div style={{ fontSize: '2rem', marginBottom: '8px' }}>{statusFilter === 'all' ? '📭' : '🔍'}</div>
+-                                        <div style={{ fontWeight: 600, fontSize: '0.95rem' }}>
+-                                            {statusFilter === 'all' ? 'No appointments today' : `No ${statusFilter} appointments`}
+-                                        </div>
+-                                        <div style={{ fontSize: '0.82rem', marginTop: '4px' }}>
+-                                            {statusFilter === 'all' ? 'New registrations will appear here.' : 'No appointments match this status filter.'}
+-                                        </div>
+-                                    </td>
+-                                </tr>
+-                            ) : (
+-                                filteredAppointments.map((apt, idx) => {
+-                                    const payStatus = (apt.paymentStatus || '').toLowerCase();
+-                                    const isCurrentlyAdmitted = admissions.some(adm => (adm.appointmentId?._id || adm.appointmentId) === apt._id && (adm.status === 'Admitted' || adm.status === 'Pending Allocation'));
+-                                    return (
+-                                        <tr key={apt._id}
+-                                            style={{ borderBottom: '1px solid #f1f5f9', transition: 'background 0.15s' }}
+-                                            onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
+-                                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+-                                            <td style={{ padding: '12px 16px', color: '#94a3b8', fontWeight: 600, fontSize: '0.82rem' }}>{idx + 1}</td>
+-                                            <td style={{ padding: '12px 16px' }}>
+-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+-                                                    <div style={{ fontWeight: 700, fontSize: '0.88rem', color: '#1e293b' }}>{apt.userId?.name || 'Walk-in'}</div>
+-                                                    {apt.recommendAdmission && !isCurrentlyAdmitted && (
+-                                                        <span style={{
+-                                                            background: '#fee2e2',
+-                                                            color: '#b91c1c',
+-                                                            fontSize: '10px',
+-                                                            fontWeight: 800,
+-                                                            padding: '2px 8px',
+-                                                            borderRadius: '12px',
+-                                                            border: '1px solid #fca5a5',
+-                                                            display: 'inline-flex',
+-                                                            alignItems: 'center',
+-                                                            gap: '3px',
+-                                                            animation: 'pulse 2s infinite'
+-                                                        }} title={`Recommended by Doctor. Notes: ${apt.recommendAdmissionNotes || 'None'}`}>
+-                                                            🚨 Admit Recommended
+-                                                        </span>
+-                                                    )}
+-                                                    {isCurrentlyAdmitted && (
+-                                                        <span style={{
+-                                                            background: '#e0f2fe',
+-                                                            color: '#0369a1',
+-                                                            fontSize: '10px',
+-                                                            fontWeight: 800,
+-                                                            padding: '2px 8px',
+-                                                            borderRadius: '12px',
+-                                                            border: '1px solid #bae6fd',
+-                                                            display: 'inline-flex',
+-                                                            alignItems: 'center',
+-                                                            gap: '3px'
+-                                                        }}>
+-                                                            🏥 Admitted
+-                                                        </span>
+-                                                    )}
+-                                                </div>
+-                                                <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>📱 {apt.userId?.phone || '-'} {apt.userId?.patientId ? `| ${apt.userId.patientId}` : ''}</div>
+-                                            </td>
+-                                            <td style={{ padding: '12px 16px', fontSize: '0.85rem', color: '#475569', fontWeight: 500 }}>
+-                                                <span style={{ color: '#0d9488', fontWeight: 600 }}>Dr.</span> {apt.doctorName || 'N/A'}
+-                                                {apt.serviceName && <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>{apt.serviceName}</div>}
+-                                            </td>
+-                                            <td style={{ padding: '12px 16px', fontWeight: 700, fontSize: '0.9rem', color: '#1e293b' }}>
+-                                                {apt.tokenNumber != null
+-                                                    ? <span style={{ color: '#d97706' }}>#{apt.tokenNumber}</span>
+-                                                    : apt.appointmentTime?.startsWith('token-')
+-                                                        ? <span style={{ color: '#d97706' }}>#{apt.appointmentTime.replace('token-', '')}</span>
+-                                                        : apt.appointmentTime || '-'}
+-                                            </td>
+-                                            <td style={{ padding: '12px 16px' }}>
+-                                                <span style={{
+-                                                    padding: '3px 10px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700,
+-                                                    background: payStatus === 'paid' ? '#dcfce7' : '#fef3c7',
+-                                                    color: payStatus === 'paid' ? '#166534' : '#92400e'
+-                                                }}>
+-                                                    {payStatus === 'paid' ? 'Paid' : apt.paymentStatus || 'Pending'}
+-                                                    {apt.amount > 0 && ` • ₹${Number(apt.amount).toLocaleString('en-IN')}`}
+-                                                </span>
+-                                            </td>
+-                                            <td style={{ padding: '12px 16px' }}>
+-                                                <span style={{
+-                                                    padding: '4px 12px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 700, textTransform: 'capitalize',
+-                                                    background: apt.status === 'confirmed' ? '#dcfce7' : apt.status === 'completed' ? '#dbeafe' : apt.status === 'cancelled' ? '#fee2e2' : '#fef3c7',
+-                                                    color: apt.status === 'confirmed' ? '#166534' : apt.status === 'completed' ? '#1e40af' : apt.status === 'cancelled' ? '#991b1b' : '#92400e'
+-                                                }}>{apt.status}</span>
+-                                            </td>
+-                                            <td style={{ padding: '12px 16px' }}>
+-                                                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+-                                                    {apt.status === 'pending' && (apt.userId?._id || apt.userId) && (
+-                                                        <button onClick={() => handleCheckIn(apt)}
+-                                                            style={{ padding: '5px 10px', fontSize: '0.72rem', background: '#0d9488', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 600 }}>
+-                                                            Check In
+-                                                        </button>
+-                                                    )}
+-                                                    {payStatus !== 'paid' && apt.status !== 'cancelled' && (
+-                                                        <button onClick={() => setPaymentModal({ open: true, appointment: apt, method: apt.paymentMethod || 'Cash' })}
+-                                                            style={{ padding: '5px 10px', fontSize: '0.72rem', background: '#dcfce7', color: '#166534', border: '1px solid #86efac', borderRadius: '6px', cursor: 'pointer', fontWeight: 600 }}>
+-                                                            💰 Pay
+-                                                        </button>
+-                                                    )}
+-                                                    {payStatus === 'paid' && (
+-                                                        <button onClick={() => generateReceiptPDF(apt)}
+-                                                            style={{ padding: '5px 10px', fontSize: '0.72rem', background: '#eff6ff', color: '#1d4ed8', border: '1px solid #93c5fd', borderRadius: '6px', cursor: 'pointer', fontWeight: 600 }}>
+-                                                            🧾 Receipt
+-                                                        </button>
+-                                                    )}
+-                                                    {((apt.status !== 'cancelled' && apt.status !== 'completed' && !isCurrentlyAdmitted) || (apt.recommendAdmission && !isCurrentlyAdmitted)) && (
+-                                                        <>
+-                                                            <button onClick={() => openHospitalizeModal(apt)}
+-                                                                style={{ padding: '5px 10px', fontSize: '0.72rem', background: '#dbeafe', color: '#1d4ed8', border: '1px solid #93c5fd', borderRadius: '6px', cursor: 'pointer', fontWeight: 600 }}>
+-                                                                🏥 Admit
+-                                                            </button>
+-                                                            {apt.status !== 'completed' && (
+-                                                                <button onClick={() => handleCancelAppointment(apt._id)}
+-                                                                    style={{ padding: '5px 10px', fontSize: '0.72rem', background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: '6px', cursor: 'pointer', fontWeight: 600 }}>
+-                                                                    ✕ Cancel
+-                                                                </button>
+-                                                            )}
+-                                                        </>
+-                                                    )}
+-                                                </div>
+-                                            </td>
+-                                        </tr>
+-                                    );
+-                                })
+-                            )}
+-                        </tbody>
+-                    </table>
+-                    )}
+
+=========================================
+
+-        </div>
+
+=========================================
+
+-        {/* Payment Confirmation Modal */}
+-        {paymentModal.open && (
+-            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+-                <div style={{ background: '#fff', borderRadius: '14px', padding: '28px', width: '100%', maxWidth: '440px', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+-                        <div>
+-                            <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 700 }}>💰 Confirm Payment</h2>
+-                            <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: '0.88rem' }}>
+-                                {paymentModal.appointment?.userId?.name} — Rs. {Number(paymentModal.appointment?.amount || 0).toLocaleString('en-IN')}
+-                            </p>
+
+=========================================
+
+-                        <button onClick={() => setPaymentModal({ open: false, appointment: null, method: 'Cash' })} style={{ background: 'none', border: 'none', fontSize: '1.4rem', cursor: 'pointer', color: '#94a3b8' }}>✕</button>
+-                    </div>
+-                    <div style={{ marginBottom: '18px' }}>
+-                        <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#374151', marginBottom: '7px' }}>Payment Method</label>
+-                        <select
+-                            value={paymentModal.method}
+-                            onChange={e => setPaymentModal(p => ({ ...p, method: e.target.value }))}
+-                            style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e2e8f0', borderRadius: '8px', fontSize: '0.95rem' }}
+-                        >
+-                            <option value="Cash">Cash</option>
+-                            <option value="UPI">UPI</option>
+-                            <option value="Card">Card</option>
+-                            <option value="Cheque">Cheque</option>
+-                            <option value="NEFT/RTGS">NEFT / RTGS</option>
+-                        </select>
+-                    </div>
+-                    <div style={{ display: 'flex', gap: '10px' }}>
+-                        <button
+-                            onClick={handleConfirmPayment}
+-                            disabled={confirmingPayment}
+-                            style={{ flex: 1, padding: '11px', background: '#16a34a', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '0.95rem', cursor: 'pointer' }}
+-                        >
+-                            {confirmingPayment ? 'Confirming...' : '✓ Confirm & Print Receipt'}
+-                        </button>
+-                        <button
+-                            onClick={() => setPaymentModal({ open: false, appointment: null, method: 'Cash' })}
+-                            style={{ padding: '11px 18px', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '0.9rem' }}
+-                        >
+-                            Cancel
+-                        </button>
+
+=========================================
+
+-            </div>
+-        )}
+
+=========================================
+
+-        {/* Hospitalize Modal */}
+-        {hospitalizeModal.open && (
+-            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+-                <div style={{ background: '#fff', borderRadius: '14px', padding: '28px', width: '100%', maxWidth: '580px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+-                        <div>
+-                            <h2 style={{ margin: 0, fontSize: '1.3rem', fontWeight: 700 }}>Hospitalize Patient</h2>
+-                            <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: '0.9rem' }}>
+-                                {hospitalizeModal.appointment?.userId?.name} — {hospitalizeModal.appointment?.doctorName}
+-                            </p>
+
+=========================================
+
+-                        <button onClick={() => setHospitalizeModal({ open: false, appointment: null })} style={{ background: 'none', border: 'none', fontSize: '1.4rem', cursor: 'pointer', color: '#94a3b8' }}>✕</button>
+-                    </div>
+
+=========================================
+
+-                    {/* Bed & Ward */}
+-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '16px' }}>
+-                        <div>
+-                            <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#374151', marginBottom: '5px' }}>Ward / Room</label>
+-                            <input
+-                                type="text"
+-                                placeholder="e.g. General Ward, ICU"
+-                                value={hospitalizeForm.ward}
+-                                onChange={e => setHospitalizeForm(p => ({ ...p, ward: e.target.value }))}
+-                                style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #e2e8f0', borderRadius: '8px', fontSize: '0.95rem', boxSizing: 'border-box' }}
+-                            />
+
+=========================================
+
+-                        <div>
+-                            <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#374151', marginBottom: '5px' }}>Bed Number</label>
+
+=========================================
+
+-                                type="text"
+-                                placeholder="e.g. B-12"
+-                                value={hospitalizeForm.bedNumber}
+-                                onChange={e => setHospitalizeForm(p => ({ ...p, bedNumber: e.target.value }))}
+-                                style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #e2e8f0', borderRadius: '8px', fontSize: '0.95rem', boxSizing: 'border-box' }}
+
+=========================================
+
+-                    </div>
+-
+-                    <div style={{ marginBottom: '16px' }}>
+-                        <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#374151', marginBottom: '5px' }}>Admission Date</label>
+-                        <input
+-                            type="date"
+-                            value={hospitalizeForm.admissionDate}
+-                            onChange={e => setHospitalizeForm(p => ({ ...p, admissionDate: e.target.value }))}
+-                            style={{ padding: '9px 12px', border: '1.5px solid #e2e8f0', borderRadius: '8px', fontSize: '0.95rem' }}
+-                        />
+-                    </div>
+
+=========================================
+
+-                    {/* Facilities */}
+-                    {(hospitalContext?.facilities?.length > 0) ? (
+-                        <div style={{ marginBottom: '16px' }}>
+-                            <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#374151', marginBottom: '10px' }}>
+-                                Select Facilities &amp; Days
+-                            </label>
+-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+-                                {hospitalContext.facilities.map(f => (
+-                                    <div key={f.name} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+-                                        <div style={{ flex: 1 }}>
+-                                            <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{f.name}</div>
+-                                            <div style={{ fontSize: '0.8rem', color: '#64748b' }}>₹{f.pricePerDay}/day</div>
+-                                        </div>
+-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+-                                            <label style={{ fontSize: '0.82rem', color: '#475569' }}>Days:</label>
+-                                            <input
+-                                                type="number"
+-                                                min="0"
+-                                                placeholder="0"
+-                                                value={hospitalizeForm.facilityDays[f.name] || ''}
+-                                                onChange={e => setHospitalizeForm(p => ({ ...p, facilityDays: { ...p.facilityDays, [f.name]: e.target.value } }))}
+-                                                style={{ width: '70px', padding: '6px 10px', border: '1.5px solid #e2e8f0', borderRadius: '7px', fontSize: '0.9rem', textAlign: 'center' }}
+-                                            />
+-                                        </div>
+-                                        {hospitalizeForm.facilityDays[f.name] > 0 && (
+-                                            <div style={{ fontWeight: 700, color: '#1d4ed8', fontSize: '0.9rem', minWidth: '70px', textAlign: 'right' }}>
+-                                                ₹{(f.pricePerDay * Number(hospitalizeForm.facilityDays[f.name])).toLocaleString('en-IN')}
+
+=========================================
+
+-                                        )}
+
+=========================================
+
+-                                ))}
+
+=========================================
+
+-                            {/* Total */}
+-                            {Object.values(hospitalizeForm.facilityDays).some(d => d > 0) && (
+-                                <div style={{ marginTop: '12px', padding: '10px 14px', background: '#eff6ff', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}>
+-                                    <span>Total Facility Cost:</span>
+-                                    <span style={{ color: '#1d4ed8' }}>
+-                                        ₹{(hospitalContext.facilities.reduce((sum, f) => sum + (f.pricePerDay * (Number(hospitalizeForm.facilityDays[f.name]) || 0)), 0)).toLocaleString('en-IN')}
+-                                    </span>
+-                                </div>
+-                            )}
+-                        </div>
+-                    ) : (
+-                        <div style={{ padding: '12px 14px', background: '#fef9c3', borderRadius: '8px', fontSize: '0.88rem', color: '#92400e', marginBottom: '16px' }}>
+-                            No facilities configured. Hospital admin can add facilities from the Hospital Admin Dashboard.
+
+=========================================
+
+-                    )}
+
+=========================================
+
+-                    <div style={{ marginBottom: '20px' }}>
+-                        <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#374151', marginBottom: '5px' }}>Notes (optional)</label>
+-                        <textarea
+-                            placeholder="Any notes for admission..."
+-                            value={hospitalizeForm.notes}
+-                            onChange={e => setHospitalizeForm(p => ({ ...p, notes: e.target.value }))}
+-                            rows={2}
+-                            style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #e2e8f0', borderRadius: '8px', fontSize: '0.9rem', resize: 'vertical', boxSizing: 'border-box' }}
+-                        />
+
+=========================================
+
+-                    <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+-                        <button onClick={() => setHospitalizeModal({ open: false, appointment: null })} style={{ padding: '10px 20px', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, color: '#475569' }}>
+-                            Cancel
+-                        </button>
+-                        <button
+-                            onClick={handleHospitalize}
+-                            disabled={hospitalizingSaving}
+-                            style={{ padding: '10px 24px', background: '#1d4ed8', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '0.95rem', opacity: hospitalizingSaving ? 0.6 : 1 }}
+-                        >
+-                            {hospitalizingSaving ? 'Admitting...' : 'Admit Patient'}
+-                        </button>
+
+=========================================
+
+-            </div>
+-        )}

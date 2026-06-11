@@ -1,0 +1,13 @@
+{
+  "name": "hms-root",
+  "version": "1.0.0",
+  "description": "Multi-Tenant Hospital Management System Root",
+  "scripts": {
+    "dev:server": "npm run dev --prefix server",
+    "dev:client": "npm run dev --prefix client",
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

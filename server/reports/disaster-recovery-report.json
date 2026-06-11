@@ -1,0 +1,23 @@
+{
+  "testPassed": true,
+  "timestamp": "2026-06-05T08:58:58.498Z",
+  "backupFile": "C:\\Users\\omris\\Downloads\\HMS-main\\HMS-main\\server\\backups\\backup_1780649933535.json.gz",
+  "tests": [
+    {
+      "module": "Patient Model",
+      "status": "PASSED"
+    },
+    {
+      "module": "Admission Model",
+      "status": "PASSED"
+    },
+    {
+      "module": "Invoice Model",
+      "status": "PASSED"
+    },
+    {
+      "module": "Inventory Model",
+      "status": "PASSED"
+    }
+  ]
+}

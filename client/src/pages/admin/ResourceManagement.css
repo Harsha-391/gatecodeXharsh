@@ -1,0 +1,224 @@
+/* ResourceManagement.css */
+
+.resources-page {
+    animation: fadeIn 0.4s ease-out;
+}
+
+.res-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+}
+
+.res-header h1 {
+    font-size: 1.75rem;
+    font-weight: 800;
+    color: var(--text-dark);
+    margin: 0 0 6px 0;
+}
+
+.res-header p {
+    font-size: 0.95rem;
+    color: var(--text-muted);
+    margin: 0;
+}
+
+.btn-refresh-res {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 18px;
+    background-color: var(--brand-erp);
+    color: #ffffff;
+    border: none;
+    border-radius: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 4px 6px -1px rgba(30, 132, 127, 0.2);
+}
+
+.btn-refresh-res:hover {
+    background-color: #176f6b;
+}
+
+.res-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 18px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    font-weight: 500;
+    font-size: 0.9rem;
+}
+
+.res-banner.error {
+    background-color: #fef2f2;
+    border: 1px solid #fee2e2;
+    color: #991b1b;
+}
+
+/* Resource Cards */
+.res-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px;
+    margin-bottom: 32px;
+}
+
+.res-card-item {
+    background-color: #ffffff;
+    border: 1px solid var(--border-erp);
+    border-radius: 16px;
+    padding: 20px;
+    box-shadow: var(--shadow-erp);
+}
+
+.res-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.icon-box {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    background-color: var(--brand-light);
+    color: var(--brand-erp);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+}
+
+.type-tag {
+    font-size: 0.725rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 6px;
+}
+
+.type-tag.room { background-color: #eff6ff; color: #1d4ed8; }
+.type-tag.bed { background-color: #ecfdf5; color: #047857; }
+.type-tag.equipment { background-color: #f5f3ff; color: #6d28d9; }
+
+.res-card-body h3 {
+    font-size: 1.05rem;
+    font-weight: 800;
+    margin: 0 0 10px 0;
+    color: var(--text-dark);
+}
+
+.util-score {
+    margin-bottom: 14px;
+}
+
+.util-score strong {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--text-dark);
+}
+
+.util-score span {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+.util-progress-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.util-progress-row .bar-outer {
+    height: 8px;
+    background-color: #e2e8f0;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.util-progress-row .bar-inner {
+    height: 100%;
+    background-color: var(--brand-erp);
+    border-radius: 4px;
+    transition: width 0.4s ease;
+}
+
+.util-progress-row .bar-inner.high {
+    background-color: #ef4444;
+}
+
+.percent-txt {
+    font-size: 0.775rem;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+/* Calibration Schedule Table */
+.calibration-section {
+    background-color: #ffffff;
+    border: 1px solid var(--border-erp);
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: var(--shadow-erp);
+}
+
+.calibration-section h2 {
+    font-size: 1.15rem;
+    margin: 0 0 20px 0;
+    font-weight: 800;
+    color: var(--text-dark);
+}
+
+.calib-table-wrap {
+    overflow-x: auto;
+}
+
+.calib-table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+}
+
+.calib-table th {
+    background-color: var(--bg-erp);
+    padding: 12px 16px;
+    font-size: 0.825rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border-erp);
+}
+
+.calib-table td {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border-erp);
+    font-size: 0.9rem;
+    color: var(--text-dark);
+}
+
+.date-col {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.875rem;
+    color: var(--text-muted);
+}
+
+.calib-empty-msg {
+    padding: 40px;
+    text-align: center;
+    color: var(--text-muted);
+}
+
+.resources-loading {
+    padding: 60px;
+    text-align: center;
+    color: var(--text-muted);
+    font-weight: 500;
+}

@@ -1,0 +1,16 @@
+{
+  "timestamp": "2026-06-05T09:03:16.517Z",
+  "expectedRevenue": 8000,
+  "expectedExpenses": 6200,
+  "expectedNetProfit": 1800,
+  "actual": {
+    "totalRevenue": 8000,
+    "totalExpenses": 6200,
+    "netProfit": 1800,
+    "profitMargin": 22.5,
+    "collectionEfficiency": 45.7,
+    "outstandingPayments": 9500,
+    "healthStatus": "Healthy Profit"
+  },
+  "reconciliationPassed": true
+}

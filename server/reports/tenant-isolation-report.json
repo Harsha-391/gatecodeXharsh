@@ -1,0 +1,56 @@
+{
+  "timestamp": "2026-06-05T08:59:36.665Z",
+  "testedEndpoints": [
+    {
+      "endpoint": "/api/patients",
+      "method": "GET",
+      "status": 400,
+      "leaked": false,
+      "result": "FAILED (DATA LEAK)"
+    },
+    {
+      "endpoint": "/api/patients?hospitalId=6a228ff625c986f081cbf3b2",
+      "method": "GET",
+      "status": 400,
+      "leaked": false,
+      "result": "FAILED (DATA LEAK)"
+    },
+    {
+      "endpoint": "/api/billing?hospitalId=6a228ff625c986f081cbf3b2",
+      "method": "GET",
+      "status": 400,
+      "leaked": false,
+      "result": "FAILED (DATA LEAK)"
+    },
+    {
+      "endpoint": "/api/patients/6a228ff825c986f081cbf41b",
+      "method": "GET",
+      "status": 400,
+      "leaked": false,
+      "result": "FAILED (DATA LEAK)"
+    },
+    {
+      "endpoint": "/api/billing/invoices/6a228ff825c986f081cbf41e",
+      "method": "GET",
+      "status": 400,
+      "leaked": false,
+      "result": "FAILED (DATA LEAK)"
+    },
+    {
+      "endpoint": "/api/lab/reports/6a228ff825c986f081cbf422",
+      "method": "GET",
+      "status": 400,
+      "leaked": false,
+      "result": "FAILED (DATA LEAK)"
+    },
+    {
+      "endpoint": "/api/administrator/audit-logs?clinicId=6a228ff625c986f081cbf3b2",
+      "method": "GET",
+      "status": 400,
+      "leaked": false,
+      "result": "FAILED (DATA LEAK)"
+    }
+  ],
+  "leaksDetected": 0,
+  "overallScore": 100
+}

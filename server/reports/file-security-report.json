@@ -1,0 +1,14 @@
+{
+  "timestamp": "2026-06-05T09:03:39.289Z",
+  "ownershipCheck": "PASSED",
+  "isolationCheck": "PASSED",
+  "overallScore": 100,
+  "testCases": [
+    {
+      "name": "Cross-Tenant Document Read Prevention",
+      "endpoint": "/api/appointments/6a2290edcc7e7137fa0f91e1",
+      "status": 404,
+      "passed": true
+    }
+  ]
+}
