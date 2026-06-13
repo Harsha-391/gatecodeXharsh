@@ -30,6 +30,9 @@ const isAllowedOrigin = (origin) => {
     if (origin === 'https://medicalhms.in') return true;
     if (origin === 'https://www.medicalhms.in') return true;
     if (origin.endsWith('.medicalhms.in')) return true;
+    if (origin === 'https://boonkies.com') return true;
+    if (origin === 'https://www.boonkies.com') return true;
+    if (origin.endsWith('.boonkies.com')) return true;
     return false;
 };
 
