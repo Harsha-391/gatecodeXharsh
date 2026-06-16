@@ -181,7 +181,7 @@ export const BrandingProvider = ({ children }) => {
             const hostname = window.location.hostname;
             const domain = hostname.startsWith('www.') ? hostname.slice(4) : hostname;
             // Treat localhost specially for dev, though you can test domains locally by modifying hosts
-            const isBaseDomain = domain === 'medicalhms.in' || domain === 'localhost';
+            const isBaseDomain = domain === 'medicalhms.in' || domain === 'boonkies.com' || domain === 'localhost';
             let fetchedFromDomain = false;
 
             // If we are on a custom domain, try to fetch the tenant config

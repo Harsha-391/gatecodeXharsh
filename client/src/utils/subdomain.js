@@ -6,7 +6,7 @@ export const getSubdomain = () => {
         return null;
     }
 
-    const isBaseDomain = hostname === 'medicalhms.in' || hostname === 'www.medicalhms.in';
+    const isBaseDomain = hostname === 'medicalhms.in' || hostname === 'www.medicalhms.in' || hostname === 'boonkies.com' || hostname === 'www.boonkies.com';
 
     // If it's not the base domain and not localhost, it's either a subdomain of base domain OR a completely custom domain.
     if (!isBaseDomain) {
@@ -20,6 +20,12 @@ export const getSubdomain = () => {
         // It is a live domain. If it's a subdomain of medicalhms.in:
         if (hostname.endsWith('.medicalhms.in')) {
             const subdomain = hostname.replace('.medicalhms.in', '');
+            return subdomain === 'www' ? null : subdomain;
+        }
+
+        // If it's a subdomain of boonkies.com:
+        if (hostname.endsWith('.boonkies.com')) {
+            const subdomain = hostname.replace('.boonkies.com', '');
             return subdomain === 'www' ? null : subdomain;
         }
 

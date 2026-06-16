@@ -44,6 +44,8 @@ router.get('/tenant-config', async (req, res) => {
             // Try to match customDomain directly. If it ends with .medicalhms.in, we can extract the slug.
             if (cleanDomain.endsWith('.medicalhms.in')) {
                 query.slug = cleanDomain.replace('.medicalhms.in', '');
+            } else if (cleanDomain.endsWith('.boonkies.com')) {
+                query.slug = cleanDomain.replace('.boonkies.com', '');
             } else if (cleanDomain.endsWith('.localhost')) {
                 query.slug = cleanDomain.replace('.localhost', '');
             } else {
