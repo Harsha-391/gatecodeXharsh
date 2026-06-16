@@ -37,7 +37,8 @@ const HospitalLogin = () => {
         const resolveHospital = async () => {
             try {
                 setHospitalLoading(true);
-                const domain = window.location.hostname;
+                const hostname = window.location.hostname;
+                const domain = hostname.startsWith('www.') ? hostname.slice(4) : hostname;
                 const res = await publicAPI.getTenantConfig(domain);
                 
                 if (res.success && res.tenant) {
