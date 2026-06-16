@@ -77,8 +77,16 @@ const AdminProfile = () => {
             return;
         }
 
-        if (passwordData.newPassword.length < 6) {
-            setErrorMsg('Password must be at least 6 characters long.');
+        if (passwordData.newPassword.length < 8) {
+            setErrorMsg('Password must be at least 8 characters long.');
+            return;
+        }
+        if (!/[a-zA-Z]/.test(passwordData.newPassword)) {
+            setErrorMsg('Password must contain at least one letter.');
+            return;
+        }
+        if (!/[0-9]/.test(passwordData.newPassword)) {
+            setErrorMsg('Password must contain at least one number.');
             return;
         }
 

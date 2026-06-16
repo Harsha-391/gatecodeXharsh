@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { NavLink, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth, useAppDispatch } from '../../store/hooks';
 import { logout } from '../../store/slices/authSlice';
@@ -7,7 +7,7 @@ import {
     FiHome, FiUsers, FiCalendar, FiActivity, FiPackage,
     FiSettings, FiLogOut, FiPieChart, FiClipboard,
     FiFileText, FiPlusSquare, FiDatabase, FiGrid, FiShield,
-    FiChevronDown, FiChevronRight, FiAlertCircle, FiUser
+    FiChevronDown, FiChevronRight, FiAlertCircle, FiUser, FiX
 } from 'react-icons/fi';
 import './DashboardLayout.css';
 
@@ -71,7 +71,7 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
                 { label: 'System Overview', path: '/supremeadmin', icon: <FiPieChart /> },
                 { label: 'Question Library', path: '/admin/question-library', icon: <FiFileText /> },
                 { label: 'Role & Permissions', path: '/admin/roles', icon: <FiShield /> },
-                { label: 'Manage All Staff', path: '/admin/users', icon: <FiUsers /> },
+                { label: 'Manage Hospital Admins', path: '/admin/users', icon: <FiUsers /> },
             ];
         } else if (role === 'hospitaladmin') {
             const u = JSON.parse(localStorage.getItem('user') || '{}');
@@ -446,6 +446,136 @@ const TopBar = ({ toggleSidebar, sidebarOpen }) => {
     );
 };
 
+/* ── Welcome Card (Centered Overlay) ─────────────────────────── */
+const WelcomeCard = () => {
+    const { user } = useAuth();
+    const [visible, setVisible] = useState(false);
+    const [exiting, setExiting] = useState(false);
+    const timerRef = useRef(null);
+
+    const getRoleIcon = (role = '') => {
+        const r = role.toLowerCase();
+        if (r === 'doctor') return '🩺';
+        if (r === 'nurse') return '💉';
+        if (r === 'reception' || r === 'receptionist') return '📋';
+        if (r === 'lab' || r === 'lab technician') return '🧪';
+        if (r === 'pharmacy' || r === 'pharmacist') return '💊';
+        if (r === 'cashier' || r.includes('billing')) return '💳';
+        if (r === 'administrator' || r === 'accountant') return '🏥';
+        if (r === 'hospitaladmin') return '🏨';
+        return '👤';
+    };
+
+    const getGreeting = () => {
+        const h = new Date().getHours();
+        if (h < 12) return { text: 'Good Morning', emoji: '☀️' };
+        if (h < 17) return { text: 'Good Afternoon', emoji: '🌤️' };
+        return { text: 'Good Evening', emoji: '🌙' };
+    };
+
+    const getRoleMessage = (role = '') => {
+        const r = role.toLowerCase();
+        if (r === 'doctor') return 'Your patients are ready. Let\'s make today count.';
+        if (r === 'nurse') return 'Your care makes all the difference today.';
+        if (r === 'reception' || r === 'receptionist') return 'Ready to be the first friendly face patients see!';
+        if (r === 'lab' || r === 'lab technician') return 'Accuracy and precision — you\'ve got this.';
+        if (r === 'pharmacy' || r === 'pharmacist') return 'Keeping medications safe and patients healthy.';
+        if (r === 'cashier' || r.includes('billing')) return 'Keeping the finances in perfect order.';
+        if (r === 'administrator' || r === 'accountant') return 'Operations running smoothly starts with you.';
+        if (r === 'hospitaladmin') return 'Your hospital depends on your leadership today.';
+        return 'Have a focused and productive shift today.';
+    };
+
+    const getInitials = (name = '') =>
+        name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2) || 'U';
+
+    const handleDismiss = () => {
+        setExiting(true);
+        clearTimeout(timerRef.current);
+        setTimeout(() => {
+            setVisible(false);
+            setExiting(false);
+        }, 380);
+    };
+
+    useEffect(() => {
+        // Only show if the user just logged in (flag set by authSlice login actions)
+        // and the card hasn't been shown yet this session
+        if (!user) return;
+        if (!sessionStorage.getItem('just_logged_in')) return;
+        if (sessionStorage.getItem('welcome_shown')) return;
+
+        // Mark as shown so it won't appear again on page navigation
+        sessionStorage.setItem('welcome_shown', '1');
+        sessionStorage.removeItem('just_logged_in');
+        setVisible(true);
+
+        timerRef.current = setTimeout(() => {
+            setExiting(true);
+            setTimeout(() => {
+                setVisible(false);
+                setExiting(false);
+            }, 380);
+        }, 7000);
+
+        return () => clearTimeout(timerRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    if (!visible || !user) return null;
+
+    const greeting = getGreeting();
+    const firstName = (user.name || 'there').split(' ')[0];
+
+    return (
+        <div className={`wc-overlay ${exiting ? 'wc-overlay--out' : 'wc-overlay--in'}`} onClick={handleDismiss}>
+            <div className={`wc-card ${exiting ? 'wc-card--out' : 'wc-card--in'}`} onClick={e => e.stopPropagation()}>
+
+                {/* Top accent bar */}
+                <div className="wc-accent-bar" />
+
+                {/* Header */}
+                <div className="wc-header">
+                    <div className="wc-avatar">
+                        {user.avatar
+                            ? <img src={user.avatar} alt={user.name} />
+                            : getInitials(user.name)
+                        }
+                    </div>
+                    <div className="wc-header-text">
+                        <span className="wc-role-badge">
+                            {getRoleIcon(user.role)} {user.role}
+                        </span>
+                        <h2 className="wc-name">{user.name || 'Welcome Back'}</h2>
+                        <p className="wc-email">{user.email}</p>
+                    </div>
+                </div>
+
+                {/* Divider */}
+                <div className="wc-divider" />
+
+                {/* Greeting body */}
+                <div className="wc-body">
+                    <p className="wc-greeting">{greeting.emoji} {greeting.text}!</p>
+                    <p className="wc-message">{getRoleMessage(user.role)}</p>
+                </div>
+
+                {/* Footer */}
+                <div className="wc-footer">
+                    <button className="wc-btn-start" onClick={handleDismiss}>
+                        Start My Day →
+                    </button>
+                    <p className="wc-auto-close">Closes automatically in a few seconds</p>
+                </div>
+
+                {/* Progress bar */}
+                <div className="wc-progress-bar" />
+
+            </div>
+        </div>
+    );
+};
+
 const DashboardLayout = ({ children }) => {
     const [sidebarOpen, setSidebarOpen] = useState(true);
 
@@ -458,8 +588,10 @@ const DashboardLayout = ({ children }) => {
                     {children}
                 </main>
             </div>
+            <WelcomeCard />
         </div>
     );
 };
 
 export default DashboardLayout;
+

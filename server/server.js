@@ -24,9 +24,10 @@ connectDB();
 
 // 2. HTTP Server and Socket.io
 const server = http.createServer(app);
+const LOCALHOST_RE = /^https?:\/\/([a-z0-9-]+\.)?(localhost|127\.0\.0\.1)(:\d+)?$/i;
 const isAllowedOrigin = (origin) => {
     if (!origin) return true;
-    if (origin.includes('localhost')) return true;
+    if (LOCALHOST_RE.test(origin)) return true;
     if (origin === 'https://medicalhms.in') return true;
     if (origin === 'https://www.medicalhms.in') return true;
     if (origin.endsWith('.medicalhms.in')) return true;
@@ -38,12 +39,27 @@ const isAllowedOrigin = (origin) => {
 
 const io = new Server(server, {
     cors: {
-        origin: (origin, callback) => {
+        origin: async (origin, callback) => {
             if (isAllowedOrigin(origin)) return callback(null, true);
+            try {
+                const Hospital = require('./src/models/hospital.model');
+                const domainOnly = origin.replace(/^https?:\/\//, '').replace(/\/$/, '').toLowerCase();
+                const domainName = domainOnly.startsWith('www.') ? domainOnly.slice(4) : domainOnly;
+                const hospital = await Hospital.findOne({
+                    customDomain: { $in: [domainName, `www.${domainName}`] }
+                }).select('_id').lean();
+                if (hospital) {
+                    return callback(null, true);
+                }
+            } catch (err) {
+                console.error('Socket CORS DB Check Error:', err);
+            }
             callback(new Error('CORS blocked: ' + origin), false);
         },
-        methods: ["GET", "POST"]
-    }
+        methods: ["GET", "POST"],
+        credentials: true
+    },
+    perMessageDeflate: false
 });
 
 app.set('io', io);
@@ -86,4 +102,4 @@ server.listen(PORT, () => {
         }
     }, 3000);
 });
-// Trigger Restart
+// Trigger Restart 7

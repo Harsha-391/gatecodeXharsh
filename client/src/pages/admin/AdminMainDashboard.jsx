@@ -112,7 +112,6 @@ const AdminMainDashboard = () => {
         { icon: '🏥', label: 'Reception',              desc: 'Set up reception desk and appointment workflows',                path: '/admin/reception',        bg: 'rgba(16,185,129,0.12)'  },
         { icon: '🛠️', label: 'Services',               desc: 'Hospital services, pricing, and categories',                     path: '/admin/services',         bg: 'rgba(245,158,11,0.12)'  },
         { icon: '🛏️', label: 'Wards & Facilities',     desc: 'Configure hospital wards (ICU, OT, deluxe, wards, etc.)',       path: '/admin/facilities',       bg: 'rgba(59,130,246,0.12)'  },
-        { icon: '👤', label: 'Create Staff Account',   desc: 'Add a new staff member with login credentials',                  path: '/admin/users',            bg: 'rgba(94,234,212,0.15)'  },
         { icon: '❓', label: 'Question Library',       desc: 'Configure forms and assessment libraries for doctors',           path: '/admin/question-library', bg: 'rgba(167,139,250,0.15)' },
     ];
 

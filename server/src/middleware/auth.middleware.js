@@ -36,6 +36,10 @@ exports.verifyToken = async (req, res, next) => {
         const user = await User.findById(decoded.userId);
         if (!user) return res.status(401).json({ success: false, message: 'User not found' });
 
+        if (user.isActive === false) {
+            return res.status(403).json({ success: false, message: 'Account is disabled. Contact administrator.' });
+        }
+
         // hospitalId: prefer JWT payload (authoritative for hospital admins), fallback to DB
         if (decoded.hospitalId) {
             user.hospitalId = decoded.hospitalId;

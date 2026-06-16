@@ -119,9 +119,26 @@ router.get('/roles', verifyToken, async (req, res) => {
         }
         // Central admin: see everything
 
-        const roles = await Role.find(query).sort({ hospitalId: 1, name: 1 });
+        // Sort: hospital-scoped (non-null ObjectId) first, global templates (null) last
+        const roles = await Role.find(query).sort({ hospitalId: -1, name: 1 });
 
-        const rolesWithCounts = await Promise.all(roles.map(async (r) => {
+        // Filter duplicates by name (case-insensitive)
+        const uniqueRoles = [];
+        const seenNames = new Set();
+
+        for (const r of roles) {
+            const normalizedName = r.name.trim().toLowerCase();
+            // Exclude "Patient" and "Administrator" from the displayed list
+            if (normalizedName === 'patient' || normalizedName === 'administrator') {
+                continue;
+            }
+            if (!seenNames.has(normalizedName)) {
+                seenNames.add(normalizedName);
+                uniqueRoles.push(r);
+            }
+        }
+
+        const rolesWithCounts = await Promise.all(uniqueRoles.map(async (r) => {
             const count = await User.countDocuments({ role: r._id });
             return { ...r.toObject(), userCount: count };
         }));
@@ -349,14 +366,39 @@ router.get('/users', verifyAdminOrSuperAdmin, async (req, res) => {
         const patientRole = await Role.findOne({ name: { $regex: /^patient$/i } });
         const patientRoleId = patientRole ? patientRole._id : null;
 
-        // Build exclusion filter
-        const roleExclude = { $nin: systemRoles };
-        // Note: We can't easily combine string roles and ObjectId exclusion in one $nin
-        // So we do a two-step: filter by hospitalId, then exclude by role
-        const users = await User.find(
-            { ...filter, role: { $nin: systemRoles } },
-            { password: 0 }
-        ).sort({ createdAt: -1 });
+        let query = {};
+        if (isCentral) {
+            // Find all Role ObjectIds that represent "Admin" or "hospitaladmin"
+            const adminRoles = await Role.find({ name: { $regex: /^(admin|hospitaladmin)$/i } });
+            const adminRoleIds = adminRoles.map(r => r._id);
+
+            query = {
+                ...filter, // Optionally filter by ?hospitalId= if provided
+                $or: [
+                    { role: { $in: ['hospitaladmin', 'admin'] } },
+                    { role: { $in: adminRoleIds } }
+                ],
+                patientId: { $exists: false }
+            };
+        } else {
+            // Hospital admin gets non-admin staff scoped to their hospital
+            const excludeUserIds = [];
+            if (req.user.hospitalId) {
+                const hospital = await Hospital.findById(req.user.hospitalId);
+                if (hospital && hospital.adminUserId) {
+                    excludeUserIds.push(hospital.adminUserId);
+                }
+            }
+
+            query = {
+                ...filter,
+                _id: { $nin: excludeUserIds },
+                role: { $nin: systemRoles },
+                patientId: { $exists: false }
+            };
+        }
+
+        const users = await User.find(query, { password: 0 }).sort({ createdAt: -1 });
 
         // Build full response and filter out patients
         const usersWithRoles = await Promise.all(users.map(async (u) => {
@@ -365,11 +407,12 @@ router.get('/users', verifyAdminOrSuperAdmin, async (req, res) => {
 
         // Filter patients out of staff list
         const staffOnly = usersWithRoles.filter(u =>
-            !['patient'].includes((u.role || '').toLowerCase())
+            !u.patientId && !['patient'].includes((u.role || '').toLowerCase())
         );
 
         res.json({ success: true, users: staffOnly });
     } catch (error) {
+        console.error('Error fetching users:', error);
         res.status(500).json({ success: false, message: 'Error fetching users' });
     }
 });
@@ -385,13 +428,38 @@ router.post('/users', verifyAdminOrSuperAdmin, async (req, res) => {
         const pwErr2 = validatePassword(password);
         if (pwErr2) return res.status(400).json({ success: false, message: pwErr2 });
 
-        const roleDoc = await Role.findById(roleId);
-        if (!roleDoc) {
-            return res.status(400).json({ success: false, message: 'Invalid role. Role not found.' });
+        let roleDoc = null;
+        let roleName = '';
+        if (roleId === 'hospitaladmin') {
+            roleName = 'hospitaladmin';
+        } else {
+            if (mongoose.Types.ObjectId.isValid(roleId)) {
+                roleDoc = await Role.findById(roleId);
+            }
+            if (!roleDoc) {
+                // If it's a string like 'hospitaladmin', 'doctor' etc., try to find it
+                const query = { name: { $regex: new RegExp(`^${roleId}$`, 'i') } };
+                if (req.body.hospitalId) query.hospitalId = req.body.hospitalId;
+                else if (req.user.hospitalId) query.hospitalId = req.user.hospitalId;
+
+                roleDoc = await Role.findOne(query);
+            }
+
+            if (!roleDoc) {
+                // Check if roleId is a system role string (like doctor, receptionist etc.)
+                const systemRoleStrings = ['doctor', 'receptionist', 'pharmacist', 'lab technician', 'reception', 'lab', 'pharmacy', 'nurse'];
+                if (systemRoleStrings.includes(String(roleId).toLowerCase())) {
+                    roleName = String(roleId).toLowerCase();
+                } else {
+                    return res.status(400).json({ success: false, message: 'Invalid role. Role not found.' });
+                }
+            } else {
+                roleName = roleDoc.name.toLowerCase();
+            }
         }
 
         // Patients don't need hospital assignment
-        const isPatientRole = roleDoc.name.toLowerCase() === 'patient';
+        const isPatientRole = roleName === 'patient';
 
         // Determine hospitalId
         const isCentral = req.user.role === 'centraladmin' || req.user.role === 'superadmin';
@@ -402,7 +470,7 @@ router.post('/users', verifyAdminOrSuperAdmin, async (req, res) => {
             assignedHospitalId = req.user.hospitalId;
         } else {
             // Central admin: hospitalId must be in body for staff (not patients)
-            assignedHospitalId = req.body.hospitalId || roleDoc.hospitalId || null;
+            assignedHospitalId = req.body.hospitalId || (roleDoc ? roleDoc.hospitalId : null) || null;
         }
 
         if (!isPatientRole && !assignedHospitalId) {
@@ -422,7 +490,7 @@ router.post('/users', verifyAdminOrSuperAdmin, async (req, res) => {
             phone: phone || '',
             role: roleId,
             hospitalId: assignedHospitalId,
-            services: roleDoc.name.toLowerCase() === 'doctor' ? services : [],
+            services: roleName === 'doctor' ? services : [],
             departments: departments || [],
             avatar: avatar || null
         });
@@ -435,8 +503,17 @@ router.post('/users', verifyAdminOrSuperAdmin, async (req, res) => {
             await syncToTenant('Role', roleDoc, 'save', assignedHospitalId);
         }
 
+        // Link hospital admin to hospital record if roleId is 'hospitaladmin'
+        if (roleId === 'hospitaladmin' && assignedHospitalId) {
+            const hospital = await Hospital.findById(assignedHospitalId);
+            if (hospital) {
+                hospital.adminUserId = user._id;
+                await hospital.save();
+                await syncToTenant('Hospital', hospital, 'save', assignedHospitalId);
+            }
+        }
+
         // Auto-create linked entity profiles with hospitalId
-        const roleName = roleDoc.name.toLowerCase();
         try {
             if (roleName === 'doctor') {
                 let doctorId = nanoid(10);
@@ -482,10 +559,11 @@ router.post('/users', verifyAdminOrSuperAdmin, async (req, res) => {
         const userData = await buildUserResponse(user);
         res.status(201).json({
             success: true,
-            message: `${roleDoc.name} account created successfully`,
+            message: `${roleName} account created successfully`,
             user: userData
         });
     } catch (error) {
+        console.error('Error creating user:', error);
         res.status(500).json({ success: false, message: 'Error creating user' });
     }
 });
@@ -523,17 +601,36 @@ router.put('/users/:userId', verifyAdminOrSuperAdmin, async (req, res) => {
         let newRoleName = null;
 
         if (roleId && String(roleId) !== String(user.role)) {
-            const roleDoc = await Role.findById(roleId);
-            if (!roleDoc) return res.status(400).json({ success: false, message: 'Invalid role' });
-            user.role = roleId;
-            newRoleName = roleDoc.name.toLowerCase();
-            roleChanged = true;
+            if (roleId === 'hospitaladmin') {
+                user.role = 'hospitaladmin';
+                newRoleName = 'hospitaladmin';
+                roleChanged = true;
+            } else {
+                const roleDoc = await Role.findById(roleId);
+                if (!roleDoc) return res.status(400).json({ success: false, message: 'Invalid role' });
+                user.role = roleId;
+                newRoleName = roleDoc.name.toLowerCase();
+                roleChanged = true;
+            }
         } else if (user.role && !['centraladmin', 'superadmin', 'hospitaladmin'].includes(user.role)) {
             const roleDoc = await Role.findById(user.role);
             newRoleName = roleDoc ? roleDoc.name.toLowerCase() : null;
+        } else if (user.role === 'hospitaladmin') {
+            newRoleName = 'hospitaladmin';
         }
 
         await user.save();
+
+        // Sync hospital admin link if role is hospitaladmin
+        if (user.role === 'hospitaladmin' && user.hospitalId) {
+            const hospital = await Hospital.findById(user.hospitalId);
+            if (hospital && String(hospital.adminUserId) !== String(user._id)) {
+                hospital.adminUserId = user._id;
+                await hospital.save();
+                const { syncToTenant } = require('../utils/tenantSync');
+                await syncToTenant('Hospital', hospital, 'save', user.hospitalId);
+            }
+        }
 
         const { syncToTenant } = require('../utils/tenantSync');
         await syncToTenant('User', user, 'save', user.hospitalId);

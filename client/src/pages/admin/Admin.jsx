@@ -23,6 +23,7 @@ const Admin = () => {
     const [updating, setUpdating] = useState(false);
     const [resetPwModal, setResetPwModal] = useState(false);
     const [resetPwForm, setResetPwForm] = useState({ userId: '', userName: '', newPassword: '' });
+    const [resetPwError, setResetPwError] = useState('');
 
     const [deleteConfirm, setDeleteConfirm] = useState(null);
     const [searchQuery, setSearchQuery] = useState('');
@@ -30,7 +31,7 @@ const Admin = () => {
     // Create Staff Form state
     const [showCreateForm, setShowCreateForm] = useState(false);
     const [createForm, setCreateForm] = useState({
-        name: '', email: '', password: '', phone: '', roleId: '', file: null, department: '', hospitalId: ''
+        name: '', email: '', password: '', phone: '', roleId: isCentral ? 'hospitaladmin' : '', file: null, department: '', hospitalId: ''
     });
     const [creating, setCreating] = useState(false);
 
@@ -228,7 +229,7 @@ const Admin = () => {
             const response = await adminAPI.createUser(userData);
             if (response.success) {
                 setSuccess(`✅ ${response.user?.role || 'Staff'} account created! They can log in with: ${createForm.email}`);
-                setCreateForm({ name: '', email: '', password: '', phone: '', roleId: '', file: null, department: '', hospitalId: '' });
+                setCreateForm({ name: '', email: '', password: '', phone: '', roleId: isCentral ? 'hospitaladmin' : '', file: null, department: '', hospitalId: '' });
                 setShowCreateForm(false);
                 fetchUsers();
             }
@@ -263,6 +264,7 @@ const Admin = () => {
             newPassword: ''
         });
         setResetPwModal(true);
+        setResetPwError('');
         setError('');
         setSuccess('');
     };
@@ -270,6 +272,7 @@ const Admin = () => {
     const handleResetPassword = async (e) => {
         e.preventDefault();
         if (!resetPwForm.newPassword) return;
+        setResetPwError('');
         setError('');
         setSuccess('');
         try {
@@ -279,7 +282,7 @@ const Admin = () => {
                 setResetPwModal(false);
             }
         } catch (err) {
-            setError(err.response?.data?.message || 'Error resetting password');
+            setResetPwError(err.response?.data?.message || 'Error resetting password');
         }
     };
 
@@ -322,8 +325,8 @@ const Admin = () => {
                         >
                             ← Back to Dashboard
                         </button>
-                        <h1>Admin Dashboard</h1>
-                        <p>Manage staff accounts, roles, and permissions</p>
+                        <h1>{isCentral ? "Hospital Admins Dashboard" : "Admin Dashboard"}</h1>
+                        <p>{isCentral ? "Manage hospital administrator accounts" : "Manage staff accounts, roles, and permissions"}</p>
                     </div>
                     <div className="admin-user-info">
                         <span>Welcome, {user.name}</span>
@@ -338,19 +341,19 @@ const Admin = () => {
                 {/* CREATE STAFF ACCOUNT SECTION */}
                 <div className="admin-card" style={{ marginBottom: '20px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                        <h2>👤 Create Staff Account</h2>
+                        <h2>👤 {isCentral ? "Create Hospital Admin Account" : "Create Staff Account"}</h2>
                         <button
                             onClick={() => setShowCreateForm(!showCreateForm)}
                             className={showCreateForm ? 'btn-cancel' : 'btn-save'}
                             style={{ padding: '8px 20px', fontSize: '14px' }}
                         >
-                            {showCreateForm ? 'Cancel' : '+ New Staff'}
+                            {showCreateForm ? 'Cancel' : (isCentral ? '+ New Hospital Admin' : '+ New Staff')}
                         </button>
                     </div>
 
                     {!showCreateForm && (
                         <p style={{ color: '#888', fontSize: '14px', margin: 0 }}>
-                            Create login credentials for doctors, lab technicians, pharmacists, or any custom role.
+                            {isCentral ? "Create login credentials for hospital administrators." : "Create login credentials for doctors, lab technicians, pharmacists, or any custom role."}
                         </p>
                     )}
 
@@ -412,14 +415,33 @@ const Admin = () => {
                                         />
                                     </div>
                                     <div className="form-group">
-                                        <label className="staff-label">Assign Role * <span style={{ fontWeight: 400, color: '#94a3b8', fontSize: '0.85rem', textTransform: 'none' }}>(Don't see your role? <a href="/admin/roles" style={{ color: '#0ea5e9' }}>Create one here</a>)</span></label>
-                                        <select value={createForm.roleId} onChange={e => setCreateForm({ ...createForm, roleId: e.target.value })} required className="staff-input">
-                                            <option value="">-- Select a Role --</option>
-                                            {filteredRoles.map(role => (
-                                                <option key={role._id} value={role._id}>
-                                                    {role.name} {role.description ? `— ${role.description}` : ''}
-                                                </option>
-                                            ))}
+                                        <label className="staff-label">
+                                            Assign Role * 
+                                            {!isCentral && (
+                                                <span style={{ fontWeight: 400, color: '#94a3b8', fontSize: '0.85rem', textTransform: 'none' }}>
+                                                    (Don't see your role? <a href="/admin/roles" style={{ color: '#0ea5e9' }}>Create one here</a>)
+                                                </span>
+                                            )}
+                                        </label>
+                                        <select 
+                                            value={createForm.roleId} 
+                                            onChange={e => setCreateForm({ ...createForm, roleId: e.target.value })} 
+                                            required 
+                                            className="staff-input"
+                                            disabled={isCentral}
+                                        >
+                                            {isCentral ? (
+                                                <option value="hospitaladmin">Hospital Admin</option>
+                                            ) : (
+                                                <>
+                                                    <option value="">-- Select a Role --</option>
+                                                    {filteredRoles.map(role => (
+                                                        <option key={role._id} value={role._id}>
+                                                            {role.name} {role.description ? `— ${role.description}` : ''}
+                                                        </option>
+                                                    ))}
+                                                </>
+                                            )}
                                         </select>
                                     </div>
                                 </div>
@@ -443,8 +465,8 @@ const Admin = () => {
                                     </div>
                                 )}
 
-                            <button type="submit" disabled={creating} className="submit-button" style={{ marginTop: '20px' }}>
-                                {creating ? 'Creating Account...' : '✅ Create Staff Account'}
+                             <button type="submit" disabled={creating} className="submit-button" style={{ marginTop: '20px' }}>
+                                {creating ? 'Creating Account...' : (isCentral ? '✅ Create Hospital Admin Account' : '✅ Create Staff Account')}
                             </button>
                         </form>
                     )}
@@ -454,12 +476,12 @@ const Admin = () => {
                 <div className="admin-card">
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '12px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <h2 style={{ margin: 0 }}>All Staff & Users</h2>
+                            <h2 style={{ margin: 0 }}>{isCentral ? "Hospital Administrators" : "All Staff & Users"}</h2>
                             {searchQuery && <span style={{ fontSize: '0.78rem', color: '#64748b' }}>{users.filter(u => (u.name || '').toLowerCase().includes(searchQuery.toLowerCase())).length} of {users.length}</span>}
                         </div>
                         <input
                             type="text"
-                            placeholder="Search by name, email, role, or phone..."
+                            placeholder={isCentral ? "Search by name, email, or phone..." : "Search by name, email, role, or phone..."}
                             value={searchQuery}
                             onChange={e => setSearchQuery(e.target.value)}
                             style={{ padding: '8px 14px', borderRadius: '8px', border: '1.5px solid #e2e8f0', fontSize: '0.85rem', width: '280px', outline: 'none' }}
@@ -538,7 +560,7 @@ const Admin = () => {
                                                     </span>
                                                 </td>
                                                 <td>
-                                                    <div className="action-buttons" style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                                                    <div className="action-buttons" style={{ display: 'flex', gap: '6px', whiteSpace: 'nowrap' }}>
                                                         {canModify && (
                                                             <>
                                                                 <button onClick={() => openEditModal(userItem)} className="btn-edit" style={{ padding: '6px 12px', fontSize: '12px' }}>Edit</button>
@@ -564,7 +586,9 @@ const Admin = () => {
                                                                 }}>
                                                                     Reset Pw
                                                                 </button>
-                                                                <button onClick={() => setDeleteConfirm(userItem.id || userItem._id)} className="btn-delete" style={{ padding: '6px 12px', fontSize: '12px' }}>Delete</button>
+                                                                 {userItem.isActive === false && (
+                                                                     <button onClick={() => setDeleteConfirm(userItem.id || userItem._id)} className="btn-delete" style={{ padding: '6px 12px', fontSize: '12px' }}>Delete</button>
+                                                                 )}
                                                             </>
                                                         )}
                                                     </div>
@@ -618,10 +642,20 @@ const Admin = () => {
                                     </div>
                                     <div className="form-group">
                                         <label className="staff-label">Role</label>
-                                        <select value={editForm.roleId} onChange={e => setEditForm({ ...editForm, roleId: e.target.value })} required className="staff-input">
-                                            {roles.filter(r => !['patient', 'user'].includes(r.name.toLowerCase())).map(role => (
-                                                <option key={role._id} value={role._id}>{role.name}</option>
-                                            ))}
+                                        <select 
+                                            value={editForm.roleId} 
+                                            onChange={e => setEditForm({ ...editForm, roleId: e.target.value })} 
+                                            required 
+                                            className="staff-input"
+                                            disabled={isCentral}
+                                        >
+                                            {isCentral ? (
+                                                <option value="hospitaladmin">Hospital Admin</option>
+                                            ) : (
+                                                roles.filter(r => !['patient', 'user'].includes(r.name.toLowerCase())).map(role => (
+                                                    <option key={role._id} value={role._id}>{role.name}</option>
+                                                ))
+                                            )}
                                         </select>
                                     </div>
                                 </div>
@@ -676,6 +710,11 @@ const Admin = () => {
                     <div className="modal-overlay">
                         <div className="modal-content" style={{ maxWidth: '400px' }}>
                             <h3>Reset Password for {resetPwForm.userName}</h3>
+                            {resetPwError && (
+                                <div className="error-message" style={{ padding: '12px 16px', fontSize: '14px', marginBottom: '16px', borderRadius: '8px' }}>
+                                    {resetPwError}
+                                </div>
+                            )}
                             <form onSubmit={handleResetPassword}>
                                 <div className="form-group" style={{ marginBottom: '16px' }}>
                                     <label className="staff-label">New Password</label>
@@ -691,7 +730,7 @@ const Admin = () => {
                                 </div>
                                 <div className="modal-buttons">
                                     <button type="submit" className="btn-save">Reset Password</button>
-                                    <button type="button" onClick={() => setResetPwModal(false)} className="btn-cancel">Cancel</button>
+                                    <button type="button" onClick={() => { setResetPwModal(false); setResetPwError(''); }} className="btn-cancel">Cancel</button>
                                 </div>
                             </form>
                         </div>

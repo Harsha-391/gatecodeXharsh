@@ -50,7 +50,7 @@ const AdminDoctors = () => {
         specialty: '',
         experience: '',
         education: '',
-        services: [],
+        services: '',
         availability: defaultAvailability,
         successRate: '90%',
         patientsCount: '100+',
@@ -69,7 +69,7 @@ const AdminDoctors = () => {
         personalEmail: '',
         medicalLicense: '',
         specialization: '',
-        qualification: [],
+        qualification: '',
         experienceYears: 0,
         joiningDate: '',
         employmentType: 'Full-time',
@@ -92,20 +92,6 @@ const AdminDoctors = () => {
     const [infoError, setInfoError] = useState('');
     const [infoSuccess, setInfoSuccess] = useState('');
     const [isInfoEditMode, setIsInfoEditMode] = useState(false);
-
-    const availableServices = [
-        { id: 'ivf', name: 'In Vitro Fertilization (IVF)' },
-        { id: 'iui', name: 'Intrauterine Insemination (IUI)' },
-        { id: 'icsi', name: 'Intracytoplasmic Sperm Injection' },
-        { id: 'egg-freezing', name: 'Egg Freezing & Preservation' },
-        { id: 'genetic-testing', name: 'Genetic Testing & Screening' },
-        { id: 'donor-program', name: 'Egg & Sperm Donor Program' },
-        { id: 'male-fertility', name: 'Male Fertility Treatment' },
-        { id: 'surrogacy', name: 'Surrogacy Services' },
-        { id: 'fertility-surgery', name: 'Fertility Surgery' }
-    ];
-
-    const availableQualifications = ['MBBS', 'MD', 'MS', 'DGO', 'DM', 'MCh', 'FRCS', 'PhD'];
 
     const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 
@@ -130,6 +116,9 @@ const AdminDoctors = () => {
         let val = value;
         if (name === 'phone') {
             val = val.replace(/\D/g, '').slice(0, 10);
+        }
+        if (name === 'nationalId') {
+            val = val.replace(/\D/g, '').slice(0, 12);
         }
         setFormData({ ...formData, [name]: val });
         setError('');
@@ -178,6 +167,7 @@ const AdminDoctors = () => {
         } else if (!qual && doctor.education) {
             qual = doctor.education.split(',').map(q => q.trim()).filter(Boolean);
         }
+        const qualString = Array.isArray(qual) ? qual.join(', ') : '';
 
         setInfoFormData({
             firstName: fName,
@@ -188,7 +178,7 @@ const AdminDoctors = () => {
             nationalId: doctor.nationalId || '',
             medicalLicense: doctor.medicalLicense || '',
             specialization: doctor.specialization || doctor.specialty || '',
-            qualification: qual,
+            qualification: qualString,
             experienceYears: doctor.experienceYears !== undefined ? doctor.experienceYears : (parseInt(doctor.experience, 10) || 0),
             personalEmail: doctor.personalEmail || '',
             phone: doctor.phone || '',
@@ -217,6 +207,9 @@ const AdminDoctors = () => {
         if (name === 'phone') {
             val = val.replace(/\D/g, '').slice(0, 10);
         }
+        if (name === 'nationalId') {
+            val = val.replace(/\D/g, '').slice(0, 12);
+        }
         setInfoFormData(prev => ({ ...prev, [name]: val }));
     };
 
@@ -235,10 +228,7 @@ const AdminDoctors = () => {
         }));
     };
 
-    const handleInfoQualificationChange = (e) => {
-        const selectedQuals = Array.from(e.target.selectedOptions, option => option.value);
-        setInfoFormData(prev => ({ ...prev, qualification: selectedQuals }));
-    };
+
 
     const handleInfoPhotoUpload = async (e) => {
         const file = e.target.files[0];
@@ -281,6 +271,11 @@ const AdminDoctors = () => {
             setInfoLoading(false);
             return;
         }
+        if (infoFormData.nationalId && !/^\d{12}$/.test(infoFormData.nationalId)) {
+            setInfoError('National ID / Aadhaar must be exactly 12 digits');
+            setInfoLoading(false);
+            return;
+        }
         if (infoFormData.emergencyContact?.phone && !/^\d{10}$/.test(infoFormData.emergencyContact.phone)) {
             setInfoError('Emergency contact phone number must be exactly 10 digits');
             setInfoLoading(false);
@@ -304,12 +299,17 @@ const AdminDoctors = () => {
             return;
         }
 
+        const qualArray = typeof infoFormData.qualification === 'string'
+            ? infoFormData.qualification.split(',').map(q => q.trim()).filter(Boolean)
+            : (Array.isArray(infoFormData.qualification) ? infoFormData.qualification : []);
+
         const updateData = {
             ...infoFormData,
             name: computedName,
             specialty: infoFormData.specialization || '',
             experience: `${infoFormData.experienceYears} Years`,
-            education: infoFormData.qualification ? infoFormData.qualification.join(', ') : ''
+            qualification: qualArray,
+            education: qualArray.join(', ')
         };
 
         try {
@@ -355,6 +355,7 @@ const AdminDoctors = () => {
                 } else if (!qual && updatedDoctor.education) {
                     qual = updatedDoctor.education.split(',').map(q => q.trim()).filter(Boolean);
                 }
+                const qualString = Array.isArray(qual) ? qual.join(', ') : '';
 
                 setInfoFormData({
                     firstName: fName,
@@ -365,7 +366,7 @@ const AdminDoctors = () => {
                     nationalId: updatedDoctor.nationalId || '',
                     medicalLicense: updatedDoctor.medicalLicense || '',
                     specialization: updatedDoctor.specialization || updatedDoctor.specialty || '',
-                    qualification: qual,
+                    qualification: qualString,
                     experienceYears: updatedDoctor.experienceYears !== undefined ? updatedDoctor.experienceYears : (parseInt(updatedDoctor.experience, 10) || 0),
                     personalEmail: updatedDoctor.personalEmail || '',
                     phone: updatedDoctor.phone || '',
@@ -416,10 +417,7 @@ const AdminDoctors = () => {
         }));
     };
 
-    const handleQualificationChange = (e) => {
-        const selectedQuals = Array.from(e.target.selectedOptions, option => option.value);
-        setFormData(prev => ({ ...prev, qualification: selectedQuals }));
-    };
+
 
     const handlePhotoUpload = async (e) => {
         const file = e.target.files[0];
@@ -450,10 +448,7 @@ const AdminDoctors = () => {
         }
     };
 
-    const handleServiceChange = (e) => {
-        const selectedServices = Array.from(e.target.selectedOptions, option => option.value);
-        setFormData({ ...formData, services: selectedServices });
-    };
+
 
     const handleAvailabilityChange = (day, field, value) => {
         setFormData(prev => ({
@@ -487,6 +482,11 @@ const AdminDoctors = () => {
             setLoading(false);
             return;
         }
+        if (formData.nationalId && !/^\d{12}$/.test(formData.nationalId)) {
+            setError('National ID / Aadhaar must be exactly 12 digits');
+            setLoading(false);
+            return;
+        }
         if (formData.emergencyContact?.phone && !/^\d{10}$/.test(formData.emergencyContact.phone)) {
             setError('Emergency contact phone number must be exactly 10 digits');
             setLoading(false);
@@ -503,12 +503,22 @@ const AdminDoctors = () => {
             return;
         }
 
+        const qualArray = typeof formData.qualification === 'string'
+            ? formData.qualification.split(',').map(q => q.trim()).filter(Boolean)
+            : (Array.isArray(formData.qualification) ? formData.qualification : []);
+
+        const servicesArray = typeof formData.services === 'string'
+            ? formData.services.split(',').map(s => s.trim()).filter(Boolean)
+            : (Array.isArray(formData.services) ? formData.services : []);
+
         const doctorData = {
             ...formData,
             name: computedName,
             specialty: formData.specialization || formData.specialty || '',
             experience: formData.experienceYears !== undefined ? `${formData.experienceYears} Years` : (formData.experience || ''),
-            education: formData.qualification && formData.qualification.length > 0 ? formData.qualification.join(', ') : (formData.education || ''),
+            qualification: qualArray,
+            education: qualArray.join(', '),
+            services: servicesArray,
             consultationFee: formData.consultationFee ? Number(formData.consultationFee) : 0
         };
 
@@ -528,8 +538,8 @@ const AdminDoctors = () => {
                     setLoading(false);
                     return;
                 }
-                if (!formData.services || formData.services.length === 0) {
-                    setError('Please select at least one service');
+                if (!formData.services || (typeof formData.services === 'string' && !formData.services.trim())) {
+                    setError('Please enter at least one service');
                     setLoading(false);
                     return;
                 }
@@ -598,6 +608,10 @@ const AdminDoctors = () => {
         } else if (!qual && doctor.education) {
             qual = doctor.education.split(',').map(q => q.trim()).filter(Boolean);
         }
+        const qualString = Array.isArray(qual) ? qual.join(', ') : '';
+
+        const doctorServices = doctor.services || [];
+        const servicesString = Array.isArray(doctorServices) ? doctorServices.join(', ') : '';
 
         setFormData({
             name: doctor.name || doctor.userId?.name || '',
@@ -607,7 +621,7 @@ const AdminDoctors = () => {
             specialty: doctor.specialty || '',
             experience: doctor.experience || '',
             education: doctor.education || '',
-            services: doctor.services || [],
+            services: servicesString,
             availability: mergedAvailability,
             successRate: doctor.successRate || '90%',
             patientsCount: doctor.patientsCount || '100+',
@@ -624,7 +638,7 @@ const AdminDoctors = () => {
             nationalId: doctor.nationalId || '',
             medicalLicense: doctor.medicalLicense || '',
             specialization: doctor.specialization || doctor.specialty || '',
-            qualification: qual,
+            qualification: qualString,
             experienceYears: doctor.experienceYears !== undefined ? doctor.experienceYears : (parseInt(doctor.experience, 10) || 0),
             personalEmail: doctor.personalEmail || '',
             currentAddress: doctor.currentAddress || '',
@@ -847,7 +861,7 @@ const AdminDoctors = () => {
                                             </div>
                                             <div className="form-group">
                                                 <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569', marginBottom: '6px', display: 'block' }}>National ID / Aadhaar *</label>
-                                                <input type="text" name="nationalId" value={formData.nationalId} onChange={handleChange} required style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '14px' }} />
+                                                <input type="text" name="nationalId" value={formData.nationalId} onChange={handleChange} required maxLength={12} style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '14px' }} />
                                             </div>
                                             <div className="form-group">
                                                 <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569', marginBottom: '6px', display: 'block' }}>Personal Email *</label>
@@ -920,22 +934,30 @@ const AdminDoctors = () => {
 
                                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(1, 1fr)', gap: '16px', marginTop: '14px' }}>
                                             <div className="form-group">
-                                                <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569', marginBottom: '6px', display: 'block' }}>Qualifications *</label>
-                                                <select name="qualification" multiple value={formData.qualification} onChange={handleQualificationChange} required style={{ width: '100%', height: '90px', padding: '6px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px' }}>
-                                                    {availableQualifications.map(q => (
-                                                        <option key={q} value={q}>{q}</option>
-                                                    ))}
-                                                </select>
+                                                <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569', marginBottom: '6px', display: 'block' }}>Qualifications (comma separated) *</label>
+                                                <input 
+                                                    type="text" 
+                                                    name="qualification" 
+                                                    value={formData.qualification} 
+                                                    onChange={handleChange} 
+                                                    placeholder="e.g. MBBS, MD, DM" 
+                                                    required 
+                                                    style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '14px' }} 
+                                                />
                                             </div>
                                         </div>
 
                                         <div className="form-group" style={{ marginTop: '14px' }}>
-                                            <label htmlFor="services" style={{ fontSize: '12px', fontWeight: '600', color: '#475569', marginBottom: '6px', display: 'block' }}>Services (Hold Ctrl/Cmd to select multiple) *</label>
-                                            <select name="services" multiple value={formData.services} onChange={handleServiceChange} required style={{ width: '100%', height: '110px', padding: '6px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px' }}>
-                                                {availableServices.map(service => (
-                                                    <option key={service.id} value={service.id}>{service.name}</option>
-                                                ))}
-                                            </select>
+                                            <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569', marginBottom: '6px', display: 'block' }}>Services (comma separated) *</label>
+                                            <input 
+                                                type="text" 
+                                                name="services" 
+                                                value={formData.services} 
+                                                onChange={handleChange} 
+                                                placeholder="e.g. IVF, IUI, ICSI" 
+                                                required 
+                                                style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '14px' }} 
+                                            />
                                         </div>
                                     </div>
 
@@ -1268,8 +1290,11 @@ const AdminDoctors = () => {
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '13px' }}>
                                                     <span style={{ color: '#64748b' }}>Qualifications:</span>
                                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '2px' }}>
-                                                        {infoFormData.qualification && infoFormData.qualification.length > 0 ? (
-                                                            infoFormData.qualification.map(q => (
+                                                        {infoFormData.qualification ? (
+                                                            (typeof infoFormData.qualification === 'string'
+                                                                ? infoFormData.qualification.split(',').map(q => q.trim()).filter(Boolean)
+                                                                : (Array.isArray(infoFormData.qualification) ? infoFormData.qualification : [])
+                                                            ).map(q => (
                                                                 <span key={q} style={{ background: '#f1f5f9', color: '#334155', fontSize: '11px', fontWeight: '600', padding: '1px 6px', borderRadius: '4px', border: '1px solid #e2e8f0' }}>{q}</span>
                                                             ))
                                                         ) : (
@@ -1378,7 +1403,7 @@ const AdminDoctors = () => {
                                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginTop: '14px' }}>
                                             <div className="form-group">
                                                 <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569', marginBottom: '6px', display: 'block' }}>National ID / Aadhaar / Passport *</label>
-                                                <input type="text" name="nationalId" value={infoFormData.nationalId} onChange={handleInfoChange} required style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '14px' }} />
+                                                <input type="text" name="nationalId" value={infoFormData.nationalId} onChange={handleInfoChange} required maxLength={12} style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '14px' }} />
                                             </div>
                                             <div className="form-group">
                                                 <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569', marginBottom: '6px', display: 'block' }}>Phone Number *</label>
@@ -1455,12 +1480,16 @@ const AdminDoctors = () => {
 
                                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(1, 1fr)', gap: '16px', marginTop: '14px' }}>
                                             <div className="form-group">
-                                                <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569', marginBottom: '6px', display: 'block' }}>Qualifications *</label>
-                                                <select name="qualification" multiple value={infoFormData.qualification} onChange={handleInfoQualificationChange} required style={{ width: '100%', height: '90px', padding: '6px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px' }}>
-                                                    {availableQualifications.map(q => (
-                                                        <option key={q} value={q}>{q}</option>
-                                                    ))}
-                                                </select>
+                                                <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569', marginBottom: '6px', display: 'block' }}>Qualifications (comma separated) *</label>
+                                                <input 
+                                                    type="text" 
+                                                    name="qualification" 
+                                                    value={infoFormData.qualification} 
+                                                    onChange={handleInfoChange} 
+                                                    placeholder="e.g. MBBS, MD, DM" 
+                                                    required 
+                                                    style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '14px' }} 
+                                                />
                                             </div>
                                         </div>
                                     </div>

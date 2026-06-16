@@ -31,6 +31,10 @@ const AdminTestPackages = () => {
         name: '', code: '', description: '', price: '', category: 'General', isActive: true
     });
 
+    // === USER ROLE ===
+    const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+    const isCentralAdmin = currentUser?.role === 'centraladmin' || currentUser?.role === 'superadmin';
+
     // === FETCH DATA ===
     useEffect(() => {
         fetchAll();
@@ -163,7 +167,7 @@ const AdminTestPackages = () => {
             price: pkg.price || '',
             discountedPrice: pkg.discountedPrice || '',
             category: pkg.category || 'General',
-            isActive: pkg.isActive
+            isActive: pkg.isActive !== false
         });
         setEditingPackageId(pkg._id);
         setShowPackageForm(true);
@@ -232,7 +236,7 @@ const AdminTestPackages = () => {
             description: test.description || '',
             price: test.price || '',
             category: test.category || 'General',
-            isActive: test.isActive
+            isActive: test.isActive !== false
         });
         setEditingTestId(test._id);
         setShowTestForm(true);
@@ -537,8 +541,8 @@ const AdminTestPackages = () => {
                                                     <h3>{pkg.name}</h3>
                                                     {pkg.code && <div className="package-code">{pkg.code}</div>}
                                                 </div>
-                                                <span className={`package-status ${pkg.isActive ? 'active' : 'inactive'}`}>
-                                                    {pkg.isActive ? 'Active' : 'Hidden'}
+                                                <span className={`package-status ${pkg.isActive !== false ? 'active' : 'inactive'}`}>
+                                                    {pkg.isActive !== false ? 'Active' : 'Hidden'}
                                                 </span>
                                             </div>
 
@@ -634,10 +638,10 @@ const AdminTestPackages = () => {
                                                     <td>
                                                         <span style={{
                                                             padding: '4px 10px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 700,
-                                                            backgroundColor: test.isActive ? '#dcfce7' : '#f1f5f9',
-                                                            color: test.isActive ? '#166534' : '#64748b'
+                                                            backgroundColor: test.isActive !== false ? '#dcfce7' : '#f1f5f9',
+                                                            color: test.isActive !== false ? '#166534' : '#64748b'
                                                         }}>
-                                                            {test.isActive ? 'Active' : 'Hidden'}
+                                                            {test.isActive !== false ? 'Active' : 'Hidden'}
                                                         </span>
                                                     </td>
                                                     <td>

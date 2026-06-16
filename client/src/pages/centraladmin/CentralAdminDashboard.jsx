@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { adminAPI, uploadAPI, hospitalAPI, hospitalAdminAPI, questionLibraryAPI, simpleClinicAPI, revenueAPI } from '../../utils/api';
 import HospitalBrandingEditor from '../../components/HospitalBrandingEditor';
+import { sanitizeBranding } from '../../context/BrandingContext';
 import UserPermissionManager from './UserPermissionManager';
 import '../administration/SuperAdmin.css';
 import './CentralAdminDashboard.css';
@@ -1198,8 +1199,8 @@ const CentralAdminDashboard = () => {
                                         <div key={h._id} className={`hospital-card clickable-card ${!h.isActive ? 'hospital-inactive' : ''}`} onClick={() => openHospitalDetail(h)}>
                                             <div className="hospital-card-header">
                                                 <div className="hospital-icon">
-                                                    {h.branding?.logoUrl
-                                                        ? <img src={h.branding.logoUrl} alt={h.name} style={{ width: 40, height: 40, objectFit: 'contain', borderRadius: 6 }} />
+                                                    {sanitizeBranding(h.branding).logoUrl
+                                                        ? <img src={sanitizeBranding(h.branding).logoUrl} alt={h.name} style={{ width: 40, height: 40, objectFit: 'contain', borderRadius: 6 }} />
                                                         : <span>🏥</span>
                                                     }
                                                 </div>

@@ -104,7 +104,7 @@ const AdminLabTests = () => {
             description: test.description || '',
             price: test.price || '',
             category: test.category || 'General',
-            isActive: test.isActive
+            isActive: test.isActive !== false
         });
         setEditingId(test._id);
         setShowForm(true);
@@ -328,10 +328,10 @@ const AdminLabTests = () => {
                                                     <td>
                                                         <span style={{
                                                             padding: '4px 8px', borderRadius: '12px', fontSize: '12px', fontWeight: 600,
-                                                            backgroundColor: test.isActive ? '#dcfce7' : '#f1f5f9',
-                                                            color: test.isActive ? '#166534' : '#64748b'
+                                                            backgroundColor: test.isActive !== false ? '#dcfce7' : '#f1f5f9',
+                                                            color: test.isActive !== false ? '#166534' : '#64748b'
                                                         }}>
-                                                            {test.isActive ? 'Active' : 'Hidden'}
+                                                            {test.isActive !== false ? 'Active' : 'Hidden'}
                                                         </span>
                                                     </td>
                                                     <td>

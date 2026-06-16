@@ -382,3 +382,223 @@
     transform: translateY(0);
   }
 }
+
+/* ─── Welcome Card Overlay ───────────────────────────────────── */
+@keyframes wc-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes wc-fade-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+@keyframes wc-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes wc-card-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-16px) scale(0.97);
+  }
+}
+@keyframes wc-progress {
+  from { width: 100%; }
+  to   { width: 0%; }
+}
+
+/* Backdrop overlay */
+.wc-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9990;
+  background: rgba(15, 23, 42, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.wc-overlay--in  { animation: wc-fade-in  0.3s ease forwards; }
+.wc-overlay--out { animation: wc-fade-out 0.38s ease forwards; }
+
+/* Card */
+.wc-card {
+  background: #ffffff;
+  border-radius: 20px;
+  width: 100%;
+  max-width: 400px;
+  box-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.14),
+    0 4px 16px rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+  position: relative;
+}
+
+.wc-card--in  { animation: wc-card-in  0.38s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+.wc-card--out { animation: wc-card-out 0.32s cubic-bezier(0.4, 0, 1, 1)    forwards; }
+
+/* Teal accent bar at top */
+.wc-accent-bar {
+  height: 5px;
+  background: linear-gradient(90deg, #1e847f, #0ea5e9);
+  width: 100%;
+}
+
+/* Header: avatar + name */
+.wc-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 24px 24px 0 24px;
+}
+
+.wc-avatar {
+  width: 58px;
+  height: 58px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #1e847f, #0ea5e9);
+  color: #fff;
+  font-size: 1.25rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  box-shadow: 0 4px 14px rgba(30, 132, 127, 0.3);
+}
+
+.wc-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.wc-header-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.wc-role-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #f0fdf9;
+  color: #1e847f;
+  border: 1px solid #d1fae5;
+  border-radius: 20px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: capitalize;
+  padding: 3px 10px;
+  margin-bottom: 6px;
+  letter-spacing: 0.02em;
+}
+
+.wc-name {
+  margin: 0 0 2px 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wc-email {
+  margin: 0;
+  font-size: 0.775rem;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Divider */
+.wc-divider {
+  height: 1px;
+  background: #f1f5f9;
+  margin: 20px 24px;
+}
+
+/* Body: greeting + message */
+.wc-body {
+  padding: 0 24px;
+}
+
+.wc-greeting {
+  margin: 0 0 6px 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.wc-message {
+  margin: 0;
+  font-size: 0.86rem;
+  color: #64748b;
+  line-height: 1.6;
+}
+
+/* Footer: CTA + auto-close note */
+.wc-footer {
+  padding: 20px 24px 24px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.wc-btn-start {
+  background: #1e847f;
+  color: #ffffff;
+  border: none;
+  border-radius: 10px;
+  padding: 10px 22px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.15s;
+  white-space: nowrap;
+}
+
+.wc-btn-start:hover {
+  background: #166e6a;
+  transform: translateY(-1px);
+}
+
+.wc-btn-start:active {
+  transform: translateY(0);
+}
+
+.wc-auto-close {
+  margin: 0;
+  font-size: 0.73rem;
+  color: #94a3b8;
+  text-align: right;
+  line-height: 1.4;
+}
+
+/* Progress bar at bottom */
+.wc-progress-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  width: 100%;
+  background: linear-gradient(90deg, #1e847f, #0ea5e9);
+  animation: wc-progress 7s linear forwards;
+  border-radius: 0;
+}
+

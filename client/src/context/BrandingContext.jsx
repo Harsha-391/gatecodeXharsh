@@ -33,6 +33,24 @@ const DEFAULT_BRANDING = {
     footerText: '',
 };
 
+export const sanitizeBranding = (config) => {
+    if (!config) {
+        return {
+            ...DEFAULT_BRANDING,
+            logoUrl: '/logo.png',
+            faviconUrl: '/logo.png'
+        };
+    }
+    const clean = { ...config };
+    if (!clean.logoUrl || typeof clean.logoUrl !== 'string' || clean.logoUrl.trim() === '' || clean.logoUrl.includes('medicalhms.in')) {
+        clean.logoUrl = '/logo.png';
+    }
+    if (!clean.faviconUrl || typeof clean.faviconUrl !== 'string' || clean.faviconUrl.trim() === '' || clean.faviconUrl.includes('medicalhms.in')) {
+        clean.faviconUrl = '/logo.png';
+    }
+    return clean;
+};
+
 const BrandingContext = createContext({
     branding: DEFAULT_BRANDING,
     hospitalName: 'Medical HMS',
@@ -128,7 +146,7 @@ export const BrandingProvider = ({ children }) => {
     const [branding, setBranding] = useState(() => {
         try {
             const saved = localStorage.getItem('hospitalBranding');
-            return saved ? JSON.parse(saved) : DEFAULT_BRANDING;
+            return saved ? sanitizeBranding(JSON.parse(saved)) : DEFAULT_BRANDING;
         } catch { return DEFAULT_BRANDING; }
     });
 
@@ -145,7 +163,7 @@ export const BrandingProvider = ({ children }) => {
         try {
             const res = await hospitalAPI.getBranding(hId);
             if (res.success) {
-                const merged = { ...DEFAULT_BRANDING, ...res.branding };
+                const merged = sanitizeBranding({ ...DEFAULT_BRANDING, ...res.branding });
                 setBranding(merged);
                 setHospitalName(res.hospitalName || 'Medical HMS');
                 setHospitalId(hId);
@@ -189,7 +207,7 @@ export const BrandingProvider = ({ children }) => {
                 try {
                     const res = await publicAPI.getTenantConfig(domain);
                     if (res.success && res.tenant) {
-                        const merged = { ...DEFAULT_BRANDING, ...res.tenant.branding };
+                        const merged = sanitizeBranding({ ...DEFAULT_BRANDING, ...res.tenant.branding });
                         setBranding(merged);
                         setHospitalName(res.tenant.name || 'Medical HMS');
                         setHospitalId(res.tenant.id);
@@ -207,7 +225,7 @@ export const BrandingProvider = ({ children }) => {
                 const saved = localStorage.getItem('hospitalBranding');
                 if (saved) {
                     try {
-                        const b = JSON.parse(saved);
+                        const b = sanitizeBranding(JSON.parse(saved));
                         applyBrandingToCSS(b);
                         setIsCustomBranded(true);
                     } catch { /* ignore */ }

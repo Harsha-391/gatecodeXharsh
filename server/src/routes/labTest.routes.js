@@ -6,7 +6,8 @@ const { verifyToken, verifyAdminOrSuperAdmin } = require('../middleware/auth.mid
 // 1. GET ALL LAB TESTS (Accessible to any authenticated staff: Admin, Doctor, Lab Tech, etc.)
 router.get('/', verifyToken, async (req, res) => {
     try {
-        const isAdmin = ['superadmin', 'admin', 'centraladmin', 'hospitaladmin'].includes(req.user.role);
+        const roleStr = req.user._roleData?.name?.toLowerCase() || req.user.role?.toString()?.toLowerCase();
+        const isAdmin = ['superadmin', 'admin', 'centraladmin', 'hospitaladmin'].includes(roleStr);
         const hospitalId = req.query.hospitalId || (req.user.hospitalId ? req.user.hospitalId.toString() : null);
 
         // Build query: always include global tests; also include hospital-specific tests if hospitalId is known
@@ -18,7 +19,7 @@ router.get('/', verifyToken, async (req, res) => {
         }
 
         // Non-admins only see active tests
-        if (!isAdmin) query.isActive = true;
+        if (!isAdmin) query.isActive = { $ne: false };
 
         const labTests = await LabTest.find(query).sort({ name: 1 }).lean();
 
@@ -85,7 +86,7 @@ router.put('/:id', verifyAdminOrSuperAdmin, async (req, res) => {
         if (!isCentral) {
             const testHid = test.hospitalId ? test.hospitalId.toString() : null;
             const userHid = req.user.hospitalId ? req.user.hospitalId.toString() : null;
-            if (testHid !== userHid) {
+            if (testHid !== null && testHid !== userHid) {
                 return res.status(403).json({ success: false, message: 'You can only edit tests created by your hospital' });
             }
         }
@@ -147,7 +148,7 @@ router.delete('/:id', verifyAdminOrSuperAdmin, async (req, res) => {
         if (!isCentral) {
             const testHid = test.hospitalId ? test.hospitalId.toString() : null;
             const userHid = req.user.hospitalId ? req.user.hospitalId.toString() : null;
-            if (testHid !== userHid) {
+            if (testHid !== null && testHid !== userHid) {
                 return res.status(403).json({ success: false, message: 'You can only delete tests created by your hospital' });
             }
         }

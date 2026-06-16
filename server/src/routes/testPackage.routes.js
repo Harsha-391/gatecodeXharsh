@@ -7,9 +7,10 @@ const { verifyToken, verifyAdminOrSuperAdmin } = require('../middleware/auth.mid
 router.get('/', verifyToken, async (req, res) => {
     try {
         const query = {};
-        // If not admin, only show active packages
-        if (req.user.role !== 'superadmin' && req.user.role !== 'admin') {
-            query.isActive = true;
+        const roleStr = req.user._roleData?.name?.toLowerCase() || req.user.role?.toString()?.toLowerCase();
+        const isAdmin = ['superadmin', 'admin', 'centraladmin', 'hospitaladmin'].includes(roleStr);
+        if (!isAdmin) {
+            query.isActive = { $ne: false };
         }
 
         const packages = await TestPackage.find(query)

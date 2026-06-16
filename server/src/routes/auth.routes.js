@@ -48,7 +48,8 @@ async function buildUserResponse(user) {
     hospitalId: user.hospitalId || null,
     permissions: roleData ? roleData.permissions : [],
     dashboardPath: roleData ? roleData.dashboardPath : '/',
-    navLinks: roleData ? roleData.navLinks : []
+    navLinks: roleData ? roleData.navLinks : [],
+    isActive: user.isActive !== false
   };
 }
 
@@ -204,7 +205,7 @@ router.post('/login', loginLimiter, async (req, res) => {
 
 
     // Dynamic validation: user must have a valid role assigned
-    if (!user.role) {
+    if (!user.role && !user.patientId) {
       return res.status(403).json({ success: false, message: 'No role assigned. Contact admin.' });
     }
 
@@ -218,7 +219,7 @@ router.post('/login', loginLimiter, async (req, res) => {
           navLinks: [],
           isSystemRole: true
       };
-    } else {
+    } else if (user.role) {
       if (mongoose.Types.ObjectId.isValid(user.role)) {
         roleData = await Role.findById(user.role);
       }
@@ -234,6 +235,31 @@ router.post('/login', loginLimiter, async (req, res) => {
         }
       }
     }
+
+    // If role is missing/invalid but it's a patient, self-heal by finding/creating the Patient role
+    if (!roleData && user.patientId) {
+      let defaultRole = await Role.findOne({ name: { $in: ['Patient', 'patient'] } });
+      if (!defaultRole) {
+        defaultRole = await Role.create({
+          name: 'Patient',
+          description: 'Default patient role',
+          permissions: ['patient_view'],
+          dashboardPath: '/dashboard',
+          navLinks: [
+            { label: 'Services', path: '/services' },
+            { label: 'Doctors', path: '/doctors' },
+            { label: 'Appointment', path: '/appointment' },
+            { label: 'Lab Reports', path: '/lab-reports' },
+            { label: 'Dashboard', path: '/dashboard' }
+          ],
+          isSystemRole: true
+        });
+      }
+      user.role = defaultRole._id;
+      await user.save();
+      roleData = defaultRole;
+    }
+
     if (!roleData) {
       return res.status(403).json({ success: false, message: 'Your assigned role no longer exists. Contact admin.' });
     }
@@ -522,8 +548,9 @@ router.put('/change-password', verifyToken, async (req, res) => {
     if (!currentPassword || !newPassword) {
       return res.status(400).json({ success: false, message: 'Both currentPassword and newPassword are required' });
     }
-    if (newPassword.length < 6) {
-      return res.status(400).json({ success: false, message: 'New password must be at least 6 characters' });
+    const pwErr = validatePassword(newPassword);
+    if (pwErr) {
+      return res.status(400).json({ success: false, message: pwErr });
     }
 
     const user = await User.findById(req.user._id).select('+password');
@@ -535,8 +562,7 @@ router.put('/change-password', verifyToken, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Current password is incorrect' });
     }
 
-    const salt = await bcrypt.genSalt(10);
-    user.password = await bcrypt.hash(newPassword, salt);
+    user.password = newPassword;
     await user.save();
 
     res.json({ success: true, message: 'Password changed successfully' });

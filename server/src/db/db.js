@@ -40,6 +40,9 @@ async function connectDB() {
         await mongoose.connect(mongoUrl, options);
         console.log('✅ Connected to MongoDB successfully');
 
+        // Self-heal hospital adminUserId links
+        await healHospitalAdmins();
+
         // Handle connection events
         mongoose.connection.on('error', (err) => {
             console.error('❌ MongoDB connection error:', err.message);
@@ -100,6 +103,64 @@ async function connectDB() {
         
         // Don't exit the process, let the server start but log the error
         // The server can retry connection on next request
+    }
+}
+
+async function healHospitalAdmins() {
+    try {
+        const Hospital = require('../models/hospital.model');
+        const User = require('../models/user.model');
+        const Role = require('../models/role.model');
+
+        console.log('🔄 Running self-healing logic for hospital administrators...');
+        const hospitals = await Hospital.find({});
+        for (const hospital of hospitals) {
+            let validAdminExists = false;
+            if (hospital.adminUserId) {
+                const user = await User.findById(hospital.adminUserId);
+                if (user && String(user.hospitalId) === String(hospital._id)) {
+                    validAdminExists = true;
+                }
+            }
+
+            if (!validAdminExists) {
+                // Find users belonging to this hospital
+                const users = await User.find({ hospitalId: hospital._id });
+                let foundAdmin = null;
+
+                for (const user of users) {
+                    let isAdmin = false;
+                    const role = String(user.role || '');
+
+                    if (role === 'hospitaladmin' || role === 'admin' || role === 'administrator') {
+                        isAdmin = true;
+                    } else if (mongoose.Types.ObjectId.isValid(user.role)) {
+                        const roleDoc = await Role.findById(user.role);
+                        if (roleDoc && ['admin', 'administrator', 'hospitaladmin'].includes(roleDoc.name.toLowerCase())) {
+                            isAdmin = true;
+                        }
+                    }
+
+                    if (isAdmin) {
+                        foundAdmin = user;
+                        break;
+                    }
+                }
+
+                if (foundAdmin) {
+                    hospital.adminUserId = foundAdmin._id;
+                    await hospital.save();
+                    console.log(`✅ Healed: Mapped hospital admin "${foundAdmin.name}" (${foundAdmin.email}) to hospital "${hospital.name}"`);
+                } else if (hospital.adminUserId) {
+                    hospital.adminUserId = null;
+                    await hospital.save();
+                    console.log(`⚠️ Cleared invalid adminUserId for hospital "${hospital.name}"`);
+                }
+            }
+        }
+        console.log('🔄 Self-healing logic complete.');
+    } catch (err) {
+        console.error('❌ Error during self-healing for hospital administrators:', err.message);
     }
 }
 

@@ -88,22 +88,6 @@ const defaultRoles = [
         isSystemRole: true
     },
     {
-        name: 'Patient',
-        description: 'Default role for patients/users',
-        permissions: [
-            'patient_view'
-        ],
-        dashboardPath: '/dashboard',
-        navLinks: [
-            { label: 'Services', path: '/services' },
-            { label: 'Doctors', path: '/doctors' },
-            { label: 'Appointment', path: '/appointment' },
-            { label: 'Lab Reports', path: '/lab-reports' },
-            { label: 'Dashboard', path: '/dashboard' }
-        ],
-        isSystemRole: true
-    },
-    {
         name: 'Accountant',
         description: 'Finance and accounting staff',
         permissions: [
@@ -138,41 +122,6 @@ const defaultRoles = [
             { label: 'Billing Analytics', path: '/billing/analytics' },
             { label: 'Invoice Templates', path: '/billing/templates' },
             { label: 'Settings', path: '/billing/settings' }
-        ],
-        isSystemRole: true
-    },
-    {
-        name: 'Administrator',
-        description: 'Hospital administrator managing operations, staff, resources and billing oversight',
-        permissions: [
-            'administrator_view', 'administrator_manage', 'staff_manage', 'department_manage',
-            'patient_monitor', 'admission_manage', 'resource_manage', 'billing_view',
-            'reports_view', 'analytics_view', 'operations_manage'
-        ],
-        dashboardPath: '/administrator/dashboard',
-        navLinks: [
-            { label: 'Dashboard', path: '/administrator/dashboard' },
-            { label: 'Patient Flow', path: '/administrator/patient-flow' },
-            { label: 'Admissions', path: '/administrator/admissions' },
-            { label: 'Bed Management', path: '/administrator/beds' },
-            { label: 'Appointments', path: '/administrator/appointments' },
-            { label: 'Hospital Operations Center', path: '/administrator/operations' },
-            { label: 'Staff Management', path: '/administrator/staff' },
-            { label: 'Doctor Management', path: '/administrator/doctors' },
-            { label: 'Departments', path: '/administrator/departments' },
-            { label: 'Roles & Permissions', path: '/administrator/roles' },
-            { label: 'Laboratory Management', path: '/administrator/lab' },
-            { label: 'Pharmacy Management', path: '/administrator/pharmacy' },
-            { label: 'Billing Oversight', path: '/administrator/billing' },
-            { label: 'Revenue Monitoring', path: '/administrator/revenue' },
-            { label: 'Inventory Monitoring', path: '/administrator/inventory' },
-            { label: 'Resource Management', path: '/administrator/resources' },
-            { label: 'Reports', path: '/administrator/reports' },
-            { label: 'Analytics', path: '/administrator/analytics' },
-            { label: 'Audit Logs', path: '/administrator/audit-logs' },
-            { label: 'Notifications', path: '/administrator/notifications' },
-            { label: 'Settings', path: '/administrator/settings' },
-            { label: 'Profile Settings', path: '/administrator/profile-settings' }
         ],
         isSystemRole: true
     }

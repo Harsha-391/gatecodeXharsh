@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAppDispatch, useAuth } from '../../store/hooks';
 import { loginUser, clearError } from '../../store/slices/authSlice';
-import { useBranding } from '../../context/BrandingContext';
+import { useBranding, sanitizeBranding } from '../../context/BrandingContext';
 import { getSubdomain } from '../../utils/subdomain';
 import api, { publicAPI } from '../../utils/api';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -46,7 +46,7 @@ const HospitalLogin = () => {
                         _id: res.tenant.id,
                         name: res.tenant.name,
                         slug: res.tenant.slug,
-                        logo: res.tenant.branding?.logoUrl,
+                        logo: sanitizeBranding(res.tenant.branding).logoUrl,
                         city: res.tenant.branding?.city || ''
                     });
                     

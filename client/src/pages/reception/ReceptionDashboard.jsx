@@ -908,6 +908,12 @@ const ReceptionDashboard = () => {
             return;
         }
 
+        if (name === 'aadhaar') {
+            const digitValue = value.replace(/\D/g, '').slice(0, 12);
+            setIntakeForm(prev => ({ ...prev, [name]: digitValue }));
+            return;
+        }
+
         if (name === 'department' && hospitalContext) {
             const defaultFee = hospitalContext.departmentFees?.[value] ?? hospitalContext.appointmentFee ?? 500;
             setIntakeForm(prev => ({
@@ -1057,6 +1063,11 @@ const ReceptionDashboard = () => {
 
         if (intakeForm.doctor && intakeForm.visitTime && intakeForm.paymentMethod !== 'Cash' && !paymentScreenshot) {
             alert(`Please upload a payment screenshot/proof for ${intakeForm.paymentMethod} payment before booking.`);
+            setSaving(false); return;
+        }
+
+        if (intakeForm.aadhaar && intakeForm.aadhaar.length !== 12) {
+            alert("Aadhaar Number must be exactly 12 digits.");
             setSaving(false); return;
         }
 
@@ -2500,7 +2511,6 @@ const ReceptionDashboard = () => {
                         { label: 'Completed', value: completedToday, icon: '✔️', color: '#1d4ed8', bg: '#eff6ff' },
                         { label: 'Cancelled', value: cancelledToday, icon: '❌', color: '#dc2626', bg: '#fef2f2' },
                         { label: 'Revenue', value: `₹${revenueToday.toLocaleString('en-IN')}`, icon: '💰', color: '#7c3aed', bg: '#f5f3ff' },
-                        { label: 'Unique Patients', value: totalUniquePatients, icon: '👥', color: '#0891b2', bg: '#ecfeff' },
                     ].map((s, i) => (
                         <div key={i} style={{
                             background: s.bg, borderRadius: '12px', padding: '16px',

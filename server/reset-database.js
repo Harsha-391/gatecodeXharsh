@@ -420,8 +420,8 @@ async function resetAndSeed() {
                 primaryColor: '#14b8a6',
                 secondaryColor: '#0a2647',
                 accentColor: '#6366f1',
-                logoUrl: 'https://www.medicalhms.in/logo/medical365fav.jpg',
-                faviconUrl: 'https://www.medicalhms.in/logo/medical365fav.jpg'
+                logoUrl: '/logo.png',
+                faviconUrl: '/logo.png'
             }
         });
         await hospital.save();
