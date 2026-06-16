@@ -393,8 +393,12 @@ router.put('/:id', verifyCentralAdmin, async (req, res) => {
         if (name !== undefined) hospital.name = name;
         if (slug !== undefined) hospital.slug = slug.toLowerCase().trim().replace(/[^a-z0-9-]/g, '');
         if (customDomain !== undefined) {
-            // strip protocol and trailing slash
-            hospital.customDomain = customDomain ? customDomain.replace(/^https?:\/\//, '').replace(/\/$/, '').toLowerCase() : null;
+            // strip protocol, trailing slash, and leading www.
+            let clean = customDomain ? customDomain.replace(/^https?:\/\//, '').replace(/\/$/, '').toLowerCase() : null;
+            if (clean && clean.startsWith('www.')) {
+                clean = clean.slice(4);
+            }
+            hospital.customDomain = clean;
         }
         if (address !== undefined) hospital.address = address;
         if (city !== undefined) hospital.city = city;

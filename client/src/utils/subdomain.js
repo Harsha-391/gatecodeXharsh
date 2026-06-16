@@ -26,7 +26,8 @@ export const getSubdomain = () => {
         // Otherwise, it is a custom domain (like portal.hospitalA.com or hospitalA.com)
         // We can just return the full hostname or a special flag. Returning the hostname
         // ensures it is truthy and not in RESERVED_SUBDOMAINS, triggering HospitalLogin.
-        return hostname;
+        const cleanHost = hostname.startsWith('www.') ? hostname.slice(4) : hostname;
+        return cleanHost;
     }
 
     return null;

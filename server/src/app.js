@@ -85,8 +85,11 @@ app.use(cors({
 
         try {
             // Support for white-labeled custom domains
-            const domainOnly = origin.replace(/^https?:\/\//, '');
-            const hospital = await HospitalModelForCors.findOne({ customDomain: domainOnly }).select('_id').lean();
+            const domainOnly = origin.replace(/^https?:\/\//, '').replace(/\/$/, '').toLowerCase();
+            const domainName = domainOnly.startsWith('www.') ? domainOnly.slice(4) : domainOnly;
+            const hospital = await HospitalModelForCors.findOne({
+                customDomain: { $in: [domainName, `www.${domainName}`] }
+            }).select('_id').lean();
             if (hospital) {
                 return callback(null, true);
             }

@@ -47,7 +47,8 @@ router.get('/tenant-config', async (req, res) => {
             } else if (cleanDomain.endsWith('.localhost')) {
                 query.slug = cleanDomain.replace('.localhost', '');
             } else {
-                query.customDomain = cleanDomain;
+                const domainName = cleanDomain.startsWith('www.') ? cleanDomain.slice(4) : cleanDomain;
+                query.customDomain = { $in: [domainName, `www.${domainName}`] };
             }
         } else if (slug) {
             query.slug = slug.toLowerCase();
