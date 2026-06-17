@@ -8,6 +8,7 @@ const Doctor = require('../models/doctor.model');
 const { verifyToken } = require('../middleware/auth.middleware');
 const imagekit = require('../utils/imagekit');
 const validateFileType = require('../utils/validateFileType');
+const auditLog = require('../middleware/audit.middleware');
 
 const getModels = (req) => {
     if (req.tenantDb) {
@@ -258,7 +259,7 @@ router.get('/requests', verifyToken, resolveTenant, verifyLab, async (req, res) 
 });
 
 // 3. UPLOAD TEST REPORT
-router.post('/upload-report/:reportId', verifyToken, resolveTenant, verifyLab, upload.single('reportFile'), async (req, res) => {
+router.post('/upload-report/:reportId', verifyToken, resolveTenant, verifyLab, upload.single('reportFile'), auditLog('UPDATE_PRESCRIPTION', (req) => ({ model: 'LabReport', id: req.params.reportId, label: 'Lab report uploaded' }), { dataCategory: 'PHI' }), async (req, res) => {
     try {
         const { LabReport, Appointment } = getModels(req);
         const { reportId } = req.params;
@@ -354,7 +355,7 @@ router.post('/upload-report/:reportId', verifyToken, resolveTenant, verifyLab, u
 });
 
 // 4. CREATE A NEW LAB TEST MANUALLY (Walk-in/Manual report creation)
-router.post('/create', verifyToken, resolveTenant, verifyLab, upload.single('reportFile'), async (req, res) => {
+router.post('/create', verifyToken, resolveTenant, verifyLab, upload.single('reportFile'), auditLog('CREATE_PRESCRIPTION', null, { dataCategory: 'PHI' }), async (req, res) => {
     try {
         const { LabReport, User } = getModels(req);
         const { patientId, testNames, amount, notes, paymentStatus, paymentMode, doctorId } = req.body;
@@ -474,7 +475,7 @@ router.post('/create', verifyToken, resolveTenant, verifyLab, upload.single('rep
 });
 
 // Cancel a pending lab test report
-router.patch('/:id/cancel', verifyToken, resolveTenant, verifyLab, async (req, res) => {
+router.patch('/:id/cancel', verifyToken, resolveTenant, verifyLab, auditLog('UPDATE_PRESCRIPTION', (req) => ({ model: 'LabReport', id: req.params.id, label: 'Lab report cancelled' })), async (req, res) => {
     try {
         const { LabReport } = getModels(req);
         const report = await LabReport.findById(req.params.id);
@@ -513,7 +514,7 @@ router.patch('/:id/cancel', verifyToken, resolveTenant, verifyLab, async (req, r
 });
 
 // 5. COLLECT SAMPLE FOR LAB ORDER
-router.post('/:id/collect-sample', verifyToken, resolveTenant, verifyLab, async (req, res) => {
+router.post('/:id/collect-sample', verifyToken, resolveTenant, verifyLab, auditLog('UPDATE_PRESCRIPTION', (req) => ({ model: 'LabReport', id: req.params.id, label: 'Sample collected' }), { dataCategory: 'PHI' }), async (req, res) => {
     try {
         const { LabReport } = getModels(req);
         const { id } = req.params;
@@ -574,7 +575,7 @@ router.post('/:id/collect-sample', verifyToken, resolveTenant, verifyLab, async 
 });
 
 // 6. UPDATE LIFECYCLE STATUS FOR LAB ORDER (e.g. In Testing, Completed)
-router.patch('/:id/status', verifyToken, resolveTenant, verifyLab, async (req, res) => {
+router.patch('/:id/status', verifyToken, resolveTenant, verifyLab, auditLog('UPDATE_PRESCRIPTION', (req) => ({ model: 'LabReport', id: req.params.id, label: `Lab status update` })), async (req, res) => {
     try {
         const { LabReport } = getModels(req);
         const { id } = req.params;

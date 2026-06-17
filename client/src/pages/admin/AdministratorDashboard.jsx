@@ -5,7 +5,7 @@ import socket from '../../utils/socket';
 import {
     FiUsers, FiCalendar, FiActivity, FiPackage,
     FiTrendingUp, FiCheckCircle, FiAlertCircle,
-    FiPlusSquare, FiDatabase, FiGrid, FiFileText, FiRefreshCw
+    FiPlusSquare, FiDatabase, FiGrid, FiFileText, FiRefreshCw, FiSettings
 } from 'react-icons/fi';
 import '../administrator/AdministratorDashboard.css';
 import './AdministratorDashboard.css';
@@ -267,17 +267,23 @@ const AdministratorDashboard = () => {
             <div className="quick-actions-bar">
                 <h4>Quick Operational Actions</h4>
                 <div className="actions-buttons">
-                    <button onClick={() => navigate('/administrator/doctors')} className="action-btn">
+                    <button onClick={() => navigate('/admin/doctor-management')} className="action-btn">
                         <FiPlusSquare /> Manage Doctors
                     </button>
-                    <button onClick={() => navigate('/administrator/beds')} className="action-btn">
+                    <button onClick={() => navigate('/admin/beds')} className="action-btn">
                         <FiDatabase /> Bed Allocation
                     </button>
-                    <button onClick={() => navigate('/administrator/pharmacy')} className="action-btn">
+                    <button onClick={() => navigate('/admin/pharmacy-management')} className="action-btn">
                         <FiPackage /> Pharmacy Catalog
                     </button>
-                    <button onClick={() => navigate('/administrator/lab')} className="action-btn">
+                    <button onClick={() => navigate('/admin/lab-management')} className="action-btn">
                         <FiGrid /> Lab Request Queue
+                    </button>
+                    <button onClick={() => navigate('/admin/inventory')} className="action-btn">
+                        <FiPackage /> Inventory Monitoring
+                    </button>
+                    <button onClick={() => navigate('/admin/resources')} className="action-btn">
+                        <FiSettings /> Resource Management
                     </button>
                 </div>
             </div>
@@ -394,10 +400,10 @@ const AdministratorDashboard = () => {
                             <svg width="160" height="160" viewBox="0 0 36 36" className="donut-chart">
                                 <circle cx="18" cy="18" r="15.915" fill="none" stroke="#e2e8f0" strokeWidth="3" />
                                 <circle cx="18" cy="18" r="15.915" fill="none" stroke="#10b981" strokeWidth="3.2"
-                                    strokeDasharray={`${Math.round(((s.occupiedBeds || 0) / 50) * 100)} ${100 - Math.round(((s.occupiedBeds || 0) / 50) * 100)}`}
+                                    strokeDasharray={`${Math.round(((s.occupiedBeds || 0) / (s.totalBeds || 50)) * 100)} ${100 - Math.round(((s.occupiedBeds || 0) / (s.totalBeds || 50)) * 100)}`}
                                     strokeDashoffset="25" />
                                 <text x="18" y="17.5" textAnchor="middle" fontSize="6.5" fontWeight="800" fill="#1e293b" dy=".3em">
-                                    {Math.round(((s.occupiedBeds || 0) / 50) * 100)}%
+                                    {Math.round(((s.occupiedBeds || 0) / (s.totalBeds || 50)) * 100)}%
                                 </text>
                                 <text x="18" y="26" textAnchor="middle" fontSize="3" fontWeight="600" fill="#64748b">
                                     Occupied

@@ -18,6 +18,7 @@ const { verifyToken } = require('../middleware/auth.middleware');
 const { getTenantConnection, getTenantDbName, getActiveConnections, removeTenantConnection } = require('../db/tenantDb');
 
 const { JWT_SECRET } = require('../config/jwt');
+const auditLog = require('../middleware/audit.middleware');
 const validatePassword = require('../utils/validatePassword');
 
 /**
@@ -226,32 +227,32 @@ const defaultRoles = [
         permissions: [
             'administrator_view', 'administrator_manage', 'staff_manage', 'department_manage',
             'patient_monitor', 'admission_manage', 'resource_manage', 'billing_view',
-            'reports_view', 'analytics_view', 'operations_manage'
+            'reports_view', 'analytics_view', 'operations_manage', 'inventory_view'
         ],
-        dashboardPath: '/administrator/dashboard',
+        dashboardPath: '/admin/dashboard',
         navLinks: [
-            { label: 'Dashboard', path: '/administrator/dashboard' },
-            { label: 'Patient Flow', path: '/administrator/patient-flow' },
-            { label: 'Admissions', path: '/administrator/admissions' },
-            { label: 'Bed Management', path: '/administrator/beds' },
-            { label: 'Appointments', path: '/administrator/appointments' },
-            { label: 'Hospital Operations Center', path: '/administrator/operations' },
-            { label: 'Staff Management', path: '/administrator/staff' },
-            { label: 'Doctor Management', path: '/administrator/doctors' },
-            { label: 'Departments', path: '/administrator/departments' },
-            { label: 'Roles & Permissions', path: '/administrator/roles' },
-            { label: 'Laboratory Management', path: '/administrator/lab' },
-            { label: 'Pharmacy Management', path: '/administrator/pharmacy' },
-            { label: 'Billing Oversight', path: '/administrator/billing' },
-            { label: 'Revenue Monitoring', path: '/administrator/revenue' },
-            { label: 'Inventory Monitoring', path: '/administrator/inventory' },
-            { label: 'Resource Management', path: '/administrator/resources' },
-            { label: 'Reports', path: '/administrator/reports' },
-            { label: 'Analytics', path: '/administrator/analytics' },
-            { label: 'Audit Logs', path: '/administrator/audit-logs' },
-            { label: 'Notifications', path: '/administrator/notifications' },
-            { label: 'Settings', path: '/administrator/settings' },
-            { label: 'Profile Settings', path: '/administrator/profile-settings' }
+            { label: 'Dashboard', path: '/admin/dashboard' },
+            { label: 'Patient Flow', path: '/admin/patient-flow' },
+            { label: 'Admissions', path: '/admin/admissions' },
+            { label: 'Bed Management', path: '/admin/beds' },
+            { label: 'Appointments', path: '/admin/appointments' },
+            { label: 'Hospital Operations Center', path: '/admin/operations' },
+            { label: 'Staff Management', path: '/admin/staff' },
+            { label: 'Doctor Management', path: '/admin/doctor-management' },
+            { label: 'Departments', path: '/admin/departments' },
+            { label: 'Roles & Permissions', path: '/admin/role-management' },
+            { label: 'Laboratory Management', path: '/admin/lab-management' },
+            { label: 'Pharmacy Management', path: '/admin/pharmacy-management' },
+            { label: 'Billing Oversight', path: '/admin/billing' },
+            { label: 'Revenue Monitoring', path: '/admin/revenue' },
+            { label: 'Inventory Monitoring', path: '/admin/inventory' },
+            { label: 'Resource Management', path: '/admin/resources' },
+            { label: 'Reports', path: '/admin/reports' },
+            { label: 'Analytics', path: '/admin/analytics' },
+            { label: 'Audit Logs', path: '/admin/audit-logs' },
+            { label: 'Notifications', path: '/admin/notifications' },
+            { label: 'Settings', path: '/admin/settings' },
+            { label: 'Profile Settings', path: '/admin/profile-settings' }
         ],
         isSystemRole: false
     }
@@ -273,7 +274,7 @@ async function seedDefaultRolesForHospital(hospitalId) {
 }
 
 // Create a new hospital
-router.post('/', verifyCentralAdmin, async (req, res) => {
+router.post('/', verifyCentralAdmin, auditLog('HOSPITAL_UPDATE', null, { severity: 'warning', dataCategory: 'Administrative' }), async (req, res) => {
     try {
         const { name, address, city, state, phone, email, website, logo, departments, appointmentFee, slug: customSlug } = req.body;
         if (!name) return res.status(400).json({ success: false, message: 'Hospital name is required' });
@@ -384,7 +385,7 @@ router.get('/tenant-status', verifyCentralAdmin, async (req, res) => {
 });
 
 // Update a hospital
-router.put('/:id', verifyCentralAdmin, async (req, res) => {
+router.put('/:id', verifyCentralAdmin, auditLog('HOSPITAL_UPDATE', (req) => ({ model: 'Hospital', id: req.params.id, label: 'Hospital record updated' }), { dataCategory: 'Administrative' }), async (req, res) => {
     try {
         const { name, address, city, state, phone, email, website, logo, isActive, departments, appointmentFee, slug, appointmentMode, customDomain } = req.body;
         const hospital = await Hospital.findById(req.params.id);
@@ -457,7 +458,7 @@ router.get('/:id/next-token', verifyToken, async (req, res) => {
 });
 
 // Delete a hospital and ALL related data (cascade delete)
-router.delete('/:id', verifyCentralAdmin, async (req, res) => {
+router.delete('/:id', verifyCentralAdmin, auditLog('HOSPITAL_UPDATE', (req) => ({ model: 'Hospital', id: req.params.id, label: 'Hospital deleted' }), { severity: 'critical', dataCategory: 'Administrative' }), async (req, res) => {
     try {
         const hospitalId = req.params.id;
         const hospital = await Hospital.findById(hospitalId);
@@ -625,8 +626,24 @@ router.post('/admin/login', async (req, res) => {
         const { email, password } = req.body;
         if (!email || !password) return res.status(400).json({ success: false, message: 'Email and password are required' });
 
-        const user = await User.findOne({ email: email.toLowerCase().trim() });
-        if (!user) return res.status(401).json({ success: false, message: 'Invalid email or password' });
+        const normalizedEmail = String(email || '').toLowerCase().trim();
+        const user = await User.findOne({ email: normalizedEmail });
+        if (!user) {
+            try {
+                const AuditLogModel = require('../models/auditLog.model');
+                await AuditLogModel.create({
+                    clinicId: new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
+                    userName: normalizedEmail,
+                    action: 'FAILED_LOGIN',
+                    severity: 'warning',
+                    success: false,
+                    reason: 'User not found',
+                    ip: req.ip || '',
+                    userAgent: req.headers['user-agent'] || ''
+                });
+            } catch (_) {}
+            return res.status(401).json({ success: false, message: 'Invalid email or password' });
+        }
 
         // Only allow hospitaladmin role or a proper Administrator Role document
         let roleData = null;
@@ -654,28 +671,108 @@ router.post('/admin/login', async (req, res) => {
 
         const isAllowed = roleName === 'hospitaladmin' || (roleName && ['administrator', 'admin'].includes(roleName.toLowerCase()));
         if (!isAllowed) {
+            try {
+                const AuditLogModel = require('../models/auditLog.model');
+                await AuditLogModel.create({
+                    clinicId: user.hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
+                    userId: user._id,
+                    userName: user.name || normalizedEmail,
+                    role: roleName || '',
+                    action: 'FAILED_LOGIN',
+                    severity: 'warning',
+                    success: false,
+                    reason: 'This login is for Hospital Admins only.',
+                    ip: req.ip || '',
+                    userAgent: req.headers['user-agent'] || ''
+                });
+            } catch (_) {}
             return res.status(403).json({ success: false, message: 'This login is for Hospital Admins only.' });
         }
 
         if (!user.hospitalId) {
+            try {
+                const AuditLogModel = require('../models/auditLog.model');
+                await AuditLogModel.create({
+                    clinicId: new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
+                    userId: user._id,
+                    userName: user.name || normalizedEmail,
+                    role: roleName,
+                    action: 'FAILED_LOGIN',
+                    severity: 'warning',
+                    success: false,
+                    reason: 'Account not linked to any hospital.',
+                    ip: req.ip || '',
+                    userAgent: req.headers['user-agent'] || ''
+                });
+            } catch (_) {}
             return res.status(403).json({ success: false, message: 'This account is not linked to any hospital. Contact your Central Admin.' });
         }
 
         const isPasswordValid = await user.comparePassword(password);
-        if (!isPasswordValid) return res.status(401).json({ success: false, message: 'Invalid email or password' });
+        if (!isPasswordValid) {
+            try {
+                const AuditLogModel = require('../models/auditLog.model');
+                await AuditLogModel.create({
+                    clinicId: user.hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
+                    userId: user._id,
+                    userName: user.name || normalizedEmail,
+                    role: roleName,
+                    action: 'FAILED_LOGIN',
+                    severity: 'warning',
+                    success: false,
+                    reason: 'Incorrect password',
+                    ip: req.ip || '',
+                    userAgent: req.headers['user-agent'] || ''
+                });
+            } catch (_) {}
+            return res.status(401).json({ success: false, message: 'Invalid email or password' });
+        }
 
         const hospital = await Hospital.findById(user.hospitalId);
         if (!hospital) {
+            try {
+                const AuditLogModel = require('../models/auditLog.model');
+                await AuditLogModel.create({
+                    clinicId: user.hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
+                    userId: user._id,
+                    userName: user.name || normalizedEmail,
+                    role: roleName,
+                    action: 'FAILED_LOGIN',
+                    severity: 'warning',
+                    success: false,
+                    reason: 'Linked hospital not found',
+                    ip: req.ip || '',
+                    userAgent: req.headers['user-agent'] || ''
+                });
+            } catch (_) {}
             return res.status(403).json({ success: false, message: 'Linked hospital not found. Contact your Central Admin.' });
         }
 
         if (!hospital.isActive) {
+            try {
+                const AuditLogModel = require('../models/auditLog.model');
+                await AuditLogModel.create({
+                    clinicId: user.hospitalId,
+                    userId: user._id,
+                    userName: user.name || normalizedEmail,
+                    role: roleName,
+                    action: 'FAILED_LOGIN',
+                    severity: 'warning',
+                    success: false,
+                    reason: 'Hospital account is inactive',
+                    ip: req.ip || '',
+                    userAgent: req.headers['user-agent'] || ''
+                });
+            } catch (_) {}
             return res.status(403).json({ success: false, message: 'Hospital account is inactive. Contact your Central Admin.' });
         }
 
+        const { v4: uuidv4 } = require('uuid');
+        const jti = uuidv4();
         // Embed hospitalId in the JWT so all downstream middleware can scope data
         const token = jwt.sign(
             {
+                jti,
                 userId: user._id,
                 email: user.email,
                 roleId: String(user.role),
@@ -684,6 +781,22 @@ router.post('/admin/login', async (req, res) => {
             JWT_SECRET,
             { expiresIn: '7d' }
         );
+
+        // Audit successful hospital admin login
+        try {
+            const AuditLogModel = require('../models/auditLog.model');
+            await AuditLogModel.create({
+                clinicId: user.hospitalId,
+                userId: user._id,
+                userName: user.name || normalizedEmail,
+                role: roleName,
+                action: 'STAFF_LOGIN',
+                success: true,
+                sessionId: jti,
+                ip: req.ip || '',
+                userAgent: req.headers['user-agent'] || ''
+            });
+        } catch (_) {}
 
         res.json({
             success: true,
@@ -936,7 +1049,8 @@ router.get('/:id/stats', verifyHospitalAdmin, async (req, res) => {
 
         const totalStaff = await User.countDocuments({
             hospitalId,
-            role: { $nin: ['centraladmin', 'superadmin', 'hospitaladmin', patientRoleId].filter(Boolean) }
+            role: { $nin: ['centraladmin', 'superadmin', 'hospitaladmin', patientRoleId].filter(Boolean) },
+            patientId: { $exists: false }
         });
 
         // Staff by role
@@ -944,14 +1058,15 @@ router.get('/:id/stats', verifyHospitalAdmin, async (req, res) => {
             {
                 $match: {
                     hospitalId: new mongoose.Types.ObjectId(hospitalId),
-                    role: { $nin: ['centraladmin', 'superadmin', 'hospitaladmin'] }
+                    role: { $nin: ['centraladmin', 'superadmin', 'hospitaladmin'] },
+                    patientId: { $exists: false }
                 }
             },
             { $group: { _id: '$role', count: { $sum: 1 } } }
         ]);
 
         // Resolve role names for staff breakdown
-        const staffBreakdown = await Promise.all(staffByRole.map(async (item) => {
+        const resolvedBreakdown = await Promise.all(staffByRole.map(async (item) => {
             let name = String(item._id);
             if (mongoose.Types.ObjectId.isValid(item._id)) {
                 const r = await Role.findById(item._id);
@@ -959,6 +1074,11 @@ router.get('/:id/stats', verifyHospitalAdmin, async (req, res) => {
             }
             return { role: name, count: item.count };
         }));
+
+        // Filter out unresolved roles (raw 24-character ObjectIDs)
+        const staffBreakdown = resolvedBreakdown.filter(
+            (item) => !/^[0-9a-fA-F]{24}$/.test(item.role)
+        );
 
         // 2. Doctor count
         const doctorCount = await Doctor.countDocuments({ hospitalId });
@@ -1095,7 +1215,8 @@ router.get('/:id/stats', verifyHospitalAdmin, async (req, res) => {
         // 11. All staff list (excluding patients)
         const staffList = await User.find({
             hospitalId,
-            role: { $nin: ['centraladmin', 'superadmin', 'hospitaladmin'] }
+            role: { $nin: ['centraladmin', 'superadmin', 'hospitaladmin'] },
+            patientId: { $exists: false }
         }, { password: 0 })
             .sort({ createdAt: -1 })
             .lean();
@@ -1110,9 +1231,11 @@ router.get('/:id/stats', verifyHospitalAdmin, async (req, res) => {
             return { ...u, roleName };
         }));
 
-        // Filter out patients from staff list
+        // Filter out patients and unresolved role IDs from staff list
         const actualStaff = staffWithRoles.filter(u =>
-            !['patient'].includes(u.roleName?.toLowerCase())
+            !['patient'].includes(u.roleName?.toLowerCase()) &&
+            !/^[0-9a-fA-F]{24}$/.test(u.roleName) &&
+            !u.patientId
         );
 
         res.json({

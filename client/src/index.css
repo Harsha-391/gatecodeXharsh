@@ -421,3 +421,9 @@ button.btn-cancel:active,
   transform: translateY(0) !important;
   box-shadow: none !important;
 }
+
+/* --- Select Option Text Color Reset --- */
+select option {
+  color: #000000 !important;
+  background-color: #ffffff !important;
+}

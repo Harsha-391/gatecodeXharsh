@@ -83,7 +83,24 @@ router.post('/complete-login', otpLimiter, async (req, res) => {
         }
 
         const isValid = authenticator.verify({ token, secret: user.mfaSecret });
-        if (!isValid) return res.status(401).json({ success: false, message: 'Invalid MFA code' });
+        if (!isValid) {
+            try {
+                const AuditLogModel = require('../models/auditLog.model');
+                await AuditLogModel.create({
+                    clinicId: user.hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
+                    userId: user._id,
+                    userName: user.name || user.email,
+                    role: user.role,
+                    action: 'FAILED_LOGIN',
+                    severity: 'warning',
+                    success: false,
+                    reason: 'Invalid MFA code',
+                    ip: req.ip || '',
+                    userAgent: req.headers['user-agent'] || ''
+                });
+            } catch (_) {}
+            return res.status(401).json({ success: false, message: 'Invalid MFA code' });
+        }
 
         // TOTP passed — issue the real session JWT
         const specialRoles = ['superadmin', 'centraladmin', 'hospitaladmin'];
@@ -114,9 +131,10 @@ router.post('/complete-login', otpLimiter, async (req, res) => {
             } catch (_) {}
         }
 
+        const jti = uuidv4();
         const fullToken = jwt.sign(
             {
-                jti: uuidv4(),
+                jti,
                 userId: user._id,
                 email: user.email,
                 roleId: String(user.role),
@@ -126,6 +144,22 @@ router.post('/complete-login', otpLimiter, async (req, res) => {
             JWT_SECRET,
             { expiresIn: JWT_EXPIRES_IN }
         );
+
+        // Audit successful MFA login
+        try {
+            const AuditLogModel = require('../models/auditLog.model');
+            await AuditLogModel.create({
+                clinicId: user.hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
+                userId: user._id,
+                userName: user.name || user.email,
+                role: roleData.name,
+                action: 'STAFF_LOGIN',
+                success: true,
+                sessionId: jti,
+                ip: req.ip || '',
+                userAgent: req.headers['user-agent'] || ''
+            });
+        } catch (_) {}
 
         res.json({
             success: true,

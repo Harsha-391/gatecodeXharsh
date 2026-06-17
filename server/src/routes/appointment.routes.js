@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { verifyToken } = require('../middleware/auth.middleware');
 const { resolveTenant } = require('../middleware/tenantMiddleware');
+const auditLog = require('../middleware/audit.middleware');
 const { getTenantModels } = require('../db/tenantModels');
 // Master fallbacks
 const MasterAppointment = require('../models/appointment.model');
@@ -56,7 +57,7 @@ router.get('/reception/all', verifyToken, resolveTenant, async (req, res) => {
 });
 
 // Reschedule Appointment
-router.patch('/reception/reschedule/:id', verifyToken, resolveTenant, async (req, res) => {
+router.patch('/reception/reschedule/:id', verifyToken, resolveTenant, auditLog('UPDATE_APPOINTMENT', (req) => ({ model: 'Appointment', id: req.params.id, label: 'Appointment rescheduled' })), async (req, res) => {
     try {
         if (!checkAccess(req.user, ['reception', 'admin', 'hospitaladmin'], 'appointment_manage')) {
             return res.status(403).json({ success: false, message: 'Access denied' });
@@ -136,7 +137,7 @@ router.patch('/reception/reschedule/:id', verifyToken, resolveTenant, async (req
 });
 
 // Cancel Appointment
-router.patch('/reception/cancel/:id', verifyToken, resolveTenant, async (req, res) => {
+router.patch('/reception/cancel/:id', verifyToken, resolveTenant, auditLog('CANCEL_APPOINTMENT', (req) => ({ model: 'Appointment', id: req.params.id, label: 'Appointment cancelled' })), async (req, res) => {
     try {
         if (!checkAccess(req.user, ['reception', 'admin', 'hospitaladmin'], 'appointment_manage')) {
             return res.status(403).json({ success: false, message: 'Access denied' });
@@ -181,7 +182,7 @@ router.patch('/reception/cancel/:id', verifyToken, resolveTenant, async (req, re
 // ==========================================
 
 // Create Appointment — saved to tenant DB
-router.post('/create', verifyToken, resolveTenant, async (req, res) => {
+router.post('/create', verifyToken, resolveTenant, auditLog('CREATE_APPOINTMENT', null, { dataCategory: 'PHI' }), async (req, res) => {
     try {
         const {
             doctorId, serviceId, serviceName, appointmentDate, appointmentTime, amount,

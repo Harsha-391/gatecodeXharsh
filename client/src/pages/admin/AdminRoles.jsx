@@ -40,7 +40,11 @@ const AdminRoles = () => {
                 { key: 'lab_view', label: 'View Lab Tests' },
                 { key: 'lab_manage', label: 'Manage Lab Tests' },
                 { key: 'pharmacy_view', label: 'View Pharmacy' },
-                { key: 'pharmacy_manage', label: 'Pharmacy & Inventory' }
+                { key: 'pharmacy_manage', label: 'Pharmacy & Inventory' },
+                { key: 'patient_monitor', label: 'Monitor Patients & Queues (Patient Flow)' },
+                { key: 'admission_manage', label: 'Manage Admissions & Beds' },
+                { key: 'inventory_view', label: 'View Inventory Monitoring' },
+                { key: 'resource_manage', label: 'Manage Assets & Equipment (Resource Management)' }
             ]
         },
         {
@@ -78,6 +82,10 @@ const AdminRoles = () => {
         lab_manage: { label: 'Lab Tests', path: '/lab/tests' },
         pharmacy_view: { label: 'Pharmacy', path: '/pharmacy/inventory' },
         pharmacy_manage: { label: 'Pharmacy Orders', path: '/pharmacy/orders' },
+        patient_monitor: { label: 'Patient Flow', path: '/admin/patient-flow' },
+        admission_manage: { label: 'Admissions', path: '/admin/admissions' },
+        inventory_view: { label: 'Inventory Monitoring', path: '/admin/inventory' },
+        resource_manage: { label: 'Resource Management', path: '/admin/resources' },
         // Admin
         admin_manage_roles: { label: 'Manage Users', path: '/admin/users' },
         admin_view_stats: { label: 'Admin Dashboard', path: '/admin' },

@@ -106,13 +106,20 @@ const AdminMainDashboard = () => {
         { icon: '👨‍⚕️', label: 'Doctors',               desc: 'Manage doctor profiles, specializations & schedules',           path: '/admin/doctors',          bg: 'rgba(59,130,246,0.12)'  },
         { icon: '🧪', label: 'Labs',                   desc: 'Configure lab departments and lab workflows',                    path: '/admin/labs',             bg: 'rgba(245,158,11,0.12)'  },
         { icon: '📋', label: 'Lab Tests Catalog',      desc: 'Manage predefined lab tests for prescription',                   path: '/admin/lab-tests',        bg: 'rgba(236,72,153,0.12)'  },
+        { icon: '🔬', label: 'Laboratory Management',  desc: 'Monitor lab tests processing, reports, and request queues',      path: '/admin/lab-management',   bg: 'rgba(245,158,11,0.15)'  },
         { icon: '📦', label: 'Tests & Packages',       desc: 'Create test packages and manage individual tests',               path: '/admin/test-packages',    bg: 'rgba(124,58,237,0.12)'  },
         { icon: '💊', label: 'Pharmacy',               desc: 'Manage pharmacy inventory and suppliers',                        path: '/admin/pharmacy',         bg: 'rgba(239,68,68,0.12)'   },
         { icon: '💉', label: 'Medicine Catalog',       desc: 'Manage global catalog of available medicines',                   path: '/admin/medicines',        bg: 'rgba(239,68,68,0.1)'    },
+        { icon: '🏥', label: 'Pharmacy Management',    desc: 'Oversight of pharmacy sales, billing, inventory, and medicine log', path: '/admin/pharmacy-management', bg: 'rgba(239,68,68,0.15)' },
         { icon: '🏥', label: 'Reception',              desc: 'Set up reception desk and appointment workflows',                path: '/admin/reception',        bg: 'rgba(16,185,129,0.12)'  },
         { icon: '🛠️', label: 'Services',               desc: 'Hospital services, pricing, and categories',                     path: '/admin/services',         bg: 'rgba(245,158,11,0.12)'  },
         { icon: '🛏️', label: 'Wards & Facilities',     desc: 'Configure hospital wards (ICU, OT, deluxe, wards, etc.)',       path: '/admin/facilities',       bg: 'rgba(59,130,246,0.12)'  },
+        { icon: '📦', label: 'Inventory Monitoring',   desc: 'Monitor pharmacy and hospital inventory levels',               path: '/admin/inventory',        bg: 'rgba(13,148,136,0.12)'  },
+        { icon: '⚙️', label: 'Resource Management',    desc: 'Manage active rooms, beds, ventilators, and equipment',       path: '/admin/resources',        bg: 'rgba(99,102,241,0.12)'  },
+        { icon: '🏥', label: 'Admissions Oversight',    desc: 'Oversight and monitoring of active admissions, bed occupancy, and transfers', path: '/admin/admissions', bg: 'rgba(14,165,233,0.12)' },
         { icon: '❓', label: 'Question Library',       desc: 'Configure forms and assessment libraries for doctors',           path: '/admin/question-library', bg: 'rgba(167,139,250,0.15)' },
+        { icon: '📊', label: 'Reports',                desc: 'Download clinical and financial logs and custom export metrics', path: '/admin/reports', bg: 'rgba(20,184,166,0.15)' },
+        { icon: '📋', label: 'Audit Logs',             desc: 'Monitor compliance, access logs, dynamic actions, and data changes', path: '/admin/audit-logs', bg: 'rgba(99,102,241,0.12)' },
     ];
 
     return (

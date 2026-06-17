@@ -134,6 +134,26 @@ exports.requirePermission = (...requiredPermissions) => {
             const hasPermission = requiredPermissions.some(perm => userPerms.includes(perm));
 
             if (!hasPermission) {
+                try {
+                    const AuditLog = require('../models/auditLog.model');
+                    const mongoose = require('mongoose');
+                    await AuditLog.create({
+                        clinicId: req.user.hospitalId || req.hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
+                        userId: req.user._id,
+                        userName: req.user.name || req.user.email || 'Unknown',
+                        userEmail: req.user.email || '',
+                        role: req.user._roleData?.name || String(req.user.role || ''),
+                        action: 'ACCESS_DENIED',
+                        severity: 'critical',
+                        dataCategory: 'System',
+                        requestMethod: req.method,
+                        requestPath: req.originalUrl || req.path,
+                        ip: req.ip || '',
+                        userAgent: req.headers['user-agent'] || '',
+                        success: false,
+                        reason: `Access denied. Required permission: ${requiredPermissions.join(' or ')}`
+                    });
+                } catch (_) {}
                 return res.status(403).json({
                     success: false,
                     message: `Access denied. Required permission: ${requiredPermissions.join(' or ')}`
@@ -153,11 +173,31 @@ exports.requirePermission = (...requiredPermissions) => {
  */
 exports.verifySuperAdmin = async (req, res, next) => {
     try {
-        await exports.verifyToken(req, res, () => {
+        await exports.verifyToken(req, res, async () => {
             const role = req.user.role;
             if (role === 'superadmin' || role === 'centraladmin') {
                 next();
             } else {
+                try {
+                    const AuditLog = require('../models/auditLog.model');
+                    const mongoose = require('mongoose');
+                    await AuditLog.create({
+                        clinicId: req.user.hospitalId || req.hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
+                        userId: req.user._id,
+                        userName: req.user.name || req.user.email || 'Unknown',
+                        userEmail: req.user.email || '',
+                        role: req.user._roleData?.name || String(req.user.role || ''),
+                        action: 'ACCESS_DENIED',
+                        severity: 'critical',
+                        dataCategory: 'System',
+                        requestMethod: req.method,
+                        requestPath: req.originalUrl || req.path,
+                        ip: req.ip || '',
+                        userAgent: req.headers['user-agent'] || '',
+                        success: false,
+                        reason: 'Central Admin access required'
+                    });
+                } catch (_) {}
                 return res.status(403).json({ success: false, message: 'Central Admin access required' });
             }
         });
@@ -172,7 +212,7 @@ exports.verifySuperAdmin = async (req, res, next) => {
  */
 exports.verifyAdminOrSuperAdmin = async (req, res, next) => {
     try {
-        await exports.verifyToken(req, res, () => {
+        await exports.verifyToken(req, res, async () => {
             const roleData = req.user._roleData;
 
             // Central admin always passes
@@ -190,6 +230,27 @@ exports.verifyAdminOrSuperAdmin = async (req, res, next) => {
                     roleData.permissions.includes('administrator_manage'))) {
                 return next();
             }
+
+            try {
+                const AuditLog = require('../models/auditLog.model');
+                const mongoose = require('mongoose');
+                await AuditLog.create({
+                    clinicId: req.user.hospitalId || req.hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
+                    userId: req.user._id,
+                    userName: req.user.name || req.user.email || 'Unknown',
+                    userEmail: req.user.email || '',
+                    role: req.user._roleData?.name || String(req.user.role || ''),
+                    action: 'ACCESS_DENIED',
+                    severity: 'critical',
+                    dataCategory: 'System',
+                    requestMethod: req.method,
+                    requestPath: req.originalUrl || req.path,
+                    ip: req.ip || '',
+                    userAgent: req.headers['user-agent'] || '',
+                    success: false,
+                    reason: 'Admin access required'
+                });
+            } catch (_) {}
 
             return res.status(403).json({ success: false, message: 'Admin access required' });
         });

@@ -2533,9 +2533,12 @@ const ReceptionDashboard = () => {
                         {(() => {
                             const occupiedBeds = admissions.filter(a => a.status === 'Admitted').length;
                             const pendingBeds = admissions.filter(a => a.status === 'Pending Allocation').length;
-                            const totalBeds = 50; // Standard hospital capacity limit
+                            let totalBeds = 50; // Standard hospital capacity limit
+                            if (hospitalContext?.facilities && hospitalContext.facilities.length > 0) {
+                                totalBeds = hospitalContext.facilities.reduce((sum, f) => sum + (f.bedCount || 0), 0);
+                            }
                             const availableBeds = Math.max(0, totalBeds - occupiedBeds);
-                            const occupancyRate = Math.round((occupiedBeds / totalBeds) * 100);
+                            const occupancyRate = totalBeds > 0 ? Math.round((occupiedBeds / totalBeds) * 100) : 0;
 
                             return (
                                 <div style={{

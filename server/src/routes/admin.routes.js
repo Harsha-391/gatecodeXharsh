@@ -7,6 +7,7 @@ const Hospital = require('../models/hospital.model');
 const jwt = require('jsonwebtoken');
 const { verifyAdmin, verifyAdminOrSuperAdmin, verifyToken, verifySuperAdmin } = require('../middleware/auth.middleware');
 const { nanoid } = require('nanoid');
+const auditLog = require('../middleware/audit.middleware');
 
 // Entity models
 const Doctor = require('../models/doctor.model');
@@ -150,7 +151,7 @@ router.get('/roles', verifyToken, async (req, res) => {
 });
 
 // Create a New Role (scoped to hospital)
-router.post('/roles', verifyAdminOrSuperAdmin, async (req, res) => {
+router.post('/roles', verifyAdminOrSuperAdmin, auditLog('ROLE_CHANGE', null, { severity: 'warning', dataCategory: 'Administrative' }), async (req, res) => {
     try {
         const { name, permissions, description, dashboardPath, navLinks } = req.body;
         if (!name) return res.status(400).json({ success: false, message: 'Role name is required' });
@@ -185,7 +186,7 @@ router.post('/roles', verifyAdminOrSuperAdmin, async (req, res) => {
 });
 
 // Update an Existing Role
-router.put('/roles/:roleId', verifyAdminOrSuperAdmin, async (req, res) => {
+router.put('/roles/:roleId', verifyAdminOrSuperAdmin, auditLog('ROLE_CHANGE', (req) => ({ model: 'Role', id: req.params.roleId, label: 'Role updated' }), { severity: 'warning', dataCategory: 'Administrative' }), async (req, res) => {
     try {
         const { roleId } = req.params;
         const { name, permissions, description, dashboardPath, navLinks } = req.body;
@@ -221,7 +222,7 @@ router.put('/roles/:roleId', verifyAdminOrSuperAdmin, async (req, res) => {
 });
 
 // Delete a Role
-router.delete('/roles/:roleId', verifyAdminOrSuperAdmin, async (req, res) => {
+router.delete('/roles/:roleId', verifyAdminOrSuperAdmin, auditLog('ROLE_CHANGE', (req) => ({ model: 'Role', id: req.params.roleId, label: 'Role deleted' }), { severity: 'critical', dataCategory: 'Administrative' }), async (req, res) => {
     try {
         const { roleId } = req.params;
         const roleDoc = await Role.findById(roleId);
@@ -307,8 +308,24 @@ router.post('/login', async (req, res) => {
         const { email, password } = req.body;
         if (!email || !password) return res.status(400).json({ success: false, message: 'Email and password required' });
 
-        const user = await User.findOne({ email });
-        if (!user) return res.status(401).json({ success: false, message: 'Invalid email or password' });
+        const normalizedEmail = String(email || '').toLowerCase().trim();
+        const user = await User.findOne({ email: normalizedEmail });
+        if (!user) {
+            try {
+                const AuditLogModel = require('../models/auditLog.model');
+                await AuditLogModel.create({
+                    clinicId: new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
+                    userName: normalizedEmail,
+                    action: 'FAILED_LOGIN',
+                    severity: 'warning',
+                    success: false,
+                    reason: 'User not found',
+                    ip: req.ip || '',
+                    userAgent: req.headers['user-agent'] || ''
+                });
+            } catch (_) {}
+            return res.status(401).json({ success: false, message: 'Invalid email or password' });
+        }
 
         let roleName = user.role;
         let userRoleObj = null;
@@ -322,17 +339,67 @@ router.post('/login', async (req, res) => {
 
         // Only centraladmin/superadmin allowed through this endpoint
         if (roleName !== 'superadmin' && roleName !== 'centraladmin' && roleName !== 'admin') {
+            try {
+                const AuditLogModel = require('../models/auditLog.model');
+                await AuditLogModel.create({
+                    clinicId: user.hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
+                    userId: user._id,
+                    userName: user.name || normalizedEmail,
+                    role: roleName,
+                    action: 'FAILED_LOGIN',
+                    severity: 'warning',
+                    success: false,
+                    reason: 'Access denied. Central Admin only.',
+                    ip: req.ip || '',
+                    userAgent: req.headers['user-agent'] || ''
+                });
+            } catch (_) {}
             return res.status(403).json({ success: false, message: 'Access denied. Central Admin only.' });
         }
 
         const isPasswordValid = await user.comparePassword(password);
-        if (!isPasswordValid) return res.status(401).json({ success: false, message: 'Invalid email or password' });
+        if (!isPasswordValid) {
+            try {
+                const AuditLogModel = require('../models/auditLog.model');
+                await AuditLogModel.create({
+                    clinicId: user.hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
+                    userId: user._id,
+                    userName: user.name || normalizedEmail,
+                    role: roleName,
+                    action: 'FAILED_LOGIN',
+                    severity: 'warning',
+                    success: false,
+                    reason: 'Incorrect password',
+                    ip: req.ip || '',
+                    userAgent: req.headers['user-agent'] || ''
+                });
+            } catch (_) {}
+            return res.status(401).json({ success: false, message: 'Invalid email or password' });
+        }
 
+        const { v4: uuidv4 } = require('uuid');
+        const jti = uuidv4();
         const token = jwt.sign(
-            { userId: user._id, email: user.email, roleId: String(user.role) },
+            { jti, userId: user._id, email: user.email, roleId: String(user.role) },
             JWT_SECRET,
             { expiresIn: '7d' }
         );
+
+        // Audit successful central admin login
+        try {
+            const AuditLogModel = require('../models/auditLog.model');
+            await AuditLogModel.create({
+                clinicId: user.hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
+                userId: user._id,
+                userName: user.name || normalizedEmail,
+                role: roleName,
+                action: 'STAFF_LOGIN',
+                success: true,
+                sessionId: jti,
+                ip: req.ip || '',
+                userAgent: req.headers['user-agent'] || ''
+            });
+        } catch (_) {}
 
         res.json({
             success: true,
@@ -418,7 +485,7 @@ router.get('/users', verifyAdminOrSuperAdmin, async (req, res) => {
 });
 
 // Create User (by admin) — hospitalId is REQUIRED for all staff
-router.post('/users', verifyAdminOrSuperAdmin, async (req, res) => {
+router.post('/users', verifyAdminOrSuperAdmin, auditLog('USER_CREATE', null, { severity: 'warning', dataCategory: 'Administrative' }), async (req, res) => {
     try {
         const { name, email, password, phone, roleId, services, avatar, departments } = req.body;
 
@@ -569,7 +636,7 @@ router.post('/users', verifyAdminOrSuperAdmin, async (req, res) => {
 });
 
 // Update user details
-router.put('/users/:userId', verifyAdminOrSuperAdmin, async (req, res) => {
+router.put('/users/:userId', verifyAdminOrSuperAdmin, auditLog('USER_UPDATE', (req) => ({ model: 'User', id: req.params.userId, label: 'Staff record updated' }), { dataCategory: 'Administrative' }), async (req, res) => {
     try {
         const { userId } = req.params;
         const { name, email, phone, roleId, avatar, specialty, departments } = req.body;
@@ -692,7 +759,7 @@ router.put('/users/:userId', verifyAdminOrSuperAdmin, async (req, res) => {
 });
 
 // Delete user
-router.delete('/users/:userId', verifyAdminOrSuperAdmin, async (req, res) => {
+router.delete('/users/:userId', verifyAdminOrSuperAdmin, auditLog('USER_DELETE', (req) => ({ model: 'User', id: req.params.userId, label: 'Staff account deleted' }), { severity: 'critical', dataCategory: 'Administrative' }), async (req, res) => {
     try {
         const { userId } = req.params;
 
@@ -753,7 +820,7 @@ router.delete('/users/:userId', verifyAdminOrSuperAdmin, async (req, res) => {
 });
 
 // Toggle User Active Status (by admin)
-router.put('/users/:userId/status', verifyAdminOrSuperAdmin, async (req, res) => {
+router.put('/users/:userId/status', verifyAdminOrSuperAdmin, auditLog('USER_UPDATE', (req) => ({ model: 'User', id: req.params.userId, label: 'Staff account status toggled' }), { severity: 'warning', dataCategory: 'Administrative' }), async (req, res) => {
     try {
         const { userId } = req.params;
         const { isActive } = req.body;
@@ -776,7 +843,7 @@ router.put('/users/:userId/status', verifyAdminOrSuperAdmin, async (req, res) =>
 });
 
 // Reset User Password (by admin)
-router.put('/users/:userId/reset-password', verifyAdminOrSuperAdmin, async (req, res) => {
+router.put('/users/:userId/reset-password', verifyAdminOrSuperAdmin, auditLog('PASSWORD_RESET', (req) => ({ model: 'User', id: req.params.userId, label: 'Password reset by admin' }), { severity: 'critical', dataCategory: 'Administrative' }), async (req, res) => {
     try {
         const { userId } = req.params;
         const { password } = req.body;
@@ -821,7 +888,7 @@ const KNOWN_PERMISSIONS = [
     'administrator_view', 'administrator_manage',
     'staff_manage', 'department_manage', 'patient_monitor',
     'admission_manage', 'resource_manage', 'reports_view',
-    'analytics_view', 'operations_manage'
+    'analytics_view', 'operations_manage', 'inventory_view'
 ];
 
 /**
@@ -830,7 +897,7 @@ const KNOWN_PERMISSIONS = [
  * Only Super Admin / Central Admin can call this.
  * Permissions remain scoped to the user's hospital.
  */
-router.put('/users/:userId/permissions', verifyToken, verifySuperAdmin, async (req, res) => {
+router.put('/users/:userId/permissions', verifyToken, verifySuperAdmin, auditLog('PERMISSION_CHANGE', (req) => ({ model: 'User', id: req.params.userId, label: 'Custom permissions updated' }), { severity: 'critical', dataCategory: 'Administrative' }), async (req, res) => {
     try {
         const { userId } = req.params;
         const { customPermissions, deniedPermissions } = req.body;
@@ -933,32 +1000,32 @@ router.post('/administrators', verifyToken, verifySuperAdmin, async (req, res) =
             permissions: permissions || [
                 'administrator_view', 'administrator_manage', 'staff_manage', 'department_manage',
                 'patient_monitor', 'admission_manage', 'resource_manage', 'billing_view',
-                'reports_view', 'analytics_view', 'operations_manage'
+                'reports_view', 'analytics_view', 'operations_manage', 'inventory_view'
             ],
-            dashboardPath: '/administrator/dashboard',
+            dashboardPath: '/admin/dashboard',
             navLinks: [
-                { label: 'Dashboard', path: '/administrator/dashboard' },
-                { label: 'Patient Flow', path: '/administrator/patient-flow' },
-                { label: 'Admissions', path: '/administrator/admissions' },
-                { label: 'Bed Management', path: '/administrator/beds' },
-                { label: 'Appointments', path: '/administrator/appointments' },
-                { label: 'Hospital Operations Center', path: '/administrator/operations' },
-                { label: 'Staff Management', path: '/administrator/staff' },
-                { label: 'Doctor Management', path: '/administrator/doctors' },
-                { label: 'Departments', path: '/administrator/departments' },
-                { label: 'Roles & Permissions', path: '/administrator/roles' },
-                { label: 'Laboratory Management', path: '/administrator/lab' },
-                { label: 'Pharmacy Management', path: '/administrator/pharmacy' },
-                { label: 'Billing Oversight', path: '/administrator/billing' },
-                { label: 'Revenue Monitoring', path: '/administrator/revenue' },
-                { label: 'Inventory Monitoring', path: '/administrator/inventory' },
-                { label: 'Resource Management', path: '/administrator/resources' },
-                { label: 'Reports', path: '/administrator/reports' },
-                { label: 'Analytics', path: '/administrator/analytics' },
-                { label: 'Audit Logs', path: '/administrator/audit-logs' },
-                { label: 'Notifications', path: '/administrator/notifications' },
-                { label: 'Settings', path: '/administrator/settings' },
-                { label: 'Profile Settings', path: '/administrator/profile-settings' }
+                { label: 'Dashboard', path: '/admin/dashboard' },
+                { label: 'Patient Flow', path: '/admin/patient-flow' },
+                { label: 'Admissions', path: '/admin/admissions' },
+                { label: 'Bed Management', path: '/admin/beds' },
+                { label: 'Appointments', path: '/admin/appointments' },
+                { label: 'Hospital Operations Center', path: '/admin/operations' },
+                { label: 'Staff Management', path: '/admin/staff' },
+                { label: 'Doctor Management', path: '/admin/doctor-management' },
+                { label: 'Departments', path: '/admin/departments' },
+                { label: 'Roles & Permissions', path: '/admin/role-management' },
+                { label: 'Laboratory Management', path: '/admin/lab-management' },
+                { label: 'Pharmacy Management', path: '/admin/pharmacy-management' },
+                { label: 'Billing Oversight', path: '/admin/billing' },
+                { label: 'Revenue Monitoring', path: '/admin/revenue' },
+                { label: 'Inventory Monitoring', path: '/admin/inventory' },
+                { label: 'Resource Management', path: '/admin/resources' },
+                { label: 'Reports', path: '/admin/reports' },
+                { label: 'Analytics', path: '/admin/analytics' },
+                { label: 'Audit Logs', path: '/admin/audit-logs' },
+                { label: 'Notifications', path: '/admin/notifications' },
+                { label: 'Settings', path: '/admin/settings' },
+                { label: 'Profile Settings', path: '/admin/profile-settings' }
             ],
             hospitalId,
             isSystemRole: false

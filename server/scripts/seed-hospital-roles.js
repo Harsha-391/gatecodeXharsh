@@ -147,7 +147,7 @@ const defaultRoles = [
         permissions: [
             'administrator_view', 'administrator_manage', 'staff_manage', 'department_manage',
             'patient_monitor', 'admission_manage', 'resource_manage', 'billing_view',
-            'reports_view', 'analytics_view', 'operations_manage'
+            'reports_view', 'analytics_view', 'operations_manage', 'inventory_view'
         ],
         dashboardPath: '/administrator/dashboard',
         navLinks: [

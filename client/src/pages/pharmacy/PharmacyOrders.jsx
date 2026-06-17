@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { pharmacyOrderAPI } from '../../utils/api';
 import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import socket from '../../utils/socket';
 import './PharmacyInventory.css';
 
@@ -180,7 +180,7 @@ const PharmacyOrders = () => {
 
         // ── Items Table ──
         y += 4;
-        doc.autoTable({
+        autoTable(doc, {
             startY: y,
             head: [['#', 'Medicine Name', 'Qty', 'Unit Price (₹)', 'Amount (₹)']],
             body: (order.items || []).map((item, i) => [

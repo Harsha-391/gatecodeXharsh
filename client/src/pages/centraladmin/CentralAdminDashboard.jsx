@@ -862,7 +862,7 @@ const CentralAdminDashboard = () => {
                                     ) : (
                                         <div className="staff-breakdown-list">
                                             {s.staffBreakdown
-                                                .filter(item => !['patient'].includes(item.role?.toLowerCase()))
+                                                .filter(item => !['patient'].includes(item.role?.toLowerCase()) && !/^[0-9a-fA-F]{24}$/.test(item.role))
                                                 .map((item, i) => (
                                                     <div key={i} className="breakdown-item">
                                                         <span className="breakdown-role">{item.role}</span>

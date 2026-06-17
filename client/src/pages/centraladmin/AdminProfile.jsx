@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth, useAppDispatch } from '../../store/hooks';
-import { updateUser, logout } from '../../store/slices/authSlice';
+import { updateUser, logoutUser } from '../../store/slices/authSlice';
 import { authAPI } from '../../utils/api';
 import { FiUser, FiMail, FiPhone, FiLock, FiLogOut, FiSave, FiUploadCloud } from 'react-icons/fi';
 import './AdminProfile.css';
@@ -107,7 +107,7 @@ const AdminProfile = () => {
     };
 
     const handleLogout = () => {
-        dispatch(logout());
+        dispatch(logoutUser());
         navigate('/login');
     };
 

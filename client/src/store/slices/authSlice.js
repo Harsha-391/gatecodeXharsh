@@ -87,6 +87,18 @@ export const signupAdmin = createAsyncThunk(
   }
 );
 
+export const logoutUser = createAsyncThunk(
+  'auth/logoutUser',
+  async (_, { dispatch }) => {
+    try {
+      await authAPI.logout();
+    } catch (error) {
+      console.error('Server logout failed:', error);
+    }
+    dispatch(logout());
+  }
+);
+
 // Load initial state from localStorage
 const loadInitialState = () => {
   try {

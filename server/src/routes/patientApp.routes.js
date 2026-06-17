@@ -121,6 +121,23 @@ router.post('/auth/verify-otp', async (req, res) => {
 
         const valid = await verifyOTP(otp, session.otp);
         if (!valid) {
+            try {
+                const AuditLogModel = require('../models/auditLog.model');
+                await AuditLogModel.create({
+                    clinicId: clinicId || session.clinicId || null,
+                    userName: cleanPhone,
+                    role: 'patient',
+                    action: 'FAILED_LOGIN',
+                    severity: 'warning',
+                    dataCategory: 'System',
+                    requestMethod: req.method,
+                    requestPath: req.originalUrl || req.path,
+                    ip: req.ip || '',
+                    userAgent: req.headers['user-agent'] || '',
+                    success: false,
+                    reason: 'Incorrect OTP'
+                });
+            } catch (_) {}
             return res.status(400).json({ success: false, message: 'Incorrect OTP' });
         }
 
@@ -158,6 +175,26 @@ router.post('/auth/verify-otp', async (req, res) => {
             },
         });
 
+        // Audit patient successful login
+        try {
+            const AuditLogModel = require('../models/auditLog.model');
+            await AuditLogModel.create({
+                clinicId: effectiveClinicId,
+                userId: session.patientId || null,
+                userName: cleanPhone,
+                role: 'patient',
+                action: 'PATIENT_LOGIN',
+                severity: 'info',
+                dataCategory: 'System',
+                sessionId: jti,
+                requestMethod: req.method,
+                requestPath: req.originalUrl || req.path,
+                ip: req.ip || '',
+                userAgent: req.headers['user-agent'] || '',
+                success: true
+            });
+        } catch (_) {}
+
         res.json({
             success: true,
             token,
@@ -177,6 +214,27 @@ router.post('/auth/logout', verifyPatientToken, async (req, res) => {
             { phone: req.patient.phone },
             { $pull: { activeSessions: { jti: req.patient.jti } } }
         );
+
+        // Audit patient logout
+        try {
+            const AuditLogModel = require('../models/auditLog.model');
+            await AuditLogModel.create({
+                clinicId: req.patient.clinicId,
+                userId: req.patient.patientId || null,
+                userName: req.patient.phone || 'Patient',
+                role: 'patient',
+                action: 'LOGOUT',
+                severity: 'info',
+                dataCategory: 'System',
+                sessionId: req.patient.jti || '',
+                requestMethod: req.method,
+                requestPath: req.originalUrl || req.path,
+                ip: req.ip || '',
+                userAgent: req.headers['user-agent'] || '',
+                success: true
+            });
+        } catch (_) {}
+
         res.json({ success: true });
     } catch (err) {
         res.status(500).json({ success: false, message: 'An internal error occurred' });

@@ -22,6 +22,7 @@ function getTenantModels(tenantDb) {
         FacilityCharge: model('FacilityCharge', require('../models/facilityCharge.model').schema),
         Role: model('Role', require('../models/role.model').schema),
         Admission: model('Admission', require('../models/admission.model').schema),
+        Transfer: model('Transfer', require('../models/transfer.model').schema),
         Invoice: model('Invoice', require('../models/invoice.model').schema),
         Refund: model('Refund', require('../models/refund.model').schema),
         BillingActivityLog: model('BillingActivityLog', require('../models/billingActivityLog.model').schema),

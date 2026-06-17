@@ -6,7 +6,7 @@ const auditLog = require('../middleware/audit.middleware');
 const MasterUser = require('../models/user.model');
 
 // SEARCH API: Identifies patient by Phone or Name — scoped to hospital tenant
-router.get('/search', verifyToken, resolveTenant, async (req, res) => {
+router.get('/search', verifyToken, resolveTenant, auditLog('PATIENT_ACCESS', (req) => ({ model: 'User', label: `Patient Search Term: ${req.query.term || ''}` }), { dataCategory: 'PII' }), async (req, res) => {
     try {
         const { term } = req.query;
         if (!term || typeof term !== 'string' || term.trim().length < 2) {
@@ -35,7 +35,11 @@ router.get('/search', verifyToken, resolveTenant, async (req, res) => {
 });
 
 // FULL HISTORY API: Chronological Timeline — scoped to hospital tenant
-router.get('/:id/full-history', verifyToken, resolveTenant, auditLog('VIEW_PATIENT', (req) => ({ model: 'User', id: req.params.id })), async (req, res) => {
+router.get('/:id/full-history', verifyToken, resolveTenant, auditLog('VIEW_PATIENT', (req, body) => ({
+    model: 'User',
+    id: body.user?._id || req.params.id,
+    label: body.user ? `${body.user.name} (${body.user.patientId || ''})` : 'Patient record',
+}), { dataCategory: 'PHI' }), async (req, res) => {
     try {
         const userId = req.params.id;
         const roleData = req.user._roleData;
@@ -134,6 +138,129 @@ router.get('/:id/full-history', verifyToken, resolveTenant, auditLog('VIEW_PATIE
         res.json({ success: true, user, timeline });
     } catch (error) {
         res.status(500).json({ success: false, message: 'An internal error occurred' });
+    }
+});
+
+// CREATE PATIENT API: Registrations — scoped to hospital tenant
+router.post('/', verifyToken, resolveTenant, auditLog('CREATE_PATIENT', (req, body) => ({
+    model: 'User',
+    id: body.user?._id || null,
+    label: body.user ? `${body.user.name} (${body.user.patientId || ''})` : 'Patient record created',
+    after: body.user || null
+}), { dataCategory: 'PII', severity: 'warning' }), async (req, res) => {
+    try {
+        const { name, email, phone, gender, dob, address, city } = req.body;
+        if (!name || !phone) {
+            return res.status(400).json({ success: false, message: 'Name and phone are required' });
+        }
+        const hospitalId = req.user.hospitalId || req.hospitalId;
+        const patientId = 'MRN-' + Date.now() + Math.floor(Math.random() * 1000);
+        
+        const userData = {
+            name,
+            phone,
+            email,
+            gender,
+            dob,
+            address,
+            city,
+            role: 'patient',
+            patientId,
+            hospitalId
+        };
+
+        const user = new MasterUser(userData);
+        await user.save();
+
+        if (req.tenantDb) {
+            const { getTenantModels } = require('../db/tenantModels');
+            const TenantUser = getTenantModels(req.tenantDb).User;
+            const tenantUser = new TenantUser({
+                ...userData,
+                _id: user._id
+            });
+            await tenantUser.save();
+        }
+
+        res.status(201).json({ success: true, user });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// UPDATE PATIENT API: Modify demographics — scoped to hospital tenant
+router.put('/:id', verifyToken, resolveTenant, auditLog('UPDATE_PATIENT', (req, body) => ({
+    model: 'User',
+    id: req.params.id,
+    label: body.user ? `${body.user.name} (${body.user.patientId || ''})` : 'Patient record updated',
+    before: req.oldUser || null,
+    after: body.user || null
+}), { dataCategory: 'PII', severity: 'warning' }), async (req, res, next) => {
+    try {
+        const user = await MasterUser.findById(req.params.id).lean();
+        if (user) req.oldUser = user;
+    } catch (_) {}
+    next();
+}, async (req, res) => {
+    try {
+        const { name, email, phone, gender, dob, address, city } = req.body;
+        const hospitalId = req.user.hospitalId || req.hospitalId;
+
+        const updateData = {};
+        if (name) updateData.name = name;
+        if (email) updateData.email = email;
+        if (phone) updateData.phone = phone;
+        if (gender) updateData.gender = gender;
+        if (dob) updateData.dob = dob;
+        if (address) updateData.address = address;
+        if (city) updateData.city = city;
+
+        const user = await MasterUser.findOneAndUpdate(
+            { _id: req.params.id, hospitalId },
+            { $set: updateData },
+            { new: true }
+        );
+        if (!user) return res.status(404).json({ success: false, message: 'Patient not found' });
+
+        if (req.tenantDb) {
+            const { getTenantModels } = require('../db/tenantModels');
+            const TenantUser = getTenantModels(req.tenantDb).User;
+            await TenantUser.findByIdAndUpdate(req.params.id, { $set: updateData });
+        }
+
+        res.json({ success: true, user });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// DELETE PATIENT API: Deletion — scoped to hospital tenant
+router.delete('/:id', verifyToken, resolveTenant, auditLog('DELETE_PATIENT', (req, body) => ({
+    model: 'User',
+    id: req.params.id,
+    label: 'Patient record deleted',
+    before: req.oldUser || null
+}), { dataCategory: 'PII', severity: 'critical' }), async (req, res, next) => {
+    try {
+        const user = await MasterUser.findById(req.params.id).lean();
+        if (user) req.oldUser = user;
+    } catch (_) {}
+    next();
+}, async (req, res) => {
+    try {
+        const hospitalId = req.user.hospitalId || req.hospitalId;
+        const user = await MasterUser.findOneAndDelete({ _id: req.params.id, hospitalId });
+        if (!user) return res.status(404).json({ success: false, message: 'Patient not found' });
+
+        if (req.tenantDb) {
+            const { getTenantModels } = require('../db/tenantModels');
+            const TenantUser = getTenantModels(req.tenantDb).User;
+            await TenantUser.findByIdAndDelete(req.params.id);
+        }
+
+        res.json({ success: true, message: 'Patient deleted successfully' });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
     }
 });
 

@@ -1,0 +1,603 @@
+/* AdmissionsOversight.css — Admissions Oversight Module Styling */
+
+.admissions-oversight-page {
+    padding: 24px;
+    min-height: 100vh;
+    background: var(--bg-primary, #0f172a);
+    color: var(--text-primary, #f1f5f9);
+    font-family: 'Inter', 'Segoe UI', sans-serif;
+}
+
+/* ── Header Row ────────────────────────────────────────────────────────────── */
+.oversight-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+}
+
+.oversight-header-left h1 {
+    font-size: 1.75rem;
+    font-weight: 850;
+    color: #f1f5f9;
+    margin: 0 0 6px;
+    letter-spacing: -0.02em;
+}
+
+.oversight-header-left p {
+    color: #94a3b8;
+    font-size: 0.9rem;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.oversight-header-badge {
+    background: linear-gradient(135deg, #0ea5e9, #6366f1);
+    color: #ffffff;
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 20px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+
+.btn-refresh-oversight {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.08);
+    color: #cbd5e1;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-refresh-oversight:hover {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.2);
+    transform: translateY(-1px);
+}
+
+/* ── Summary Stats Cards ─────────────────────────────────────────────────────── */
+.oversight-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.oversight-stat-card {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    backdrop-filter: blur(12px);
+    transition: all 0.25s ease;
+}
+
+.oversight-stat-card:hover {
+    transform: translateY(-2px);
+    background: rgba(255, 255, 255, 0.07);
+    border-color: rgba(255, 255, 255, 0.15);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+}
+
+.oversight-stat-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+    flex-shrink: 0;
+}
+
+.oversight-stat-icon.primary { background: rgba(99, 102, 241, 0.15); color: #818cf8; }
+.oversight-stat-icon.success { background: rgba(34, 197, 94, 0.15); color: #4ade80; }
+.oversight-stat-icon.danger { background: rgba(239, 68, 68, 0.15); color: #f87171; }
+.oversight-stat-icon.warning { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
+.oversight-stat-icon.teal { background: rgba(20, 184, 166, 0.15); color: #2dd4bf; }
+.oversight-stat-icon.pink { background: rgba(236, 72, 153, 0.15); color: #f472b6; }
+.oversight-stat-icon.blue { background: rgba(14, 165, 233, 0.15); color: #38bdf8; }
+
+.oversight-stat-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.oversight-stat-value {
+    display: block;
+    font-size: 1.6rem;
+    font-weight: 800;
+    color: #f8fafc;
+    line-height: 1.1;
+}
+
+.oversight-stat-label {
+    display: block;
+    font-size: 0.75rem;
+    color: #94a3b8;
+    margin-top: 4px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ── Tabs Configuration ──────────────────────────────────────────────────────── */
+.oversight-tabs-row {
+    display: flex;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    gap: 8px;
+    margin-bottom: 24px;
+    overflow-x: auto;
+    scrollbar-width: none; /* Firefox */
+}
+
+.oversight-tabs-row::-webkit-scrollbar {
+    display: none; /* Safari/Chrome */
+}
+
+.tab-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 18px;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: #94a3b8;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.tab-btn:hover {
+    color: #cbd5e1;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 8px 8px 0 0;
+}
+
+.tab-btn.active {
+    color: #38bdf8;
+    border-bottom-color: #38bdf8;
+    background: rgba(14, 165, 233, 0.05);
+    border-radius: 8px 8px 0 0;
+}
+
+/* ── Glass Container ─────────────────────────────────────────────────────────── */
+.oversight-glass-container {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 16px;
+    padding: 24px;
+    backdrop-filter: blur(16px);
+}
+
+/* ── Filters Section ──────────────────────────────────────────────────────────── */
+.oversight-filters-card {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-bottom: 20px;
+    padding: 16px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    border-radius: 12px;
+}
+
+.search-filter-row {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.search-box-wrap {
+    position: relative;
+    flex: 2;
+    min-width: 260px;
+}
+
+.search-box-wrap input {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    color: #f1f5f9;
+    font-size: 0.875rem;
+    padding: 10px 14px 10px 38px;
+    outline: none;
+    transition: all 0.2s ease;
+}
+
+.search-box-wrap input:focus {
+    border-color: rgba(56, 189, 248, 0.5);
+    background: rgba(255, 255, 255, 0.09);
+    box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.15);
+}
+
+.search-box-wrap .search-icon {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #64748b;
+    font-size: 0.95rem;
+}
+
+.filters-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    width: 100%;
+}
+
+.filter-input-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.filter-input-wrap label {
+    font-size: 0.72rem;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+}
+
+.filter-input-wrap select,
+.filter-input-wrap input[type="date"] {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    color: #cbd5e1;
+    font-size: 0.85rem;
+    padding: 8px 10px;
+    outline: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.filter-input-wrap select:focus,
+.filter-input-wrap input[type="date"]:focus {
+    border-color: rgba(56, 189, 248, 0.5);
+}
+
+.filter-input-wrap input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(0.6);
+}
+
+.btn-clear-oversight-filters {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: #fca5a5;
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    align-self: flex-end;
+}
+
+.btn-clear-oversight-filters:hover {
+    background: rgba(239, 68, 68, 0.25);
+    transform: translateY(-1px);
+}
+
+/* ── Table Design ───────────────────────────────────────────────────────────── */
+.oversight-table-wrap {
+    overflow-x: auto;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(15, 23, 42, 0.25);
+    margin-top: 12px;
+}
+
+.oversight-table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+    font-size: 0.875rem;
+}
+
+.oversight-table th {
+    background: rgba(255, 255, 255, 0.03);
+    padding: 14px 16px;
+    font-weight: 600;
+    color: #94a3b8;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.oversight-table td {
+    padding: 14px 16px;
+    color: #cbd5e1;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.oversight-table tr:last-child td {
+    border-bottom: none;
+}
+
+.oversight-table tr:hover td {
+    background: rgba(255, 255, 255, 0.01);
+    color: #f1f5f9;
+}
+
+/* Badges */
+.badge-oversight {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.badge-oversight.admitted { background: rgba(34, 197, 94, 0.12); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.25); }
+.badge-oversight.observation { background: rgba(14, 165, 233, 0.12); color: #38bdf8; border: 1px solid rgba(14, 165, 233, 0.25); }
+.badge-oversight.pending-transfer { background: rgba(245, 158, 11, 0.12); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.25); }
+.badge-oversight.transferred { background: rgba(99, 102, 241, 0.12); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.25); }
+.badge-oversight.pending-discharge { background: rgba(236, 72, 153, 0.12); color: #f472b6; border: 1px solid rgba(236, 72, 153, 0.25); }
+.badge-oversight.discharged { background: rgba(100, 116, 139, 0.15); color: #94a3b8; border: 1px solid rgba(100, 116, 139, 0.25); }
+
+.cell-patient-name {
+    font-weight: 600;
+    color: #f1f5f9;
+}
+
+.cell-uhid {
+    font-family: 'JetBrains Mono', 'Courier New', monospace;
+    font-size: 0.78rem;
+    color: #38bdf8;
+    background: rgba(14, 165, 233, 0.08);
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.cell-bed {
+    font-family: monospace;
+    font-weight: 700;
+    color: #e2e8f0;
+}
+
+/* ── Bed Occupancy View ──────────────────────────────────────────────────────── */
+.bed-occupancy-container {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.bed-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px;
+}
+
+.bed-summary-card {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    padding: 20px;
+}
+
+.bed-summary-card h3 {
+    margin: 0 0 16px;
+    font-size: 1.1rem;
+    color: #e2e8f0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.progress-bar-container {
+    height: 10px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 5px;
+    overflow: hidden;
+    margin-bottom: 12px;
+}
+
+.progress-bar-fill {
+    height: 100%;
+    border-radius: 5px;
+    transition: width 0.5s ease-out;
+}
+
+.progress-bar-fill.icu {
+    background: linear-gradient(90deg, #ec4899, #f43f5e);
+}
+
+.progress-bar-fill.ward {
+    background: linear-gradient(90deg, #0ea5e9, #6366f1);
+}
+
+.bed-details-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.85rem;
+    color: #94a3b8;
+}
+
+/* Wards monitoring visualization */
+.ward-visualization-section {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    padding: 20px;
+}
+
+.ward-visualization-section h3 {
+    margin: 0 0 16px;
+    font-size: 1.1rem;
+    color: #e2e8f0;
+}
+
+.beds-layout-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(65px, 1fr));
+    gap: 10px;
+}
+
+.bed-cell-monitor {
+    aspect-ratio: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    border-radius: 8px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    border: 1px solid transparent;
+}
+
+.bed-cell-monitor.available {
+    background: rgba(34, 197, 94, 0.08);
+    color: #4ade80;
+    border-color: rgba(34, 197, 94, 0.15);
+}
+
+.bed-cell-monitor.occupied {
+    background: rgba(239, 68, 68, 0.08);
+    color: #f87171;
+    border-color: rgba(239, 68, 68, 0.15);
+}
+
+.bed-cell-label {
+    font-size: 0.72rem;
+    opacity: 0.8;
+}
+
+/* ── Transfers & Discharges ──────────────────────────────────────────────────── */
+.transfers-discharges-layout {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    gap: 24px;
+}
+
+@media (max-width: 960px) {
+    .transfers-discharges-layout {
+        grid-template-columns: 1fr;
+    }
+}
+
+.discharge-categories-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.discharge-category-block {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    padding: 16px;
+}
+
+.discharge-category-block h4 {
+    margin: 0 0 12px;
+    font-size: 0.95rem;
+    color: #cbd5e1;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.discharge-category-block h4.today { color: #4ade80; }
+.discharge-category-block h4.upcoming { color: #60a5fa; }
+.discharge-category-block h4.delayed { color: #f87171; }
+
+.discharge-patient-item {
+    padding: 10px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    margin-bottom: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.85rem;
+}
+
+.discharge-patient-item:last-child {
+    margin-bottom: 0;
+}
+
+.discharge-patient-meta {
+    font-size: 0.75rem;
+    color: #64748b;
+}
+
+/* Empty states */
+.empty-data-oversight {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 48px 24px;
+    color: #64748b;
+    text-align: center;
+    gap: 10px;
+}
+
+.empty-data-oversight p {
+    margin: 0;
+    font-size: 0.9rem;
+}
+
+/* Loading spinners & skeletons */
+.loading-box-oversight {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 64px 20px;
+    color: #94a3b8;
+    font-size: 0.95rem;
+}
+
+.spinner-oversight {
+    display: inline-block;
+    width: 22px;
+    height: 22px;
+    border: 2px solid rgba(56, 189, 248, 0.3);
+    border-top-color: #38bdf8;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+/* ── Media Queries ───────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+    .admissions-oversight-page { padding: 14px; }
+    .oversight-header-row { flex-direction: column; }
+    .oversight-stats-grid { grid-template-columns: repeat(2, 1fr); }
+    .search-filter-row { flex-direction: column; align-items: stretch; }
+}
+
+@media (max-width: 480px) {
+    .oversight-stats-grid { grid-template-columns: 1fr; }
+}

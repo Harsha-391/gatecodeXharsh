@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAppDispatch, useAuth, useNotifications } from '../store/hooks';
-import { logout } from '../store/slices/authSlice';
+import { logoutUser } from '../store/slices/authSlice';
 import { fetchNotifications, markAsRead } from '../store/slices/notificationSlice';
 import { FiBell, FiChevronDown, FiLogOut, FiLogIn, FiHome, FiSettings } from 'react-icons/fi';
 import { useBranding } from '../context/BrandingContext';
@@ -32,7 +32,7 @@ const Navbar = () => {
   }, [isAuthenticated, user, dispatch]);
 
   const handleLogout = () => {
-    dispatch(logout());
+    dispatch(logoutUser());
     navigate('/');
   };
 

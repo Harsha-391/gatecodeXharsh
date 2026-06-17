@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { NavLink, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth, useAppDispatch } from '../../store/hooks';
-import { logout } from '../../store/slices/authSlice';
+import { logoutUser } from '../../store/slices/authSlice';
 import { useBranding } from '../../context/BrandingContext';
 import {
     FiHome, FiUsers, FiCalendar, FiActivity, FiPackage,
@@ -64,6 +64,7 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
     
     // Categorized Menus
     const getMenu = () => {
+        const userPermissions = user?.effectivePermissions || user?.permissions || [];
         let baseMenu = [];
 
         if (role === 'centraladmin' || role === 'superadmin') {
@@ -87,7 +88,8 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
                     { label: 'Staff Management', path: '/admin/users', icon: <FiUsers /> },
                     { label: 'Doctors Feed', path: '/admin/doctors', icon: <FiActivity /> },
                     { label: 'Pharma Inventory', path: '/pharmacy/inventory', icon: <FiPackage /> },
-                    { label: 'Hospital Operations Center', path: '/administrator/operations', icon: <FiActivity /> },
+                    { label: 'Admissions', path: '/admin/admissions', icon: <FiPlusSquare /> },
+                    { label: 'Hospital Operations Center', path: '/admin/operations', icon: <FiActivity /> },
                 ];
             }
         } else if (role === 'doctor') {
@@ -98,10 +100,11 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
             baseMenu = [
                 { label: 'Reception Dashboard', path: '/reception/dashboard', icon: <FiHome /> },
                 { label: 'Appointments/Booking', path: '/appointment', icon: <FiPlusSquare /> },
+                { label: 'Patient Flow', path: '/admin/patient-flow', icon: <FiUsers /> },
                 { label: 'My Daily Collection', path: '/reception/dashboard?view=collection', icon: <FiPieChart /> },
                 { label: 'Patient Billing', path: '/billing/patient', icon: <FiUsers /> },
                 { label: 'Invoices', path: '/billing/invoices', icon: <FiFileText /> },
-                { label: 'Refunds', path: '/billing/refunds', icon: <FiLogOut /> },
+                { label: 'Refunds', path: '/billing/refunds', icon: <FiLogOut /> }
             ];
         } else if (role === 'lab' || role === 'lab technician') {
             baseMenu = [
@@ -138,65 +141,65 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
                 {
                     category: '',
                     items: [
-                        { label: 'Dashboard', path: '/administrator/dashboard', icon: <FiHome /> }
+                        { label: 'Dashboard', path: '/admin/dashboard', icon: <FiHome /> }
                     ]
                 },
                 {
                     category: 'Hospital Operations',
                     items: [
-                        { label: 'Patient Flow', path: '/administrator/patient-flow', icon: <FiUsers /> },
-                        { label: 'Admissions', path: '/administrator/admissions', icon: <FiPlusSquare /> },
-                        ...(role !== 'accountant' ? [{ label: 'Bed Management', path: '/administrator/beds', icon: <FiDatabase /> }] : []),
-                        { label: 'Appointments', path: '/administrator/appointments', icon: <FiCalendar /> },
-                        ...(role !== 'accountant' ? [{ label: 'Hospital Operations Center', path: '/administrator/operations', icon: <FiActivity /> }] : [])
+                        ...(role !== 'accountant' ? [
+                            { label: 'Patient Flow', path: '/admin/patient-flow', icon: <FiUsers /> },
+                            { label: 'Admissions', path: '/admin/admissions', icon: <FiPlusSquare /> },
+                            { label: 'Bed Management', path: '/admin/beds', icon: <FiDatabase /> },
+                            { label: 'Appointments', path: '/admin/appointments', icon: <FiCalendar /> },
+                            { label: 'Hospital Operations Center', path: '/admin/operations', icon: <FiActivity /> }
+                        ] : [])
                     ]
                 },
                 {
                     category: 'Human Resources',
                     items: [
-                        { label: 'Staff Management', path: '/administrator/staff', icon: <FiUsers /> },
-                        { label: 'Doctor Management', path: '/administrator/doctors', icon: <FiActivity /> },
-                        { label: 'Departments', path: '/administrator/departments', icon: <FiGrid /> },
-                        ...(role !== 'accountant' ? [{ label: 'Roles & Permissions', path: '/administrator/roles', icon: <FiShield /> }] : [])
+                        { label: 'Staff Management', path: '/admin/staff', icon: <FiUsers /> },
+                        { label: 'Doctor Management', path: '/admin/doctor-management', icon: <FiActivity /> },
+                        { label: 'Departments', path: '/admin/departments', icon: <FiGrid /> },
+                        ...(role !== 'accountant' ? [{ label: 'Roles & Permissions', path: '/admin/role-management', icon: <FiShield /> }] : [])
                     ]
                 },
                 {
                     category: 'Clinical Services',
                     items: [
-                        { label: 'Laboratory Management', path: '/administrator/lab', icon: <FiGrid /> },
-                        { label: 'Pharmacy Management', path: '/administrator/pharmacy', icon: <FiPackage /> }
+                        { label: 'Laboratory Management', path: '/admin/lab-management', icon: <FiGrid /> },
+                        { label: 'Pharmacy Management', path: '/admin/pharmacy-management', icon: <FiPackage /> }
                     ]
                 },
                 {
                     category: 'Financial Management',
                     items: [
-                        { label: 'Billing Oversight', path: '/administrator/billing', icon: <FiFileText /> },
-                        { label: 'Revenue Monitoring', path: '/administrator/revenue', icon: <FiPieChart /> },
+                        { label: 'Billing Oversight', path: '/admin/billing', icon: <FiFileText /> },
+                        { label: 'Revenue Monitoring', path: '/admin/revenue', icon: <FiPieChart /> },
                         { label: 'Revenue Reports', path: '/billing/reports', icon: <FiGrid /> },
                         { label: 'Billing Analytics', path: '/billing/analytics', icon: <FiPieChart /> }
                     ]
                 },
-                {
-                    category: 'Resources',
-                    items: [
-                        { label: 'Inventory Monitoring', path: '/administrator/inventory', icon: <FiPackage /> },
-                        { label: 'Resource Management', path: '/administrator/resources', icon: <FiSettings /> }
-                    ]
-                },
+
                 {
                     category: 'Insights',
                     items: [
-                        { label: 'Reports', path: '/administrator/reports', icon: <FiFileText /> },
-                        { label: 'Analytics', path: '/administrator/analytics', icon: <FiPieChart /> },
-                        { label: 'Audit Logs', path: '/administrator/audit-logs', icon: <FiClipboard /> }
+                        ...(role !== 'accountant' ? [
+                            { label: 'Reports', path: '/admin/reports', icon: <FiFileText /> }
+                        ] : []),
+                        { label: 'Analytics', path: '/admin/analytics', icon: <FiPieChart /> },
+                        ...(role !== 'accountant' ? [
+                            { label: 'Audit Logs', path: '/admin/audit-logs', icon: <FiClipboard /> }
+                        ] : [])
                     ]
                 },
                 {
                     category: 'Administration',
                     items: [
-                        { label: 'Notifications', path: '/administrator/notifications', icon: <FiAlertCircle /> },
-                        { label: 'Settings', path: '/administrator/settings', icon: <FiSettings /> },
-                        { label: 'Profile Settings', path: '/administrator/profile-settings', icon: <FiUser /> }
+                        { label: 'Notifications', path: '/admin/notifications', icon: <FiAlertCircle /> },
+                        { label: 'Settings', path: '/admin/settings', icon: <FiSettings /> },
+                        { label: 'Profile Settings', path: '/admin/profile-settings', icon: <FiUser /> }
                     ]
                 }
             ];
@@ -204,10 +207,15 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
             baseMenu = [
                 { label: 'My Dashboard', path: '/my-dashboard', icon: <FiHome /> },
             ];
+            if (role === 'admin' || role === 'hospitaladmin') {
+                baseMenu.push(
+                    { label: 'Reports', path: '/admin/reports', icon: <FiFileText /> },
+                    { label: 'Audit Logs', path: '/admin/audit-logs', icon: <FiClipboard /> }
+                );
+            }
         }
 
         // Dynamically append permission-based links for non-administrator/accountant roles
-        const userPermissions = user?.effectivePermissions || user?.permissions || [];
         const extraItems = [];
 
         if (userPermissions.includes('billing_view') || userPermissions.includes('billing_manage')) {
@@ -258,9 +266,33 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
             );
         }
 
+        if (userPermissions.includes('patient_monitor')) {
+            extraItems.push(
+                { label: 'Patient Flow', path: '/admin/patient-flow', icon: <FiUsers /> }
+            );
+        }
+
+        if (userPermissions.includes('admission_manage')) {
+            extraItems.push(
+                { label: 'Admissions', path: '/admin/admissions', icon: <FiPlusSquare /> }
+            );
+        }
+
         if (userPermissions.includes('visit_diagnose')) {
             extraItems.push(
                 { label: 'My Patients', path: '/doctor/dashboard', icon: <FiUsers /> }
+            );
+        }
+
+        if (userPermissions.includes('inventory_view')) {
+            extraItems.push(
+                { label: 'Inventory Monitoring', path: '/admin/inventory', icon: <FiPackage /> }
+            );
+        }
+
+        if (userPermissions.includes('resource_manage')) {
+            extraItems.push(
+                { label: 'Resource Management', path: '/admin/resources', icon: <FiSettings /> }
             );
         }
 
@@ -281,7 +313,9 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
         return baseMenu;
     };
 
-    const menuItems = getMenu();
+    const menuItems = (role === 'administrator' || role === 'accountant') 
+        ? getMenu().filter(group => group.items && group.items.length > 0) 
+        : getMenu();
 
     return (
         <aside className={`erp-sidebar ${isOpen ? 'open' : 'collapsed'}`}>
@@ -373,7 +407,7 @@ const TopBar = ({ toggleSidebar, sidebarOpen }) => {
     const location = useLocation();
 
     const handleLogout = () => {
-        dispatch(logout());
+        dispatch(logoutUser());
         navigate('/login');
     };
 

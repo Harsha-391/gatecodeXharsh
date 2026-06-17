@@ -5,6 +5,7 @@ const { verifyToken } = require('../middleware/auth.middleware');
 const { resolveTenant } = require('../middleware/tenantMiddleware');
 const { getTenantModels } = require('../db/tenantModels');
 const AuditLog = require('../models/auditLog.model');
+const auditLog = require('../middleware/audit.middleware');
 
 // Master models (fallbacks)
 const MasterUser = require('../models/user.model');
@@ -18,6 +19,8 @@ const MasterInventory = require('../models/inventory.model');
 const MasterRole = require('../models/role.model');
 const MasterExpenseCategory = require('../models/expenseCategory.model');
 const MasterExpense = require('../models/expense.model');
+const MasterTransfer = require('../models/transfer.model');
+const MasterHospital = require('../models/hospital.model');
 
 // Administrator Access Middleware
 const verifyAdministratorAccess = async (req, res, next) => {
@@ -28,10 +31,19 @@ const verifyAdministratorAccess = async (req, res, next) => {
             const roleName = (roleData?.name || '').toLowerCase();
             const perms = roleData?.permissions || [];
 
-            const isAdministrator = ['administrator', 'hospitaladmin', 'centraladmin', 'superadmin', 'accountant'].includes(roleIdStr) ||
-                ['administrator', 'hospitaladmin', 'centraladmin', 'superadmin', 'accountant'].includes(roleName);
+            const isAdministrator = ['administrator', 'hospitaladmin', 'admin', 'centraladmin', 'superadmin', 'accountant', 'receptionist', 'reception'].includes(roleIdStr) ||
+                ['administrator', 'hospitaladmin', 'admin', 'centraladmin', 'superadmin', 'accountant', 'receptionist', 'reception'].includes(roleName);
 
-            if (isAdministrator || perms.includes('administrator_view') || perms.includes('administrator_manage') || perms.includes('*')) {
+            if (isAdministrator || 
+                perms.includes('administrator_view') || 
+                perms.includes('administrator_manage') || 
+                perms.includes('patient_monitor') || 
+                perms.includes('admission_manage') || 
+                perms.includes('inventory_view') || 
+                perms.includes('resource_manage') || 
+                perms.includes('pharmacy_manage') || 
+                perms.includes('*')
+            ) {
                 await resolveTenant(req, res, next);
             } else {
                 return res.status(403).json({ success: false, message: 'Administrator access required' });
@@ -50,10 +62,12 @@ const getModels = (req) => {
         LabReport: MasterLabReport,
         PharmacyOrder: MasterPharmacyOrder,
         Admission: MasterAdmission,
+        Transfer: MasterTransfer,
         Invoice: MasterInvoice,
         Refund: MasterRefund,
         Inventory: MasterInventory,
         Role: MasterRole,
+        Hospital: MasterHospital,
         ExpenseCategory: MasterExpenseCategory,
         Expense: MasterExpense
     };
@@ -93,9 +107,28 @@ router.get('/stats', verifyAdministratorAccess, async (req, res) => {
         const pendingBilling = await Invoice.countDocuments({ hospitalId, paymentStatus: { $in: ['Pending', 'Partially Paid'] } });
 
         // Bed occupancy totals (Static base of 50 beds: 40 general ward, 10 ICU ward)
-        const totalBeds = 50;
-        const totalICUBeds = 10;
-        const totalWardBeds = 40;
+        let totalBeds = 50;
+        let totalICUBeds = 10;
+        let totalWardBeds = 40;
+
+        const hosp = await MasterHospital.findById(hospitalId).select('facilities');
+        const facilities = hosp ? (hosp.facilities || []) : [];
+
+        if (facilities.length > 0) {
+            let icuTotal = 0;
+            let nonIcuTotal = 0;
+            for (const facility of facilities) {
+                const count = facility.bedCount || 0;
+                if (facility.name.toUpperCase().includes('ICU')) {
+                    icuTotal += count;
+                } else {
+                    nonIcuTotal += count;
+                }
+            }
+            totalBeds = icuTotal + nonIcuTotal;
+            totalICUBeds = icuTotal;
+            totalWardBeds = nonIcuTotal;
+        }
 
         const occupiedBeds = await Admission.countDocuments({ hospitalId, status: 'Admitted' });
         const occupiedICUBeds = await Admission.countDocuments({ hospitalId, status: 'Admitted', ward: { $regex: /ICU/i } });
@@ -568,6 +601,337 @@ router.get('/admissions', verifyAdministratorAccess, async (req, res) => {
     }
 });
 
+// 5a. Admissions Oversight - Dashboard Overview
+router.get('/admissions/oversight/dashboard', verifyAdministratorAccess, auditLog('ADMISSIONS_DASHBOARD_VIEW', null, { dataCategory: 'Administrative' }), async (req, res) => {
+    try {
+        const hospitalId = req.hospitalId || req.user.hospitalId;
+        const role = String(req.user?.role || '').toLowerCase();
+        const roleName = (req.user?._roleData?.name || '').toLowerCase();
+        if (['accountant', 'doctor', 'nurse', 'pharmacist', 'lab technician', 'lab', 'reception', 'receptionist'].includes(role) ||
+            ['accountant', 'doctor', 'nurse', 'pharmacist', 'lab technician', 'lab', 'reception', 'receptionist'].includes(roleName)) {
+            return res.status(403).json({ success: false, message: 'Access denied: Admissions Oversight is restricted to centraladmin and admin.' });
+        }
+
+        const models = getModels(req);
+        const { Admission, User, Appointment } = models;
+
+        // Multi-tenant check
+        let query = {};
+        if (req.user.role === 'centraladmin' || req.user.role === 'superadmin') {
+            if (req.query.hospitalId) {
+                query.hospitalId = req.query.hospitalId;
+            }
+        } else {
+            query.hospitalId = hospitalId;
+        }
+
+        const todayStart = new Date(); todayStart.setHours(0,0,0,0);
+        const todayEnd = new Date(); todayEnd.setHours(23,59,59,999);
+
+        // Stats queries
+        const totalActiveAdmissions = await Admission.countDocuments({ ...query, status: { $ne: 'Discharged' } });
+        const todayAdmissions = await Admission.countDocuments({ ...query, admissionDate: { $gte: todayStart, $lte: todayEnd } });
+        const todayDischarges = await Admission.countDocuments({ ...query, status: 'Discharged', dischargeDate: { $gte: todayStart, $lte: todayEnd } });
+        const pendingDischarges = await Admission.countDocuments({ ...query, status: 'Pending Discharge' });
+        const pendingTransfers = await Admission.countDocuments({ ...query, status: 'Pending Transfer' });
+        const occupiedBeds = await Admission.countDocuments({ ...query, status: { $ne: 'Discharged' }, bedNumber: { $ne: null, $ne: '' } });
+        
+        const activeHospitalId = query.hospitalId || hospitalId;
+        let totalBedsCount = 50; // default fallback
+        
+        if (activeHospitalId) {
+            const hosp = await MasterHospital.findById(activeHospitalId).select('facilities');
+            if (hosp && hosp.facilities && hosp.facilities.length > 0) {
+                totalBedsCount = hosp.facilities.reduce((sum, f) => sum + (f.bedCount || 0), 0);
+            }
+        } else {
+            const hospitals = await MasterHospital.find({ isActive: true }).select('facilities');
+            let computedBeds = 0;
+            hospitals.forEach(h => {
+                if (h.facilities && h.facilities.length > 0) {
+                    computedBeds += h.facilities.reduce((sum, f) => sum + (f.bedCount || 0), 0);
+                }
+            });
+            if (computedBeds > 0) {
+                totalBedsCount = computedBeds;
+            }
+        }
+
+        const availableBeds = Math.max(0, totalBedsCount - occupiedBeds);
+        const occupancyRate = totalBedsCount > 0 ? Math.round((occupiedBeds / totalBedsCount) * 100) : 0;
+
+        // Table filters
+        let tableQuery = { ...query };
+
+        // Date Range
+        if (req.query.dateFrom || req.query.dateTo) {
+            tableQuery.admissionDate = {};
+            if (req.query.dateFrom) tableQuery.admissionDate.$gte = new Date(req.query.dateFrom);
+            if (req.query.dateTo) tableQuery.admissionDate.$lte = new Date(req.query.dateTo);
+        }
+
+        // Department
+        if (req.query.department) {
+            tableQuery.requestedDepartment = req.query.department;
+        }
+
+        // Ward
+        if (req.query.ward) {
+            tableQuery.ward = req.query.ward;
+        }
+
+        // Status
+        if (req.query.status) {
+            tableQuery.status = req.query.status;
+        }
+
+        // Search patient name or UHID
+        if (req.query.search) {
+            const searchRegex = new RegExp(req.query.search, 'i');
+            const matchingUsers = await User.find({
+                $or: [
+                    { name: searchRegex },
+                    { patientId: searchRegex }
+                ]
+            }).select('_id');
+            const searchUserIds = matchingUsers.map(u => u._id);
+            tableQuery.$or = [
+                { patientId: { $in: searchUserIds } },
+                { patientName: searchRegex }
+            ];
+        }
+
+        // Doctor Filter
+        if (req.query.doctor) {
+            const docRegex = new RegExp(req.query.doctor, 'i');
+            const matchingAppts = await Appointment.find({
+                doctorName: docRegex
+            }).select('_id');
+            const apptIds = matchingAppts.map(a => a._id);
+            tableQuery.appointmentId = { $in: apptIds };
+        }
+
+        const admissions = await Admission.find(tableQuery)
+            .populate('patientId', 'name patientId dob gender phone email')
+            .populate('appointmentId', 'doctorName doctorId serviceName')
+            .populate('admittedBy', 'name')
+            .sort({ admissionDate: -1 });
+
+        res.json({
+            success: true,
+            stats: {
+                totalActiveAdmissions,
+                todayAdmissions,
+                todayDischarges,
+                pendingDischarges,
+                pendingTransfers,
+                occupiedBeds,
+                availableBeds,
+                occupancyRate
+            },
+            admissions
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// 5b. Admissions Oversight - Analytics
+router.get('/admissions/oversight/analytics', verifyAdministratorAccess, auditLog('ADMISSION_ANALYTICS_VIEW', null, { dataCategory: 'Administrative' }), async (req, res) => {
+    try {
+        const hospitalId = req.hospitalId || req.user.hospitalId;
+        const role = String(req.user?.role || '').toLowerCase();
+        const roleName = (req.user?._roleData?.name || '').toLowerCase();
+        if (['accountant', 'doctor', 'nurse', 'pharmacist', 'lab technician', 'lab', 'reception', 'receptionist'].includes(role) ||
+            ['accountant', 'doctor', 'nurse', 'pharmacist', 'lab technician', 'lab', 'reception', 'receptionist'].includes(roleName)) {
+            return res.status(403).json({ success: false, message: 'Access denied.' });
+        }
+
+        const models = getModels(req);
+        const { Admission } = models;
+
+        const hosp = await MasterHospital.findById(hospitalId).select('departments');
+        const departments = hosp ? (hosp.departments || []) : [];
+
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+        const analytics = [];
+
+        for (const dept of departments) {
+            const activeCount = await Admission.countDocuments({ hospitalId, status: { $ne: 'Discharged' }, requestedDepartment: dept });
+            const monthlyAdmissions = await Admission.countDocuments({ hospitalId, requestedDepartment: dept, admissionDate: { $gte: thirtyDaysAgo } });
+            const monthlyDischarges = await Admission.countDocuments({ hospitalId, requestedDepartment: dept, status: 'Discharged', dischargeDate: { $gte: thirtyDaysAgo } });
+            
+            // Length of Stay calculation
+            const dischargedAdmissions = await Admission.find({
+                hospitalId,
+                requestedDepartment: dept,
+                status: 'Discharged',
+                dischargeDate: { $gte: thirtyDaysAgo }
+            }).select('admissionDate dischargeDate');
+            
+            let totalStayDays = 0;
+            dischargedAdmissions.forEach(adm => {
+                if (adm.admissionDate && adm.dischargeDate) {
+                    const days = Math.max(1, Math.ceil((new Date(adm.dischargeDate) - new Date(adm.admissionDate)) / (1000 * 60 * 60 * 24)));
+                    totalStayDays += days;
+                }
+            });
+            const avgLOS = dischargedAdmissions.length > 0 ? Math.round((totalStayDays / dischargedAdmissions.length) * 10) / 10 : 0;
+            const utilization = Math.min(100, Math.round((activeCount / 10) * 100)); // Nominal capacity of 10 beds per dept
+
+            analytics.push({
+                departmentName: dept,
+                activeAdmissions: activeCount,
+                monthlyAdmissions,
+                monthlyDischarges,
+                averageLengthOfStay: avgLOS,
+                bedUtilization: utilization
+            });
+        }
+
+        res.json({ success: true, analytics });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// 5c. Admissions Oversight - Bed Occupancy Monitor
+router.get('/admissions/oversight/occupancy', verifyAdministratorAccess, auditLog('OCCUPANCY_REPORT_VIEW', null, { dataCategory: 'Administrative' }), async (req, res) => {
+    try {
+        const hospitalId = req.hospitalId || req.user.hospitalId;
+        const role = String(req.user?.role || '').toLowerCase();
+        const roleName = (req.user?._roleData?.name || '').toLowerCase();
+        if (['accountant', 'doctor', 'nurse', 'pharmacist', 'lab technician', 'lab', 'reception', 'receptionist'].includes(role) ||
+            ['accountant', 'doctor', 'nurse', 'pharmacist', 'lab technician', 'lab', 'reception', 'receptionist'].includes(roleName)) {
+            return res.status(403).json({ success: false, message: 'Access denied.' });
+        }
+
+        const models = getModels(req);
+        const { Admission } = models;
+
+        const currentAdmissions = await Admission.find({ hospitalId, status: { $ne: 'Discharged' } });
+        const occupiedBedNumbers = currentAdmissions.map(a => a.bedNumber).filter(Boolean);
+        const occupiedICUBeds = currentAdmissions.filter(a => a.ward === 'ICU').map(a => a.bedNumber).filter(Boolean);
+
+        const hosp = await MasterHospital.findById(hospitalId).select('facilities');
+        const facilities = hosp ? (hosp.facilities || []) : [];
+
+        let icuTotal = 0;
+        let wardTotal = 0;
+        let icuOccupied = 0;
+        let wardOccupied = 0;
+
+        if (facilities.length > 0) {
+            for (const facility of facilities) {
+                const count = facility.bedCount || 0;
+                const activeInFacility = currentAdmissions.filter(a => String(a.ward).toLowerCase() === String(facility.name).toLowerCase()).length;
+                if (facility.name.toUpperCase().includes('ICU')) {
+                    icuTotal += count;
+                    icuOccupied += activeInFacility;
+                } else {
+                    wardTotal += count;
+                    wardOccupied += activeInFacility;
+                }
+            }
+        } else {
+            icuTotal = 10;
+            wardTotal = 40;
+            icuOccupied = currentAdmissions.filter(a => a.ward === 'ICU').length;
+            wardOccupied = currentAdmissions.filter(a => a.ward === 'General' || (a.ward && a.ward !== 'ICU')).length;
+        }
+
+        const totalBedsCount = icuTotal + wardTotal;
+        const occupiedBeds = icuOccupied + wardOccupied;
+        const availableBeds = Math.max(0, totalBedsCount - occupiedBeds);
+
+        res.json({
+            success: true,
+            occupancy: {
+                totalBeds: totalBedsCount,
+                occupiedBeds,
+                availableBeds,
+                icuOccupied,
+                icuTotal,
+                icuOccupancyRate: icuTotal > 0 ? Math.round((icuOccupied / icuTotal) * 100) : 0,
+                wardOccupied,
+                wardTotal,
+                wardOccupancyRate: wardTotal > 0 ? Math.round((wardOccupied / wardTotal) * 100) : 0,
+                facilities: facilities.length > 0 
+                    ? facilities.map(f => ({
+                        name: f.name,
+                        bedCount: f.bedCount || 0,
+                        occupiedCount: currentAdmissions.filter(a => String(a.ward).toLowerCase() === String(f.name).toLowerCase()).length
+                      }))
+                    : [
+                        { name: 'ICU', bedCount: 10, occupiedCount: icuOccupied },
+                        { name: 'General', bedCount: 40, occupiedCount: wardOccupied }
+                      ]
+            }
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// 5d. Admissions Oversight - Transfer & Discharge Monitoring
+router.get('/admissions/oversight/transfers', verifyAdministratorAccess, auditLog('TRANSFER_REPORT_VIEW', null, { dataCategory: 'Administrative' }), async (req, res) => {
+    try {
+        const hospitalId = req.hospitalId || req.user.hospitalId;
+        const role = String(req.user?.role || '').toLowerCase();
+        const roleName = (req.user?._roleData?.name || '').toLowerCase();
+        if (['accountant', 'doctor', 'nurse', 'pharmacist', 'lab technician', 'lab', 'reception', 'receptionist'].includes(role) ||
+            ['accountant', 'doctor', 'nurse', 'pharmacist', 'lab technician', 'lab', 'reception', 'receptionist'].includes(roleName)) {
+            return res.status(403).json({ success: false, message: 'Access denied.' });
+        }
+
+        const models = getModels(req);
+        const { Transfer, Admission } = models;
+
+        const transfers = await Transfer.find({ hospitalId })
+            .populate('patientId', 'name patientId')
+            .populate('performedBy', 'name')
+            .sort({ createdAt: -1 });
+
+        const todayStart = new Date(); todayStart.setHours(0,0,0,0);
+        const todayEnd = new Date(); todayEnd.setHours(23,59,59,999);
+
+        // Discharge monitoring
+        const todayDischarges = await Admission.find({
+            hospitalId,
+            status: 'Discharged',
+            dischargeDate: { $gte: todayStart, $lte: todayEnd }
+        }).populate('patientId', 'name patientId').sort({ dischargeDate: -1 });
+
+        const upcomingDischarges = await Admission.find({
+            hospitalId,
+            status: 'Admitted',
+            dischargeDate: { $gt: new Date() }
+        }).populate('patientId', 'name patientId').sort({ dischargeDate: 1 });
+
+        const delayedDischarges = await Admission.find({
+            hospitalId,
+            $or: [
+                { status: 'Pending Discharge' },
+                { status: 'Admitted', dischargeDate: { $lt: new Date() } }
+            ]
+        }).populate('patientId', 'name patientId').sort({ updatedAt: -1 });
+
+        res.json({
+            success: true,
+            transfers,
+            discharges: {
+                todayDischarges,
+                upcomingDischarges,
+                delayedDischarges
+            }
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
 // 6. Bed Management
 router.get('/beds', verifyAdministratorAccess, async (req, res) => {
     try {
@@ -644,15 +1008,35 @@ router.post('/beds/transfer', verifyAdministratorAccess, async (req, res) => {
         }
 
         const models = getModels(req);
-        const { Admission } = models;
+        const { Admission, Transfer } = models;
 
         const admission = await Admission.findOne({ _id: admissionId, hospitalId });
         if (!admission) return res.status(404).json({ success: false, message: 'Admission record not found' });
 
+        const fromBed = admission.bedNumber || 'N/A';
+        const fromDepartment = admission.requestedDepartment || admission.ward || 'General Ward';
+
         // Update bed allocation details
         admission.bedNumber = targetBedNumber;
         admission.ward = targetWard;
+        if (admission.status === 'Admitted' || admission.status === 'Pending Allocation') {
+            admission.status = 'Transferred';
+        }
         await admission.save();
+
+        if (Transfer) {
+            await Transfer.create({
+                hospitalId,
+                patientId: admission.patientId,
+                patientName: admission.patientName || 'Unknown Patient',
+                fromDepartment,
+                toDepartment: targetWard,
+                fromBed,
+                toBed: targetBedNumber,
+                transferDate: new Date(),
+                performedBy: req.user._id
+            });
+        }
 
         res.json({ success: true, message: `Patient transferred to bed ${targetBedNumber} in ${targetWard}.` });
     } catch (err) {
@@ -827,8 +1211,14 @@ router.get('/inventory', verifyAdministratorAccess, async (req, res) => {
 });
 
 // 12. Reporting System Data
-router.get('/reports', verifyAdministratorAccess, async (req, res) => {
+router.get('/reports', verifyAdministratorAccess, auditLog('DATA_EXPORT', null, { severity: 'warning', dataCategory: 'PHI' }), async (req, res) => {
     try {
+        const roleName = (req.user._roleData?.name || '').toLowerCase();
+        const roleIdStr = String(req.user.role || '').toLowerCase();
+        if (roleName === 'accountant' || roleIdStr === 'accountant') {
+            return res.status(403).json({ success: false, message: 'Access denied: Accountants cannot view reports' });
+        }
+
         const hospitalId = req.hospitalId || req.user.hospitalId;
         const models = getModels(req);
         const { User, Appointment, Admission, Invoice } = models;
@@ -913,13 +1303,176 @@ router.get('/analytics', verifyAdministratorAccess, async (req, res) => {
 // 14. Audit Logs timeline
 router.get('/audit-logs', verifyAdministratorAccess, async (req, res) => {
     try {
-        const hospitalId = req.hospitalId || req.user.hospitalId;
-        const logs = await AuditLog.find({ clinicId: hospitalId })
-            .sort({ createdAt: -1 })
-            .limit(100)
-            .lean();
+        const roleName = (req.user._roleData?.name || '').toLowerCase();
+        const roleIdStr = String(req.user.role || '').toLowerCase();
+        if (roleName === 'accountant' || roleIdStr === 'accountant') {
+            return res.status(403).json({ success: false, message: 'Access denied: Accountants cannot view audit logs' });
+        }
 
-        res.json({ success: true, logs });
+        const hospitalId = req.hospitalId || req.user.hospitalId;
+
+        // ── Filters ────────────────────────────────────────────────────────────
+        const isExport = req.query.export === 'true';
+        const page     = Math.max(1, parseInt(req.query.page)  || 1);
+        const limit    = isExport 
+            ? Math.min(5000, parseInt(req.query.limit) || 1000) 
+            : Math.min(200, parseInt(req.query.limit) || 50);
+        const skip     = (page - 1) * limit;
+
+        const filter = { clinicId: hospitalId };
+
+        if (req.query.action) {
+            if (req.query.action.includes(',')) {
+                filter.action = { $in: req.query.action.split(',') };
+            } else {
+                filter.action = req.query.action;
+            }
+        }
+        if (req.query.success !== undefined && req.query.success !== '') {
+            filter.success = req.query.success === 'true';
+        }
+        if (req.query.severity)  filter.severity = req.query.severity;
+        if (req.query.userId)    filter.userId   = req.query.userId;
+        if (req.query.dateFrom || req.query.dateTo) {
+            filter.createdAt = {};
+            if (req.query.dateFrom) filter.createdAt.$gte = new Date(req.query.dateFrom);
+            if (req.query.dateTo) {
+                const to = new Date(req.query.dateTo);
+                to.setHours(23, 59, 59, 999);
+                filter.createdAt.$lte = to;
+            }
+        }
+        if (req.query.search) {
+            const re = new RegExp(req.query.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+            filter.$or = [
+                { userName: re },
+                { userEmail: re },
+                { targetLabel: re },
+                { role: re },
+                { reason: re },
+            ];
+        }
+
+        // ── Data Query ─────────────────────────────────────────────────────────
+        const [logs, total] = await Promise.all([
+            AuditLog.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+            AuditLog.countDocuments(filter),
+        ]);
+
+        // ── Log Export Action ──────────────────────────────────────────────────
+        if (isExport) {
+            try {
+                await AuditLog.create({
+                    clinicId:      hospitalId,
+                    userId:        req.user?._id || null,
+                    userName:      req.user?.name || req.user?.email || 'Unknown',
+                    userEmail:     req.user?.email || '',
+                    role:          req.user?._roleData?.name || String(req.user?.role || ''),
+                    action:        'DATA_EXPORT',
+                    severity:      'warning',
+                    dataCategory:  'System',
+                    targetModel:   'AuditLog',
+                    targetLabel:   'System Audit Logs Export',
+                    ip:            req.ip || req.connection?.remoteAddress || '',
+                    userAgent:     req.headers['user-agent'] || '',
+                    success:       true,
+                });
+            } catch (auditErr) {
+                console.error('Failed to log audit logs export action:', auditErr);
+            }
+        }
+
+        // ── Summary Stats (for dashboard cards) ───────────────────────────────
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+
+        const [todayTotal, todayFailed, patientAccess, exports, updates, authSuccessfulLogins, authFailedLogins, authLogouts] = await Promise.all([
+            AuditLog.countDocuments({ clinicId: hospitalId, createdAt: { $gte: todayStart } }),
+            AuditLog.countDocuments({ clinicId: hospitalId, success: false, createdAt: { $gte: todayStart } }),
+            AuditLog.countDocuments({ clinicId: hospitalId, action: { $in: ['VIEW_PATIENT', 'PATIENT_ACCESS', 'VIEW_PRESCRIPTION'] }, createdAt: { $gte: todayStart } }),
+            AuditLog.countDocuments({ clinicId: hospitalId, action: { $in: ['EXPORT_DATA', 'DATA_EXPORT', 'EXPORT'] }, createdAt: { $gte: todayStart } }),
+            AuditLog.countDocuments({ clinicId: hospitalId, action: { $in: ['UPDATE_PATIENT', 'UPDATE', 'USER_UPDATE', 'ROLE_CHANGE', 'PERMISSION_CHANGE', 'SETTINGS_UPDATE', 'HOSPITAL_UPDATE'] }, createdAt: { $gte: todayStart } }),
+            AuditLog.countDocuments({
+                clinicId: hospitalId,
+                action: { $in: ['STAFF_LOGIN', 'PATIENT_LOGIN', 'LOGIN'] },
+                success: true,
+                createdAt: { $gte: todayStart }
+            }),
+            AuditLog.countDocuments({
+                clinicId: hospitalId,
+                $or: [
+                    { action: 'FAILED_LOGIN' },
+                    { action: { $in: ['STAFF_LOGIN', 'PATIENT_LOGIN', 'LOGIN', 'FAILED_ACCESS'] }, success: false }
+                ],
+                createdAt: { $gte: todayStart }
+            }),
+            AuditLog.countDocuments({
+                clinicId: hospitalId,
+                action: { $in: ['STAFF_LOGOUT', 'LOGOUT'] },
+                success: true,
+                createdAt: { $gte: todayStart }
+            })
+        ]);
+
+        res.json({
+            success: true,
+            logs,
+            pagination: { page, limit, total, pages: Math.ceil(total / limit) },
+            stats: { 
+                todayTotal, 
+                todayFailed, 
+                patientAccess, 
+                exports, 
+                updates,
+                authSuccessfulLogins,
+                authFailedLogins,
+                authLogouts
+            },
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// 14b. Audit Logs - Lazy Session Duration Calculation
+router.get('/audit-logs/session-duration/:sessionId', verifyAdministratorAccess, async (req, res) => {
+    try {
+        const { sessionId } = req.params;
+        if (!sessionId) {
+            return res.status(400).json({ success: false, message: 'Session ID is required' });
+        }
+
+        const models = getModels(req);
+        const { AuditLog } = models;
+
+        // Find the earliest successful login with this sessionId
+        const loginLog = await AuditLog.findOne({
+            sessionId,
+            action: { $in: ['STAFF_LOGIN', 'PATIENT_LOGIN', 'LOGIN'] },
+            success: true
+        }).sort({ createdAt: 1 }).lean();
+
+        if (!loginLog) {
+            return res.json({ success: true, loginTime: null, logoutTime: null, durationMinutes: null });
+        }
+
+        // Find the latest successful logout with this sessionId
+        const logoutLog = await AuditLog.findOne({
+            sessionId,
+            action: { $in: ['STAFF_LOGOUT', 'LOGOUT'] },
+            success: true
+        }).sort({ createdAt: -1 }).lean();
+
+        const loginTime = loginLog.createdAt;
+        const logoutTime = logoutLog ? logoutLog.createdAt : new Date();
+        const durationMinutes = Math.round((new Date(logoutTime) - new Date(loginTime)) / (1000 * 60));
+
+        res.json({
+            success: true,
+            loginTime,
+            logoutTime: logoutLog ? logoutLog.createdAt : null,
+            durationMinutes
+        });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }

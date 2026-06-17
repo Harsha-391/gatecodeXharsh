@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { administratorAPI } from '../../utils/api';
 import socket from '../../utils/socket';
 import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import {
     FiHome, FiUsers, FiCalendar, FiActivity, FiPackage,
     FiSettings, FiLogOut, FiPieChart, FiClipboard,
@@ -87,7 +87,7 @@ const DeptReportModule = ({ userRole, formatCurrency, administratorAPI, jsPDF })
         doc.text(`Generated: ${now.toLocaleString('en-IN')}`, 14, 34);
         doc.text(`Period: ${new Date(report.period?.startDate).toLocaleDateString('en-IN')} – ${new Date(report.period?.endDate).toLocaleDateString('en-IN')}`, 14, 40);
 
-        doc.autoTable({
+        autoTable(doc, {
             startY: 48, head: [['Metric', 'Value']],
             body: [
                 ['Department Head', report.summary?.deptHead || 'N/A'],
@@ -101,7 +101,7 @@ const DeptReportModule = ({ userRole, formatCurrency, administratorAPI, jsPDF })
             headStyles: { fillColor: [30, 64, 175] }, theme: 'striped'
         });
 
-        doc.autoTable({
+        autoTable(doc, {
             startY: doc.lastAutoTable.finalY + 10,
             head: [['Revenue Category', 'Amount (₹)']],
             body: [
@@ -118,7 +118,7 @@ const DeptReportModule = ({ userRole, formatCurrency, administratorAPI, jsPDF })
             headStyles: { fillColor: [5, 150, 105] }, theme: 'striped'
         });
 
-        doc.autoTable({
+        autoTable(doc, {
             startY: doc.lastAutoTable.finalY + 10,
             head: [['P&L', 'Amount (₹)']],
             body: [
@@ -588,8 +588,9 @@ const AdministratorDashboard = ({ tab = 'dashboard' }) => {
 
     // Load active tab data
     useEffect(() => {
-        if (userRole === 'accountant' && (tab === 'beds' || tab === 'operations')) {
-            navigate('/administrator/dashboard', { replace: true });
+        const blockedTabsForAccountant = ['beds', 'operations', 'patient-flow', 'admissions', 'appointments', 'audit-logs', 'reports'];
+        if (userRole === 'accountant' && blockedTabsForAccountant.includes(tab)) {
+            navigate('/admin/dashboard', { replace: true });
             return;
         }
         fetchTabData();
@@ -844,7 +845,7 @@ const AdministratorDashboard = ({ tab = 'dashboard' }) => {
         const headers = Object.keys(data[0]).map(h => h.toUpperCase());
         const rows = data.map(item => Object.values(item).map(val => String(val ?? '—')));
 
-        doc.autoTable({
+        autoTable(doc, {
             head: [headers],
             body: rows,
             startY: 32,

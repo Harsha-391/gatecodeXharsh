@@ -5,6 +5,7 @@ const { resolveTenant } = require('../middleware/tenantMiddleware');
 const { getTenantModels } = require('../db/tenantModels');
 const { verifyToken } = require('../middleware/auth.middleware');
 const Doctor = require('../models/doctor.model');
+const auditLog = require('../middleware/audit.middleware');
 
 const getModels = (req) => {
     if (req.tenantDb) {
@@ -234,7 +235,7 @@ const processOrderItemsPricing = async (order, purchasedIndices, itemQuantities,
 };
 
 // Complete order and payment
-router.patch('/:id/complete', verifyToken, resolveTenant, async (req, res) => {
+router.patch('/:id/complete', verifyToken, resolveTenant, auditLog('CONFIRM_PAYMENT', (req) => ({ model: 'PharmacyOrder', id: req.params.id, label: 'Prescription dispensed' }), { severity: 'warning', dataCategory: 'PHI' }), async (req, res) => {
     try {
         const { PharmacyOrder, Inventory } = getModels(req);
         const { purchasedIndices, itemQuantities } = req.body;
@@ -277,7 +278,7 @@ router.patch('/:id/complete', verifyToken, resolveTenant, async (req, res) => {
 });
 
 // Cancel order
-router.patch('/:id/cancel', verifyToken, resolveTenant, async (req, res) => {
+router.patch('/:id/cancel', verifyToken, resolveTenant, auditLog('UPDATE_PRESCRIPTION', (req) => ({ model: 'PharmacyOrder', id: req.params.id, label: 'Pharmacy order cancelled' })), async (req, res) => {
     try {
         const { PharmacyOrder } = getModels(req);
         const findQuery = { _id: req.params.id };

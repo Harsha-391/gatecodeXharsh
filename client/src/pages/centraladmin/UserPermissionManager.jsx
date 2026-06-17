@@ -34,7 +34,8 @@ const PERMISSION_GROUPS = [
             { key: 'lab_view', label: 'View Lab Tests' },
             { key: 'lab_manage', label: 'Manage Lab Tests' },
             { key: 'pharmacy_view', label: 'View Pharmacy' },
-            { key: 'pharmacy_manage', label: 'Pharmacy & Inventory' }
+            { key: 'pharmacy_manage', label: 'Pharmacy & Inventory' },
+            { key: 'inventory_view', label: 'View Inventory Monitoring' }
         ]
     },
     {

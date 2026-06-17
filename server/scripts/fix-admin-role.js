@@ -81,7 +81,7 @@ async function main() {
             permissions: [
                 'administrator_view', 'administrator_manage', 'staff_manage', 'department_manage',
                 'patient_monitor', 'admission_manage', 'resource_manage', 'billing_view',
-                'reports_view', 'analytics_view', 'operations_manage',
+                'reports_view', 'analytics_view', 'operations_manage', 'inventory_view',
                 'admin_manage_roles', 'admin_view_stats',
                 'lab_view', 'lab_manage', 'pharmacy_view', 'pharmacy_manage',
                 'finance_view', 'billing_manage', 'patient_view', 'patient_create', 'patient_search'

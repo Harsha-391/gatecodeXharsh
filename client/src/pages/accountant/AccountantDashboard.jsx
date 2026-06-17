@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { financeAPI, billingAPI } from '../../utils/api';
+import { financeAPI, billingAPI, authAPI } from '../../utils/api';
 import './AccountantDashboard.css';
 
 const AccountantDashboard = () => {
@@ -105,7 +105,12 @@ const AccountantDashboard = () => {
         }
     };
 
-    const handleLogout = () => {
+    const handleLogout = async () => {
+        try {
+            await authAPI.logout();
+        } catch (err) {
+            console.error('Logout error:', err);
+        }
         localStorage.removeItem('user');
         localStorage.removeItem('token');
         navigate('/login');

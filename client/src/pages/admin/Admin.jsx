@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { adminAPI, uploadAPI, hospitalAPI } from '../../utils/api';
+import { adminAPI, uploadAPI, hospitalAPI, authAPI } from '../../utils/api';
 import '../administration/SuperAdmin.css';
 
 const Admin = () => {
@@ -286,7 +286,10 @@ const Admin = () => {
         }
     };
 
-    const handleLogout = () => {
+    const handleLogout = async () => {
+        try {
+            await authAPI.logout();
+        } catch (_) {}
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         navigate('/');

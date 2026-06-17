@@ -291,7 +291,11 @@ router.get('/patient/:identifier', verifyBillingAccess, async (req, res) => {
 });
 
 // 2. Generate Consolidated Invoice
-router.post('/invoice', verifyBillingAccess, async (req, res) => {
+router.post('/invoice', verifyBillingAccess, auditLog('CREATE_BILL', (req, body) => ({
+    model: 'Invoice',
+    id: body.invoice?._id || null,
+    label: body.invoice ? `Invoice ${body.invoice.invoiceNumber}` : 'Invoice generation',
+}), { dataCategory: 'Financial' }), async (req, res) => {
     try {
         const { patientId, items } = req.body;
         if (!patientId || !items || items.length === 0) {
@@ -376,7 +380,11 @@ router.post('/invoice', verifyBillingAccess, async (req, res) => {
 });
 
 // 3. Process Payments (Collect payment on an Invoice)
-router.post('/invoice/:id/payment', verifyBillingAccess, async (req, res) => {
+router.post('/invoice/:id/payment', verifyBillingAccess, auditLog('CONFIRM_PAYMENT', (req, body) => ({
+    model: 'Invoice',
+    id: req.params.id,
+    label: body.invoice ? `Payment of ₹${req.body.amount} collected on Invoice ${body.invoice.invoiceNumber}` : 'Payment collection',
+}), { dataCategory: 'Financial', severity: 'warning' }), async (req, res) => {
     try {
         const { id } = req.params;
         const { amount, method, reference } = req.body;
@@ -483,7 +491,11 @@ router.post('/invoice/:id/payment', verifyBillingAccess, async (req, res) => {
 });
 
 // 4. Cancel Invoice
-router.put('/invoice/:id/cancel', verifyBillingAccess, async (req, res) => {
+router.put('/invoice/:id/cancel', verifyBillingAccess, auditLog('UPDATE_BILL', (req, body) => ({
+    model: 'Invoice',
+    id: req.params.id,
+    label: body.invoice ? `Invoice ${body.invoice.invoiceNumber} cancelled` : 'Invoice cancellation',
+}), { dataCategory: 'Financial', severity: 'critical' }), async (req, res) => {
     try {
         const { id } = req.params;
         const { Invoice, BillingActivityLog } = getModels(req);
@@ -539,7 +551,11 @@ router.get('/refunds', verifyBillingAccess, async (req, res) => {
 });
 
 // 7. Request Refund
-router.post('/refunds', verifyBillingAccess, async (req, res) => {
+router.post('/refunds', verifyBillingAccess, auditLog('UPDATE_BILL', (req, body) => ({
+    model: 'Refund',
+    id: body.refund?._id || null,
+    label: body.refund ? `Refund of ₹${body.refund.amount} requested for ${body.refund.patientName}` : 'Refund request',
+}), { dataCategory: 'Financial', severity: 'warning' }), async (req, res) => {
     try {
         const { patientId, patientName, refundType, itemId, amount, reason, invoiceNumber } = req.body;
         if (!patientId || !patientName || !refundType || !amount || !reason) {
@@ -616,7 +632,11 @@ router.post('/refunds', verifyBillingAccess, async (req, res) => {
 });
 
 // 8. Approve/Process Refund
-router.put('/refunds/:id/approve', verifyBillingAccess, async (req, res) => {
+router.put('/refunds/:id/approve', verifyBillingAccess, auditLog('UPDATE_BILL', (req, body) => ({
+    model: 'Refund',
+    id: req.params.id,
+    label: body.refund ? `Refund of ₹${body.refund.amount} approved for ${body.refund.patientName}` : 'Refund approval',
+}), { dataCategory: 'Financial', severity: 'warning' }), async (req, res) => {
     try {
         const { id } = req.params;
         const { notes } = req.body;
@@ -704,7 +724,10 @@ router.get('/activity-logs', verifyBillingAccess, async (req, res) => {
 });
 
 // 10. Direct / Pay endpoint (Backward Compatibility)
-router.put('/pay', verifyBillingAccess, auditLog('CONFIRM_PAYMENT'), async (req, res) => {
+router.put('/pay', verifyBillingAccess, auditLog('CONFIRM_PAYMENT', (req) => ({
+    model: 'Invoice',
+    label: `Bulk payment settle: ${req.body.paymentMode || 'Cash'}`,
+}), { dataCategory: 'Financial', severity: 'warning' }), async (req, res) => {
     try {
         const {
             appointmentIds = [],

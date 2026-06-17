@@ -162,31 +162,50 @@ const defaultRoles = [
     },
     {
         name: 'Accountant',
-        description: 'Hospital Accountant managing detailed operations, finances, staff and resource controls',
+        description: 'Finance and accounting staff',
+        permissions: [
+            'finance_view', 'billing_view', 'billing_manage',
+            'patient_view', 'patient_search'
+        ],
+        dashboardPath: '/accountant/dashboard',
+        navLinks: [
+            { label: 'Finance Dashboard', path: '/accountant/dashboard' },
+            { label: 'Patient Billing', path: '/cashier/billing' }
+        ],
+        isSystemRole: true
+    },
+    {
+        name: 'Administrator',
+        description: 'Hospital administrator managing operations, staff, resources and billing oversight',
         permissions: [
             'administrator_view', 'administrator_manage', 'staff_manage', 'department_manage',
             'patient_monitor', 'admission_manage', 'resource_manage', 'billing_view',
-            'reports_view', 'analytics_view', 'operations_manage', 'finance_view'
+            'reports_view', 'analytics_view', 'operations_manage', 'inventory_view'
         ],
         dashboardPath: '/administrator/dashboard',
         navLinks: [
             { label: 'Dashboard', path: '/administrator/dashboard' },
-            { label: 'Operations Center', path: '/administrator/operations' },
             { label: 'Patient Flow', path: '/administrator/patient-flow' },
-            { label: 'Staff Management', path: '/administrator/staff' },
-            { label: 'Doctor Management', path: '/administrator/doctors' },
-            { label: 'Departments', path: '/administrator/departments' },
             { label: 'Admissions', path: '/administrator/admissions' },
             { label: 'Bed Management', path: '/administrator/beds' },
             { label: 'Appointments', path: '/administrator/appointments' },
+            { label: 'Hospital Operations Center', path: '/administrator/operations' },
+            { label: 'Staff Management', path: '/administrator/staff' },
+            { label: 'Doctor Management', path: '/administrator/doctors' },
+            { label: 'Departments', path: '/administrator/departments' },
+            { label: 'Roles & Permissions', path: '/administrator/roles' },
+            { label: 'Laboratory Management', path: '/administrator/lab' },
+            { label: 'Pharmacy Management', path: '/administrator/pharmacy' },
             { label: 'Billing Oversight', path: '/administrator/billing' },
             { label: 'Revenue Monitoring', path: '/administrator/revenue' },
-            { label: 'Resource Management', path: '/administrator/resources' },
             { label: 'Inventory Monitoring', path: '/administrator/inventory' },
+            { label: 'Resource Management', path: '/administrator/resources' },
             { label: 'Reports', path: '/administrator/reports' },
             { label: 'Analytics', path: '/administrator/analytics' },
             { label: 'Audit Logs', path: '/administrator/audit-logs' },
-            { label: 'Settings', path: '/administrator/settings' }
+            { label: 'Notifications', path: '/administrator/notifications' },
+            { label: 'Settings', path: '/administrator/settings' },
+            { label: 'Profile Settings', path: '/administrator/profile-settings' }
         ],
         isSystemRole: true
     }
@@ -513,7 +532,7 @@ async function resetAndSeed() {
             name: 'Hospital Administrator',
             email: 'administrator@crm.com',
             password: '12344321a',
-            role: roleMapping['Accountant'],
+            role: roleMapping['Administrator'],
             hospitalId: hospital._id,
             phone: '3333333333',
             services: ['Operations Management', 'Resource Control', 'Billing Oversight'],

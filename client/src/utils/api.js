@@ -61,6 +61,10 @@ export const authAPI = {
         const response = await apiClient.put('/api/auth/change-password', { currentPassword, newPassword });
         return response.data;
     },
+    logout: async () => {
+        const response = await apiClient.post('/api/auth/logout');
+        return response.data;
+    },
 };
 
 const getRajeshSeedData = () => {
@@ -821,7 +825,8 @@ export const administratorAPI = {
     getInventory: async () => (await apiClient.get('/api/administrator/inventory')).data,
     getReports: async () => (await apiClient.get('/api/administrator/reports')).data,
     getAnalytics: async () => (await apiClient.get('/api/administrator/analytics')).data,
-    getAuditLogs: async () => (await apiClient.get('/api/administrator/audit-logs')).data,
+    getAuditLogs: async (params = {}) => (await apiClient.get('/api/administrator/audit-logs', { params })).data,
+    getAuditLogSessionDuration: async (sessionId) => (await apiClient.get(`/api/administrator/audit-logs/session-duration/${sessionId}`)).data,
     getExpenses: async () => (await apiClient.get('/api/administrator/expenses')).data,
     createExpense: async (data) => (await apiClient.post('/api/administrator/expenses', data)).data,
     deleteExpense: async (id) => (await apiClient.delete(`/api/administrator/expenses/${id}`)).data,
@@ -830,6 +835,10 @@ export const administratorAPI = {
     deleteExpenseCategory: async (id) => (await apiClient.delete(`/api/administrator/expenses/categories/${id}`)).data,
     getProfitLoss: async () => (await apiClient.get('/api/administrator/profit-loss')).data,
     getSystemHealth: async () => (await apiClient.get('/api/administrator/system-health')).data,
+    getAdmissionsOversightDashboard: async (params = {}) => (await apiClient.get('/api/administrator/admissions/oversight/dashboard', { params })).data,
+    getAdmissionsOversightAnalytics: async () => (await apiClient.get('/api/administrator/admissions/oversight/analytics')).data,
+    getAdmissionsOversightOccupancy: async () => (await apiClient.get('/api/administrator/admissions/oversight/occupancy')).data,
+    getAdmissionsOversightTransfers: async () => (await apiClient.get('/api/administrator/admissions/oversight/transfers')).data,
 };
 
 export const adminEntitiesAPI = {

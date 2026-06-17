@@ -184,7 +184,8 @@ router.post('/login', loginLimiter, async (req, res) => {
         await AuditLogModel.create({
             clinicId: hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
             userName: normalizedEmail,
-            action: 'STAFF_LOGIN',
+            action: 'FAILED_LOGIN',
+            severity: 'warning',
             success: false,
             reason: 'User not found',
             ip: req.ip || '',
@@ -195,11 +196,40 @@ router.post('/login', loginLimiter, async (req, res) => {
     }
 
     if (user.isActive === false) {
+      try {
+        const AuditLogModel = require('../models/auditLog.model');
+        await AuditLogModel.create({
+            clinicId: user.hospitalId || hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
+            userId: user._id,
+            userName: user.name || normalizedEmail,
+            action: 'FAILED_LOGIN',
+            severity: 'warning',
+            success: false,
+            reason: 'Account is disabled',
+            ip: req.ip || '',
+            userAgent: req.headers['user-agent'] || ''
+        });
+      } catch (logErr) {}
       return res.status(403).json({ success: false, message: 'Account is disabled. Contact administrator.' });
     }
 
     // Central admins must use their dedicated login pages — use generic message to avoid enumeration
     if (user.role === 'superadmin' || user.role === 'centraladmin') {
+      try {
+        const AuditLogModel = require('../models/auditLog.model');
+        await AuditLogModel.create({
+            clinicId: user.hospitalId || hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
+            userId: user._id,
+            userName: user.name || normalizedEmail,
+            role: String(user.role),
+            action: 'FAILED_LOGIN',
+            severity: 'warning',
+            success: false,
+            reason: 'Bypassed Central Admin login portal',
+            ip: req.ip || '',
+            userAgent: req.headers['user-agent'] || ''
+        });
+      } catch (logErr) {}
       return res.status(401).json({ success: false, message: 'Invalid email or password' });
     }
 
@@ -277,7 +307,8 @@ router.post('/login', loginLimiter, async (req, res) => {
             userId: user._id,
             userName: user.name,
             role: roleData?.name || '',
-            action: 'STAFF_LOGIN',
+            action: 'FAILED_LOGIN',
+            severity: 'warning',
             success: false,
             reason: 'Incorrect password',
             ip: req.ip || '',
@@ -339,9 +370,10 @@ router.post('/login', loginLimiter, async (req, res) => {
       return res.json({ success: true, mfaRequired: true, preAuthToken });
     }
 
+    const jti = uuidv4();
     const token = jwt.sign(
       {
-        jti: uuidv4(),
+        jti,
         userId: user._id,
         email: user.email,
         roleId: String(user.role),
@@ -390,6 +422,7 @@ router.post('/login', loginLimiter, async (req, res) => {
           role: roleData.name,
           action: 'STAFF_LOGIN',
           success: true,
+          sessionId: jti,
           ip: req.ip || '',
           userAgent: req.headers['user-agent'] || ''
       });
@@ -421,7 +454,7 @@ router.post('/revoke-all-sessions', verifyToken, async (req, res) => {
 });
 
 // POST /api/auth/logout — blacklist the current token so it can never be reused
-router.post('/logout', verifyToken, auditLog('STAFF_LOGOUT'), async (req, res) => {
+router.post('/logout', verifyToken, auditLog('STAFF_LOGOUT', null, { severity: 'info', dataCategory: 'System' }), async (req, res) => {
     try {
         const authHeader = req.headers.authorization;
         const token = authHeader.split(' ')[1];

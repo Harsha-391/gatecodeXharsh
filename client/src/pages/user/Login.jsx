@@ -29,13 +29,13 @@ const Login = () => {
         pharmacist: '/pharmacy/dashboard',
         reception: '/reception/dashboard',
         receptionist: '/reception/dashboard',
-        accountant: '/administrator/dashboard',
+        accountant: '/admin/dashboard',
         billing: '/billing/dashboard',
         'billing executive': '/billing/dashboard',
         'billing manager': '/billing/dashboard',
         'senior billing officer': '/billing/dashboard',
         cashier: '/billing/dashboard',
-        administrator: '/administrator/dashboard',
+        administrator: '/admin/dashboard',
         patient: '/dashboard'
       };
       const role = (user.role || '').toLowerCase();

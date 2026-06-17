@@ -94,6 +94,7 @@ import NotificationCenter from '../pages/admin/NotificationCenter';
 import AuditLogs from '../pages/admin/AuditLogs';
 import RevenueMonitoring from '../pages/admin/RevenueMonitoring';
 import ResourceManagement from '../pages/admin/ResourceManagement';
+import AdmissionsOversight from '../pages/admin/AdmissionsOversight';
 
 // Subdomains reserved for the platform itself — NOT hospital slugs
 const RESERVED_SUBDOMAINS = ['admin', 'www', 'api'];
@@ -109,6 +110,24 @@ const SmartDashboardRedirector = () => {
     if (subdomain && !RESERVED_SUBDOMAINS.includes(subdomain)) return <Navigate to="/my-dashboard" replace />;
     return <Navigate to="/supremeadmin" replace />;
 };
+
+const AdministratorRedirect = () => {
+    const location = useLocation();
+    let subpath = location.pathname.substring('/administrator'.length);
+    if (!subpath.startsWith('/')) {
+        subpath = '/' + subpath;
+    }
+    
+    // Map conflicting paths:
+    if (subpath === '/doctors') subpath = '/doctor-management';
+    else if (subpath === '/lab') subpath = '/lab-management';
+    else if (subpath === '/pharmacy') subpath = '/pharmacy-management';
+    else if (subpath === '/roles') subpath = '/role-management';
+    else if (subpath === '/audit-log') subpath = '/audit-logs';
+    
+    return <Navigate to={`/admin${subpath}${location.search}`} replace />;
+};
+
 
 /**
  * SubdomainRoleGuard — enforces that the user's role matches the subdomain context.
@@ -229,30 +248,34 @@ const MainRoutes = () => {
                             <Route path="cashier/billing" element={<ProtectedRoute requiredPermissions={['billing_view']} allowedRoles={['receptionist', 'reception', 'billing', 'cashier', 'billing executive', 'billing manager', 'senior billing officer']}><BillingDashboard tab="patient" /></ProtectedRoute>} />
 
                             {/* Hospital Administrator Department */}
-                            <Route path="administrator/dashboard" element={<ProtectedRoute requiredPermissions={['administrator_view']}><AdministratorDashboard /></ProtectedRoute>} />
-                            <Route path="administrator/operations" element={<ProtectedRoute requiredPermissions={['administrator_view']}><OldAdministratorDashboard tab="operations" /></ProtectedRoute>} />
-                            <Route path="administrator/patient-flow" element={<ProtectedRoute requiredPermissions={['administrator_view']}><OldAdministratorDashboard tab="patient-flow" /></ProtectedRoute>} />
-                            <Route path="administrator/staff" element={<ProtectedRoute requiredPermissions={['administrator_view']}><OldAdministratorDashboard tab="staff" /></ProtectedRoute>} />
-                            <Route path="administrator/departments" element={<ProtectedRoute requiredPermissions={['administrator_view']}><OldAdministratorDashboard tab="departments" /></ProtectedRoute>} />
-                            <Route path="administrator/admissions" element={<ProtectedRoute requiredPermissions={['administrator_view']}><OldAdministratorDashboard tab="admissions" /></ProtectedRoute>} />
-                            <Route path="administrator/beds" element={<ProtectedRoute requiredPermissions={['administrator_view']}><OldAdministratorDashboard tab="beds" /></ProtectedRoute>} />
-                            <Route path="administrator/appointments" element={<ProtectedRoute requiredPermissions={['administrator_view']}><OldAdministratorDashboard tab="appointments" /></ProtectedRoute>} />
-                            <Route path="administrator/billing" element={<ProtectedRoute requiredPermissions={['administrator_view']}><OldAdministratorDashboard tab="billing" /></ProtectedRoute>} />
+                            <Route path="admin/dashboard" element={<ProtectedRoute requiredPermissions={['administrator_view']}><AdministratorDashboard /></ProtectedRoute>} />
+                            <Route path="admin/operations" element={<ProtectedRoute requiredPermissions={['administrator_view']}><OldAdministratorDashboard tab="operations" /></ProtectedRoute>} />
+                            <Route path="admin/patient-flow" element={<ProtectedRoute requiredPermissions={['administrator_view', 'patient_monitor']} allowedRoles={['receptionist', 'reception']}><OldAdministratorDashboard tab="patient-flow" /></ProtectedRoute>} />
+                            <Route path="admin/staff" element={<ProtectedRoute requiredPermissions={['administrator_view']}><OldAdministratorDashboard tab="staff" /></ProtectedRoute>} />
+                            <Route path="admin/departments" element={<ProtectedRoute requiredPermissions={['administrator_view']}><OldAdministratorDashboard tab="departments" /></ProtectedRoute>} />
+                            <Route path="admin/admissions" element={<ProtectedRoute requiredPermissions={['administrator_view', 'admission_manage']} allowedRoles={['centraladmin', 'admin', 'hospitaladmin', 'administrator']}><AdmissionsOversight /></ProtectedRoute>} />
+                            <Route path="admin/beds" element={<ProtectedRoute requiredPermissions={['administrator_view']}><OldAdministratorDashboard tab="beds" /></ProtectedRoute>} />
+                            <Route path="admin/appointments" element={<ProtectedRoute requiredPermissions={['administrator_view']}><OldAdministratorDashboard tab="appointments" /></ProtectedRoute>} />
+                            <Route path="admin/billing" element={<ProtectedRoute requiredPermissions={['administrator_view']}><OldAdministratorDashboard tab="billing" /></ProtectedRoute>} />
                             
-                            <Route path="administrator/doctors" element={<ProtectedRoute requiredPermissions={['administrator_view']}><DoctorManagement /></ProtectedRoute>} />
-                            <Route path="administrator/lab" element={<ProtectedRoute requiredPermissions={['administrator_view']}><LaboratoryManagement /></ProtectedRoute>} />
-                            <Route path="administrator/pharmacy" element={<ProtectedRoute requiredPermissions={['administrator_view']}><PharmacyManagement /></ProtectedRoute>} />
-                            <Route path="administrator/roles" element={<ProtectedRoute requiredPermissions={['administrator_view']}><RoleManagement /></ProtectedRoute>} />
-                            <Route path="administrator/notifications" element={<ProtectedRoute requiredPermissions={['administrator_view']}><NotificationCenter /></ProtectedRoute>} />
-                            <Route path="administrator/audit-logs" element={<ProtectedRoute requiredPermissions={['administrator_view']}><AuditLogs /></ProtectedRoute>} />
-                            <Route path="administrator/revenue" element={<ProtectedRoute requiredPermissions={['administrator_view']}><RevenueMonitoring /></ProtectedRoute>} />
-                            <Route path="administrator/resources" element={<ProtectedRoute requiredPermissions={['administrator_view']}><ResourceManagement /></ProtectedRoute>} />
+                            <Route path="admin/doctor-management" element={<ProtectedRoute requiredPermissions={['administrator_view']}><DoctorManagement /></ProtectedRoute>} />
+                            <Route path="admin/lab-management" element={<ProtectedRoute requiredPermissions={['administrator_view']}><LaboratoryManagement /></ProtectedRoute>} />
+                            <Route path="admin/pharmacy-management" element={<ProtectedRoute requiredPermissions={['administrator_view']}><PharmacyManagement /></ProtectedRoute>} />
+                            <Route path="admin/role-management" element={<ProtectedRoute requiredPermissions={['administrator_view']}><RoleManagement /></ProtectedRoute>} />
+                            <Route path="admin/notifications" element={<ProtectedRoute requiredPermissions={['administrator_view']}><NotificationCenter /></ProtectedRoute>} />
+                            <Route path="admin/audit-logs" element={<ProtectedRoute requiredPermissions={['administrator_view']}><AuditLogs /></ProtectedRoute>} />
+                            <Route path="admin/audit-log" element={<ProtectedRoute requiredPermissions={['administrator_view']}><AuditLogs /></ProtectedRoute>} />
+                            <Route path="admin/revenue" element={<ProtectedRoute requiredPermissions={['administrator_view']}><RevenueMonitoring /></ProtectedRoute>} />
+                            <Route path="admin/resources" element={<ProtectedRoute requiredPermissions={['administrator_view', 'resource_manage']}><ResourceManagement /></ProtectedRoute>} />
                             
-                            <Route path="administrator/inventory" element={<ProtectedRoute requiredPermissions={['administrator_view']}><OldAdministratorDashboard tab="inventory" /></ProtectedRoute>} />
-                            <Route path="administrator/reports" element={<ProtectedRoute requiredPermissions={['administrator_view']}><OldAdministratorDashboard tab="reports" /></ProtectedRoute>} />
-                            <Route path="administrator/analytics" element={<ProtectedRoute requiredPermissions={['administrator_view']}><OldAdministratorDashboard tab="analytics" /></ProtectedRoute>} />
-                            <Route path="administrator/settings" element={<ProtectedRoute requiredPermissions={['administrator_view']}><OldAdministratorDashboard tab="settings" /></ProtectedRoute>} />
-                            <Route path="administrator/profile-settings" element={<ProtectedRoute requiredPermissions={['administrator_view']}><AdminProfile /></ProtectedRoute>} />
+                            <Route path="admin/inventory" element={<ProtectedRoute requiredPermissions={['administrator_view', 'inventory_view', 'pharmacy_manage']}><OldAdministratorDashboard tab="inventory" /></ProtectedRoute>} />
+                            <Route path="admin/reports" element={<ProtectedRoute requiredPermissions={['administrator_view']}><OldAdministratorDashboard tab="reports" /></ProtectedRoute>} />
+                            <Route path="admin/analytics" element={<ProtectedRoute requiredPermissions={['administrator_view']}><OldAdministratorDashboard tab="analytics" /></ProtectedRoute>} />
+                            <Route path="admin/settings" element={<ProtectedRoute requiredPermissions={['administrator_view']}><OldAdministratorDashboard tab="settings" /></ProtectedRoute>} />
+                            <Route path="admin/profile-settings" element={<ProtectedRoute requiredPermissions={['administrator_view']}><AdminProfile /></ProtectedRoute>} />
+
+                            {/* Redirect legacy /administrator/* routes to /admin/* */}
+                            <Route path="administrator/*" element={<AdministratorRedirect />} />
 
                         {/* Supreme Admin remains outside of hospital slugs */}
                         <Route path="/supremeadmin" element={<ProtectedRoute allowedRoles={['centraladmin', 'superadmin']}><CentralAdminDashboard /></ProtectedRoute>} />
