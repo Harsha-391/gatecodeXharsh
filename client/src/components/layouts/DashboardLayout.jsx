@@ -112,7 +112,6 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
             baseMenu = [
                 { label: 'Reception Dashboard', path: '/reception/dashboard', icon: <FiHome /> },
                 { label: 'Appointments/Booking', path: '/appointment', icon: <FiPlusSquare /> },
-                { label: 'Patient Flow', path: '/admin/patient-flow', icon: <FiUsers /> },
                 { label: 'My Daily Collection', path: '/reception/dashboard?view=collection', icon: <FiPieChart /> },
                 { label: 'Patient Billing', path: '/billing/patient', icon: <FiUsers /> },
                 { label: 'Invoices', path: '/billing/invoices', icon: <FiFileText /> },
@@ -376,9 +375,9 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
             }
         });
 
-        // Filter out Payment History for reception roles to prevent it from appearing anywhere in their sidebar
+        // Filter out Payment History and Patient Flow for reception roles to prevent it from appearing anywhere in their sidebar
         if (role === 'reception' || role === 'receptionist') {
-            baseMenu = baseMenu.filter(item => item.path !== '/billing/history');
+            baseMenu = baseMenu.filter(item => item.path !== '/billing/history' && item.path !== '/admin/patient-flow');
         }
 
         return baseMenu;

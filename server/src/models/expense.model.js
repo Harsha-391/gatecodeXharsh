@@ -55,6 +55,8 @@ const expenseSchema = new mongoose.Schema({
     timestamps: true
 });
 
+expenseSchema.index({ hospitalId: 1 });
+
 const Expense = mongoose.model('Expense', expenseSchema);
 
 module.exports = Expense;

@@ -31,19 +31,12 @@ const verifyAdministratorAccess = async (req, res, next) => {
             const roleName = (roleData?.name || '').toLowerCase();
             const perms = roleData?.permissions || [];
 
-            const isAdministrator = ['administrator', 'hospitaladmin', 'admin', 'centraladmin', 'superadmin', 'accountant', 'receptionist', 'reception'].includes(roleIdStr) ||
-                ['administrator', 'hospitaladmin', 'admin', 'centraladmin', 'superadmin', 'accountant', 'receptionist', 'reception'].includes(roleName);
+            const isAdministrator = ['administrator', 'hospitaladmin', 'admin', 'centraladmin', 'superadmin'].includes(roleIdStr) ||
+                ['administrator', 'hospitaladmin', 'admin', 'centraladmin', 'superadmin'].includes(roleName);
 
             if (isAdministrator || 
                 perms.includes('administrator_view') || 
-                perms.includes('accountant_view') || 
                 perms.includes('administrator_manage') || 
-                perms.includes('accountant_manage') || 
-                perms.includes('patient_monitor') || 
-                perms.includes('admission_manage') || 
-                perms.includes('inventory_view') || 
-                perms.includes('resource_manage') || 
-                perms.includes('pharmacy_manage') || 
                 perms.includes('*')
             ) {
                 await resolveTenant(req, res, next);

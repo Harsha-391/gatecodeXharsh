@@ -120,7 +120,8 @@ const LabDashboard = () => {
                         Manage test requests and upload reports • Auto-refreshes every 30s
                     </p>
                 </div>
-                <button className="action-btn" onClick={() => setShowAddModal(true)}>
+                <button className="action-btn" onClick={() => setShowAddModal(true)}
+                    style={{ padding: '12px 24px', height: 'auto', width: 'auto', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #14b8a6, #0a2647)', color: '#fff', cursor: 'pointer', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
                     ➕ Register Walk-in Test
                 </button>
             </div>

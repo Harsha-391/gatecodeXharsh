@@ -7,7 +7,7 @@ const ProfitLoss = () => {
     const navigate = useNavigate();
 
     const [data, setData] = useState({ totalRevenue: 0, totalExpenses: 0, netProfit: 0, monthlyTrend: [], departmentProfitability: {} });
-    const [timeframe, setTimeframe] = useState('half-year'); // 'weekly', 'monthly', 'half-year', 'yearly'
+    const [timeframe, setTimeframe] = useState('monthly'); // 'weekly', 'monthly', 'half-year', 'yearly'
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
@@ -42,140 +42,203 @@ const ProfitLoss = () => {
         }
     };
 
-    const formatCurrency = (amount) => {
-        return new Intl.NumberFormat('en-IN', {
-            style: 'currency',
-            currency: 'INR',
-            minimumFractionDigits: 0
-        }).format(amount || 0);
+    const fmt = (amount) => new Intl.NumberFormat('en-IN', {
+        style: 'currency',
+        currency: 'INR',
+        minimumFractionDigits: 0
+    }).format(amount || 0);
+
+    const chartTitle = {
+        weekly:     'Daily Profit Trend (Last 7 Days)',
+        monthly:    'Weekly Profit Trend (Last 4 Weeks)',
+        'half-year':'Monthly Profit Trend (Last 6 Months)',
+        yearly:     'Monthly Profit Trend (Last 12 Months)',
     };
+
+    const trend = data.monthlyTrend || [];
+    const maxVal = Math.max(...trend.map(x => Math.abs(x.profit)), 1);
+    const hasAnyTrendData = trend.some(t => t.profit !== 0);
+
+    const deptEntries = Object.entries(data.departmentProfitability || {});
+    const maxDeptRevenue = Math.max(...deptEntries.map(([, v]) => v.revenue), 1);
+
+    const isNetPositive = (data.netProfit || 0) >= 0;
 
     return (
         <div className="profit-loss-page">
-            <header className="page-header">
-                <div>
-                    <h1>Profit & Loss Statement</h1>
+
+            {/* ── Header ── */}
+            <header className="pl-header">
+                <div className="pl-header-left">
+                    <h1>Profit &amp; Loss Statement</h1>
                     <p>Real-time calculation of revenue streams versus operating expenses and gross profit margins</p>
                 </div>
-                <div className="timeframe-selector">
-                    <select 
-                        value={timeframe} 
-                        onChange={(e) => setTimeframe(e.target.value)}
-                        style={{
-                            padding: '10px 16px',
-                            borderRadius: '10px',
-                            border: '1px solid rgba(255, 255, 255, 0.2)',
-                            background: 'rgba(255, 255, 255, 0.1)',
-                            color: 'white',
-                            fontWeight: '600',
-                            fontSize: '0.9rem',
-                            outline: 'none',
-                            cursor: 'pointer'
-                        }}
-                    >
-                        <option value="weekly" style={{ color: '#000' }}>Weekly (Last 7 Days)</option>
-                        <option value="monthly" style={{ color: '#000' }}>Monthly (Last 30 Days)</option>
-                        <option value="half-year" style={{ color: '#000' }}>Half-Yearly (Last 6 Months)</option>
-                        <option value="yearly" style={{ color: '#000' }}>Yearly (Last 12 Months)</option>
-                    </select>
-                </div>
+                <select
+                    className="pl-timeframe-select"
+                    value={timeframe}
+                    onChange={(e) => setTimeframe(e.target.value)}
+                >
+                    <option value="weekly">Weekly (Last 7 Days)</option>
+                    <option value="monthly">Monthly (Last 30 Days)</option>
+                    <option value="half-year">Half-Yearly (Last 6 Months)</option>
+                    <option value="yearly">Yearly (Last 12 Months)</option>
+                </select>
             </header>
- 
-            {error && <div className="error-message">⚠️ {error}</div>}
- 
+
+            {error && (
+                <div className="pl-error">⚠️ {error}</div>
+            )}
+
             {loading ? (
-                <div className="loading-message">⏳ Calculating financial margins...</div>
+                <div className="pl-loading">
+                    <div className="pl-loading-spinner" />
+                    <p>Calculating financial margins...</p>
+                </div>
             ) : (
-                <div className="content-container">
-                    {/* Visual Equation Layout */}
-                    <div className="equation-container">
-                        <div className="equation-card revenue">
-                            <span className="label">Total Revenue</span>
-                            <span className="value">{formatCurrency(data.totalRevenue)}</span>
-                            <span className="sub">All collections & payments</span>
+                <>
+                    {/* ── KPI Row ── */}
+                    <div className="pl-kpi-row">
+                        <div className="pl-kpi-card revenue">
+                            <span className="pl-kpi-label">Total Revenue</span>
+                            <span className="pl-kpi-value">{fmt(data.totalRevenue)}</span>
+                            <span className="pl-kpi-sub">All collections &amp; payments</span>
                         </div>
-                        <div className="equation-operator">−</div>
-                        <div className="equation-card expenses">
-                            <span className="label">Total Expenses</span>
-                            <span className="value">{formatCurrency(data.totalExpenses)}</span>
-                            <span className="sub">Operational & payroll costs</span>
+                        <div className="pl-operator">−</div>
+                        <div className="pl-kpi-card expenses">
+                            <span className="pl-kpi-label">Total Expenses</span>
+                            <span className="pl-kpi-value">{fmt(data.totalExpenses)}</span>
+                            <span className="pl-kpi-sub">Operational &amp; payroll costs</span>
                         </div>
-                        <div className="equation-operator">=</div>
-                        <div className="equation-card profit">
-                            <span className="label">Net Profit</span>
-                            <span className="value">{formatCurrency(data.netProfit)}</span>
-                            <span className="sub">Retained hospital surplus</span>
+                        <div className="pl-operator">=</div>
+                        <div className={`pl-kpi-card ${isNetPositive ? 'profit-positive' : 'profit-negative'}`}>
+                            <span className="pl-kpi-label">Net Profit</span>
+                            <span className="pl-kpi-value">{fmt(data.netProfit)}</span>
+                            <span className="pl-kpi-sub">
+                                {isNetPositive ? '🟢 Hospital surplus retained' : '🔴 Operating at a loss'}
+                            </span>
                         </div>
                     </div>
- 
-                    <div className="charts-grid">
-                        {/* Monthly Profit Trend */}
-                        <div className="trend-box card-box">
-                            <h3>
-                                📊 {timeframe === 'weekly' ? 'Daily Profit Trend (Last 7 Days)' : 
-                                    timeframe === 'monthly' ? 'Weekly Profit Trend (Last 4 Weeks)' : 
-                                    timeframe === 'half-year' ? 'Monthly Profit Trend (Last 6 Months)' : 
-                                    'Monthly Profit Trend (Last 12 Months)'}
-                            </h3>
-                            <div className="bar-chart-container">
-                                {data.monthlyTrend && data.monthlyTrend.map((m, idx) => {
-                                    const maxVal = Math.max(...data.monthlyTrend.map(x => Math.abs(x.profit))) || 1;
-                                    const percentage = (Math.abs(m.profit) / maxVal) * 100;
-                                    const isPositive = m.profit >= 0;
-                                    return (
-                                        <div className="bar-chart-item" key={idx}>
-                                            <div className="bar-wrapper">
-                                                <div 
-                                                    className={`bar-fill ${isPositive ? 'positive' : 'negative'}`} 
-                                                    style={{ height: `${percentage}%` }}
-                                                >
-                                                    <span className="bar-tooltip">{formatCurrency(m.profit)}</span>
-                                                </div>
-                                            </div>
-                                            <span className="bar-label">{m.label}</span>
-                                        </div>
-                                    );
-                                })}
+
+                    {/* ── Charts Grid ── */}
+                    <div className="pl-charts-grid">
+
+                        {/* Bar Chart */}
+                        <div className="pl-card">
+                            <div className="pl-card-header">
+                                <h3 className="pl-card-title">
+                                    📊 {chartTitle[timeframe]}
+                                </h3>
+                                <span className="pl-card-badge">
+                                    {trend.length} periods
+                                </span>
                             </div>
+
+                            {!hasAnyTrendData ? (
+                                <div className="pl-chart-empty">
+                                    <div className="pl-chart-empty-icon">📉</div>
+                                    <p>No financial data recorded<br />for this period yet.</p>
+                                </div>
+                            ) : (
+                                <>
+                                    <div className="pl-bar-chart">
+                                        {trend.map((m, idx) => {
+                                            const pct = (Math.abs(m.profit) / maxVal) * 100;
+                                            const isPos = m.profit >= 0;
+                                            const isZero = m.profit === 0;
+                                            return (
+                                                <div className="pl-bar-item" key={idx}>
+                                                    <div className="pl-bar-track">
+                                                        <div
+                                                            className={`pl-bar-fill ${isZero ? 'zero' : isPos ? 'positive' : 'negative'}`}
+                                                            style={{ height: isZero ? '4px' : `${pct}%` }}
+                                                        >
+                                                            <span className="pl-bar-value">{fmt(m.profit)}</span>
+                                                        </div>
+                                                    </div>
+                                                    <span className="pl-bar-label">{m.label}</span>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                    <div className="pl-chart-summary">
+                                        <div className="pl-summary-item">
+                                            <span className="pl-summary-dot positive" />
+                                            Profitable period
+                                        </div>
+                                        <div className="pl-summary-item">
+                                            <span className="pl-summary-dot negative" />
+                                            Loss period
+                                        </div>
+                                    </div>
+                                </>
+                            )}
                         </div>
 
-                        {/* Departmental Profitability */}
-                        <div className="dept-box card-box">
-                            <h3>🏥 Department Profitability breakdown</h3>
-                            <div className="dept-rows">
-                                {Object.entries(data.departmentProfitability || {}).map(([dept, vals]) => {
-                                    const margin = vals.revenue > 0 ? ((vals.profit / vals.revenue) * 100).toFixed(1) : 0;
-                                    return (
-                                        <div className="dept-profit-row" key={dept}>
-                                            <div className="row-header">
-                                                <span className="dept-name">{dept}</span>
-                                                <span className={`dept-margin ${vals.profit >= 0 ? 'pos' : 'neg'}`}>
-                                                    Margin: {margin}%
-                                                </span>
-                                            </div>
-                                            <div className="row-details">
-                                                <div className="detail-item">
-                                                    <span>Rev:</span>
-                                                    <span className="val-text green">{formatCurrency(vals.revenue)}</span>
-                                                </div>
-                                                <div className="detail-item">
-                                                    <span>Exp:</span>
-                                                    <span className="val-text red">{formatCurrency(vals.expenses)}</span>
-                                                </div>
-                                                <div className="detail-item">
-                                                    <span>Profit:</span>
-                                                    <span className={`val-text bold ${vals.profit >= 0 ? 'green' : 'red'}`}>
-                                                        {formatCurrency(vals.profit)}
+                        {/* Department Breakdown */}
+                        <div className="pl-card">
+                            <div className="pl-card-header">
+                                <h3 className="pl-card-title">
+                                    🏥 Department Profitability
+                                </h3>
+                                {deptEntries.length > 0 && (
+                                    <span className="pl-card-badge">{deptEntries.length} depts</span>
+                                )}
+                            </div>
+
+                            {deptEntries.length === 0 ? (
+                                <div className="pl-dept-empty">
+                                    <p>No department data available for this period.</p>
+                                </div>
+                            ) : (
+                                <div className="pl-dept-list">
+                                    {deptEntries.map(([dept, vals]) => {
+                                        const margin = vals.revenue > 0
+                                            ? ((vals.profit / vals.revenue) * 100).toFixed(1)
+                                            : 0;
+                                        const barPct = vals.revenue > 0
+                                            ? Math.min((vals.revenue / maxDeptRevenue) * 100, 100)
+                                            : 0;
+                                        const marginClass = vals.profit > 0 ? 'pos' : vals.profit < 0 ? 'neg' : 'zero';
+
+                                        return (
+                                            <div className="pl-dept-row" key={dept}>
+                                                <div className="pl-dept-row-header">
+                                                    <span className="pl-dept-name">{dept}</span>
+                                                    <span className={`pl-dept-margin ${marginClass}`}>
+                                                        Margin: {margin}%
                                                     </span>
                                                 </div>
+                                                <div className="pl-dept-stats">
+                                                    <div className="pl-stat-cell">
+                                                        <span className="pl-stat-label">Revenue</span>
+                                                        <span className="pl-stat-value green">{fmt(vals.revenue)}</span>
+                                                    </div>
+                                                    <div className="pl-stat-cell">
+                                                        <span className="pl-stat-label">Expenses</span>
+                                                        <span className="pl-stat-value red">{fmt(vals.expenses)}</span>
+                                                    </div>
+                                                    <div className="pl-stat-cell">
+                                                        <span className="pl-stat-label">Net Profit</span>
+                                                        <span className={`pl-stat-value ${vals.profit >= 0 ? 'blue' : 'red'}`}>
+                                                            {fmt(vals.profit)}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <div className="pl-dept-bar">
+                                                    <div
+                                                        className={`pl-dept-bar-fill ${vals.profit < 0 ? 'negative' : ''}`}
+                                                        style={{ width: `${barPct}%` }}
+                                                    />
+                                                </div>
                                             </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
                         </div>
+
                     </div>
-                </div>
+                </>
             )}
         </div>
     );

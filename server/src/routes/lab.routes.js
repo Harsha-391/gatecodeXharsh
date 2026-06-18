@@ -161,6 +161,36 @@ router.get('/stats', verifyToken, resolveTenant, verifyLab, async (req, res) => 
     }
 });
 
+// 1b. GET MY ASSIGNED REPORTS
+router.get('/my-reports', verifyToken, resolveTenant, verifyLab, async (req, res) => {
+    try {
+        const { LabReport } = getModels(req);
+        const hid = req.user.hospitalId;
+        const hospitalFilter = hid ? { hospitalId: hid } : {};
+
+        const labProfile = await Lab.findOne({
+            $or: [{ email: req.user.email }, { userId: req.user.id }]
+        });
+
+        let query = { ...hospitalFilter };
+        if (labProfile) {
+            query.$or = [{ labId: labProfile._id }, { labId: null }, { labId: { $exists: false } }];
+        } else {
+            query.$or = [{ labId: null }, { labId: { $exists: false } }];
+        }
+
+        const reports = await LabReport.find(query)
+            .populate('userId', 'name email phone patientId')
+            .populate({ path: 'doctorId', model: Doctor, select: 'name' })
+            .sort({ createdAt: -1 });
+
+        res.json({ success: true, reports });
+    } catch (error) {
+        console.error("[lab] fetch my-reports error", error);
+        res.status(500).json({ success: false, message: 'An internal error occurred' });
+    }
+});
+
 // 2. GET ASSIGNED REQUESTS (Pending or All)
 router.get('/requests', verifyToken, resolveTenant, verifyLab, async (req, res) => {
     try {

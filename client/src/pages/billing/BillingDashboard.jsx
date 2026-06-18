@@ -971,6 +971,230 @@ const BillingDashboard = ({ tab }) => {
         doc.save(`Complete-Bill-${patient.patientId || patient.name?.replace(/ /g,'-')}-${new Date().toISOString().slice(0,10)}.pdf`);
     };
 
+    const renderCompleteBillingSummary = () => {
+        if (!billing) return null;
+        return (
+            <div className="billing-section-box">
+                <div className="section-head-actions">
+                    <div>
+                        <h3 style={{ margin: 0 }}>Complete Billing Summary</h3>
+                        <p style={{ fontSize: '12px', color: '#64748b', margin: '4px 0 0 0' }}>Full financial overview — all charges across every department (paid + outstanding)</p>
+                    </div>
+                    <button
+                        className="btn-print-complete"
+                        onClick={printCompleteBill}
+                    >
+                        🖨️ Print Complete Bill
+                    </button>
+                </div>
+
+                {/* Department Summary Rows */}
+                <div className="complete-bill-dept-grid">
+                    {/* Consultations */}
+                    {(billing.appointments || []).length > 0 && (() => {
+                        const total = (billing.appointments || []).reduce((s, a) => s + (a.amount || 0), 0);
+                        const paid  = (billing.appointments || []).filter(a => a.paymentStatus === 'Paid').reduce((s, a) => s + (a.amount || 0), 0);
+                        return (
+                            <div className="cbill-dept-row cbill-consultation">
+                                <div className="cbill-dept-icon">🩺</div>
+                                <div className="cbill-dept-info">
+                                    <strong>Consultations & OPD</strong>
+                                    <span>{(billing.appointments || []).length} consultation(s)</span>
+                                    <div className="cbill-items-mini">
+                                        {(billing.appointments || []).map(a => (
+                                            <div key={a._id} className="cbill-mini-row">
+                                                <span>Dr. {a.doctorName} — {fmtDate(a.appointmentDate)}</span>
+                                                <span className={a.paymentStatus === 'Paid' ? 'cbill-status-paid' : 'cbill-status-due'}>{a.paymentStatus === 'Paid' ? '✓ Paid' : '● Due'}</span>
+                                                <span>{fmt(a.amount || 0)}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div className="cbill-dept-amounts">
+                                    <div className="cbill-amount-row"><span>Total</span><strong>{fmt(total)}</strong></div>
+                                    <div className="cbill-amount-row paid"><span>Paid</span><strong>{fmt(paid)}</strong></div>
+                                    <div className="cbill-amount-row due"><span>Due</span><strong>{fmt(total - paid)}</strong></div>
+                                </div>
+                            </div>
+                        );
+                    })()}
+
+                    {/* Laboratory */}
+                    {(billing.labReports || []).length > 0 && (() => {
+                        const total = (billing.labReports || []).reduce((s, l) => s + (l.amount || 0), 0);
+                        const paid  = (billing.labReports || []).filter(l => l.paymentStatus === 'PAID').reduce((s, l) => s + (l.amount || 0), 0);
+                        return (
+                            <div className="cbill-dept-row cbill-lab">
+                                <div className="cbill-dept-icon">🧪</div>
+                                <div className="cbill-dept-info">
+                                    <strong>Laboratory Diagnostics</strong>
+                                    <span>{(billing.labReports || []).length} lab order(s)</span>
+                                    <div className="cbill-items-mini">
+                                        {(billing.labReports || []).map(l => (
+                                            <div key={l._id} className="cbill-mini-row">
+                                                <span>Tests: {(l.testNames || []).join(', ')}</span>
+                                                <span className={l.paymentStatus === 'PAID' ? 'cbill-status-paid' : 'cbill-status-due'}>{l.paymentStatus === 'PAID' ? '✓ Paid' : '● Due'}</span>
+                                                <span>{fmt(l.amount || 0)}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div className="cbill-dept-amounts">
+                                    <div className="cbill-amount-row"><span>Total</span><strong>{fmt(total)}</strong></div>
+                                    <div className="cbill-amount-row paid"><span>Paid</span><strong>{fmt(paid)}</strong></div>
+                                    <div className="cbill-amount-row due"><span>Due</span><strong>{fmt(total - paid)}</strong></div>
+                                </div>
+                            </div>
+                        );
+                    })()}
+
+                    {/* Pharmacy */}
+                    {(billing.pharmacyOrders || []).length > 0 && (() => {
+                        const total = (billing.pharmacyOrders || []).reduce((s, p) => s + (p.totalAmount || 0), 0);
+                        const paid  = (billing.pharmacyOrders || []).filter(p => p.paymentStatus === 'Paid').reduce((s, p) => s + (p.totalAmount || 0), 0);
+                        return (
+                            <div className="cbill-dept-row cbill-pharmacy">
+                                <div className="cbill-dept-icon">💊</div>
+                                <div className="cbill-dept-info">
+                                    <strong>Pharmacy — Dispensed Medicines</strong>
+                                    <span>{(billing.pharmacyOrders || []).reduce((s, p) => s + (p.items || []).length, 0)} medicine item(s) across {(billing.pharmacyOrders || []).length} order(s)</span>
+                                    <div className="cbill-items-mini">
+                                        {(billing.pharmacyOrders || []).map(p => (
+                                            <React.Fragment key={p._id}>
+                                                {(p.items || []).map((med, idx) => (
+                                                    <div key={idx} className="cbill-mini-row">
+                                                        <span>💊 {med.name || '—'} ×{med.qty || 1}</span>
+                                                        <span className="cbill-status-due">{idx === 0 && (p.paymentStatus !== 'Paid' ? '● Due' : '✓ Paid')}</span>
+                                                        <span>{fmt((med.qty || 1) * (med.price || 0))}</span>
+                                                    </div>
+                                                ))}
+                                            </React.Fragment>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div className="cbill-dept-amounts">
+                                    <div className="cbill-amount-row"><span>Total</span><strong>{fmt(total)}</strong></div>
+                                    <div className="cbill-amount-row paid"><span>Paid</span><strong>{fmt(paid)}</strong></div>
+                                    <div className="cbill-amount-row due"><span>Due</span><strong>{fmt(total - paid)}</strong></div>
+                                </div>
+                            </div>
+                        );
+                    })()}
+
+                    {/* Facility */}
+                    {(billing.facilityCharges || []).length > 0 && (() => {
+                        const total = (billing.facilityCharges || []).reduce((s, f) => s + (f.totalAmount || 0), 0);
+                        const paid  = (billing.facilityCharges || []).filter(f => f.paymentStatus === 'Paid').reduce((s, f) => s + (f.totalAmount || 0), 0);
+                        return (
+                            <div className="cbill-dept-row cbill-facility">
+                                <div className="cbill-dept-icon">🏨</div>
+                                <div className="cbill-dept-info">
+                                    <strong>Facility & Room Charges</strong>
+                                    <span>{(billing.facilityCharges || []).length} facility charge(s)</span>
+                                    <div className="cbill-items-mini">
+                                        {(billing.facilityCharges || []).map(f => (
+                                            <div key={f._id} className="cbill-mini-row">
+                                                <span>{f.facilityName} — {f.daysUsed} day(s)</span>
+                                                <span className={f.paymentStatus === 'Paid' ? 'cbill-status-paid' : 'cbill-status-due'}>{f.paymentStatus === 'Paid' ? '✓ Paid' : '● Due'}</span>
+                                                <span>{fmt(f.totalAmount || 0)}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div className="cbill-dept-amounts">
+                                    <div className="cbill-amount-row"><span>Total</span><strong>{fmt(total)}</strong></div>
+                                    <div className="cbill-amount-row paid"><span>Paid</span><strong>{fmt(paid)}</strong></div>
+                                    <div className="cbill-amount-row due"><span>Due</span><strong>{fmt(total - paid)}</strong></div>
+                                </div>
+                            </div>
+                        );
+                    })()}
+
+                    {/* IPD */}
+                    {(billing.admissions || []).length > 0 && (() => {
+                        const total = (billing.admissions || []).reduce((s, a) => s + getAdmAmt(a), 0);
+                        const paid  = (billing.admissions || []).filter(a => a.paymentStatus === 'Paid').reduce((s, a) => s + getAdmAmt(a), 0);
+                        return (
+                            <div className="cbill-dept-row cbill-admission">
+                                <div className="cbill-dept-icon">🏥</div>
+                                <div className="cbill-dept-info">
+                                    <strong>IPD Hospitalization</strong>
+                                    <span>{(billing.admissions || []).length} admission(s)</span>
+                                    <div className="cbill-items-mini">
+                                        {(billing.admissions || []).map(a => (
+                                            <div key={a._id} className="cbill-mini-row">
+                                                <span>Ward: {a.ward} — Bed: {a.bedNumber} ({a.status})</span>
+                                                <span className={a.paymentStatus === 'Paid' ? 'cbill-status-paid' : 'cbill-status-due'}>{a.paymentStatus === 'Paid' ? '✓ Paid' : '● Due'}</span>
+                                                <span>{fmt(getAdmAmt(a))}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div className="cbill-dept-amounts">
+                                    <div className="cbill-amount-row"><span>Total</span><strong>{fmt(total)}</strong></div>
+                                    <div className="cbill-amount-row paid"><span>Paid</span><strong>{fmt(paid)}</strong></div>
+                                    <div className="cbill-amount-row due"><span>Due</span><strong>{fmt(total - paid)}</strong></div>
+                                </div>
+                            </div>
+                        );
+                    })()}
+                </div>
+
+                {/* Grand Total Footer */}
+                {(() => {
+                    const grandTot = [
+                        ...(billing.appointments || []).map(a => a.amount || 0),
+                        ...(billing.labReports || []).map(l => l.amount || 0),
+                        ...(billing.pharmacyOrders || []).map(p => p.totalAmount || 0),
+                        ...(billing.facilityCharges || []).map(f => f.totalAmount || 0),
+                        ...(billing.admissions || []).map(a => getAdmAmt(a))
+                    ].reduce((s, v) => s + v, 0);
+
+                    const paidTot = [
+                        ...(billing.appointments || []).filter(a => a.paymentStatus === 'Paid').map(a => a.amount || 0),
+                        ...(billing.labReports || []).filter(l => l.paymentStatus === 'PAID').map(l => l.amount || 0),
+                        ...(billing.pharmacyOrders || []).filter(p => p.paymentStatus === 'Paid').map(p => p.totalAmount || 0),
+                        ...(billing.facilityCharges || []).filter(f => f.paymentStatus === 'Paid').map(f => f.totalAmount || 0),
+                        ...(billing.admissions || []).filter(a => a.paymentStatus === 'Paid').map(a => getAdmAmt(a))
+                    ].reduce((s, v) => s + v, 0);
+
+                    const dueTot = grandTot - paidTot;
+
+                    // Also add invoice paid amounts
+                    const invPaid = (billing.invoices || []).reduce((s, inv) => s + (inv.amountPaid || 0), 0);
+                    const invDue  = (billing.invoices || []).reduce((s, inv) => s + (inv.outstandingAmount || 0), 0);
+
+                    return (
+                        <div className="cbill-grand-total-bar">
+                            <div className="cbill-gt-col">
+                                <span>Total Charges Incurred</span>
+                                <strong className="cbill-gt-total">{fmt(grandTot)}</strong>
+                            </div>
+                            <div className="cbill-gt-divider" />
+                            <div className="cbill-gt-col">
+                                <span>Invoiced & Paid</span>
+                                <strong className="cbill-gt-paid">{fmt(invPaid)}</strong>
+                            </div>
+                            <div className="cbill-gt-divider" />
+                            <div className="cbill-gt-col">
+                                <span>Pending / Outstanding</span>
+                                <strong className="cbill-gt-due">{fmt(invDue > 0 ? invDue : dueTot)}</strong>
+                            </div>
+                            <div className="cbill-gt-divider" />
+                            <div className="cbill-gt-col">
+                                <span>Un-invoiced Charges</span>
+                                <strong style={{ fontSize: '1rem', color: '#d97706' }}>{fmt(dueTot)}</strong>
+                            </div>
+                            <button className="btn-print-complete" onClick={printCompleteBill} style={{ marginLeft: 'auto' }}>
+                                🖨️ Print / Download PDF
+                            </button>
+                        </div>
+                    );
+                })()}
+            </div>
+        );
+    };
+
     return (
         <div className="billing-dashboard-workspace">
             {/* Horizontal Header */}
@@ -1082,22 +1306,28 @@ const BillingDashboard = ({ tab }) => {
 
                         {patient && billing && (
                             <div className="patient-billing-profile-grid" style={{ marginTop: '20px' }}>
-                                {/* Patient Card */}
-                                <div className="p-card-left">
-                                    <div className="p-avatar-box">
-                                        <div className="p-avatar-char">{patient.name?.charAt(0).toUpperCase()}</div>
-                                        <h2>{patient.name}</h2>
-                                        <p>MRN: {patient.mrn}</p>
-                                    </div>
-                                    <div className="p-details-list">
-                                        <div className="p-detail-row"><span>Mobile</span><strong>{patient.phone}</strong></div>
-                                        <div className="p-detail-row"><span>Gender</span><strong>{patient.gender || '—'}</strong></div>
-                                        <div className="p-detail-row"><span>DOB</span><strong>{fmtDate(patient.dob)}</strong></div>
+                                {/* Left Column: Patient Card + Billing Summary */}
+                                <div className="p-billing-left-column" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                                    {/* Patient Card */}
+                                    <div className="p-card-left">
+                                        <div className="p-avatar-box">
+                                            <div className="p-avatar-char">{patient.name?.charAt(0).toUpperCase()}</div>
+                                            <h2>{patient.name}</h2>
+                                            <p>MRN: {patient.mrn}</p>
+                                        </div>
+                                        <div className="p-details-list">
+                                            <div className="p-detail-row"><span>Mobile</span><strong>{patient.phone}</strong></div>
+                                            <div className="p-detail-row"><span>Gender</span><strong>{patient.gender || '—'}</strong></div>
+                                            <div className="p-detail-row"><span>DOB</span><strong>{fmtDate(patient.dob)}</strong></div>
+                                        </div>
                                     </div>
                                 </div>
 
                                 {/* Billing Details Right */}
                                 <div className="p-billing-right">
+                                    {/* Complete Billing Summary Panel */}
+                                    {renderCompleteBillingSummary()}
+
                                     {/* Uninvoiced Pending Charges */}
                                     <div className="billing-section-box">
                                         <div className="section-head-actions">
@@ -1441,226 +1671,6 @@ const BillingDashboard = ({ tab }) => {
                                             </div>
                                         )}
                                     </div>
-                                    </div>
-
-                                    {/* ── COMPLETE BILLING SUMMARY PANEL ── */}
-                                    <div className="billing-section-box" style={{ marginTop: '20px' }}>
-                                        <div className="section-head-actions">
-                                            <div>
-                                                <h3 style={{ margin: 0 }}>Complete Billing Summary</h3>
-                                                <p style={{ fontSize: '12px', color: '#64748b', margin: '4px 0 0 0' }}>Full financial overview — all charges across every department (paid + outstanding)</p>
-                                            </div>
-                                            <button
-                                                className="btn-print-complete"
-                                                onClick={printCompleteBill}
-                                            >
-                                                🖨️ Print Complete Bill
-                                            </button>
-                                        </div>
-
-                                        {/* Department Summary Rows */}
-                                        <div className="complete-bill-dept-grid">
-                                            {/* Consultations */}
-                                            {(billing.appointments || []).length > 0 && (() => {
-                                                const total = (billing.appointments || []).reduce((s, a) => s + (a.amount || 0), 0);
-                                                const paid  = (billing.appointments || []).filter(a => a.paymentStatus === 'Paid').reduce((s, a) => s + (a.amount || 0), 0);
-                                                return (
-                                                    <div className="cbill-dept-row cbill-consultation">
-                                                        <div className="cbill-dept-icon">🩺</div>
-                                                        <div className="cbill-dept-info">
-                                                            <strong>Consultations & OPD</strong>
-                                                            <span>{(billing.appointments || []).length} consultation(s)</span>
-                                                            <div className="cbill-items-mini">
-                                                                {(billing.appointments || []).map(a => (
-                                                                    <div key={a._id} className="cbill-mini-row">
-                                                                        <span>Dr. {a.doctorName} — {fmtDate(a.appointmentDate)}</span>
-                                                                        <span className={a.paymentStatus === 'Paid' ? 'cbill-status-paid' : 'cbill-status-due'}>{a.paymentStatus === 'Paid' ? '✓ Paid' : '● Due'}</span>
-                                                                        <span>{fmt(a.amount || 0)}</span>
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        </div>
-                                                        <div className="cbill-dept-amounts">
-                                                            <div className="cbill-amount-row"><span>Total</span><strong>{fmt(total)}</strong></div>
-                                                            <div className="cbill-amount-row paid"><span>Paid</span><strong>{fmt(paid)}</strong></div>
-                                                            <div className="cbill-amount-row due"><span>Due</span><strong>{fmt(total - paid)}</strong></div>
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })()}
-
-                                            {/* Laboratory */}
-                                            {(billing.labReports || []).length > 0 && (() => {
-                                                const total = (billing.labReports || []).reduce((s, l) => s + (l.amount || 0), 0);
-                                                const paid  = (billing.labReports || []).filter(l => l.paymentStatus === 'PAID').reduce((s, l) => s + (l.amount || 0), 0);
-                                                return (
-                                                    <div className="cbill-dept-row cbill-lab">
-                                                        <div className="cbill-dept-icon">🧪</div>
-                                                        <div className="cbill-dept-info">
-                                                            <strong>Laboratory Diagnostics</strong>
-                                                            <span>{(billing.labReports || []).length} lab order(s)</span>
-                                                            <div className="cbill-items-mini">
-                                                                {(billing.labReports || []).map(l => (
-                                                                    <div key={l._id} className="cbill-mini-row">
-                                                                        <span>Tests: {(l.testNames || []).join(', ')}</span>
-                                                                        <span className={l.paymentStatus === 'PAID' ? 'cbill-status-paid' : 'cbill-status-due'}>{l.paymentStatus === 'PAID' ? '✓ Paid' : '● Due'}</span>
-                                                                        <span>{fmt(l.amount || 0)}</span>
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        </div>
-                                                        <div className="cbill-dept-amounts">
-                                                            <div className="cbill-amount-row"><span>Total</span><strong>{fmt(total)}</strong></div>
-                                                            <div className="cbill-amount-row paid"><span>Paid</span><strong>{fmt(paid)}</strong></div>
-                                                            <div className="cbill-amount-row due"><span>Due</span><strong>{fmt(total - paid)}</strong></div>
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })()}
-
-                                            {/* Pharmacy */}
-                                            {(billing.pharmacyOrders || []).length > 0 && (() => {
-                                                const total = (billing.pharmacyOrders || []).reduce((s, p) => s + (p.totalAmount || 0), 0);
-                                                const paid  = (billing.pharmacyOrders || []).filter(p => p.paymentStatus === 'Paid').reduce((s, p) => s + (p.totalAmount || 0), 0);
-                                                return (
-                                                    <div className="cbill-dept-row cbill-pharmacy">
-                                                        <div className="cbill-dept-icon">💊</div>
-                                                        <div className="cbill-dept-info">
-                                                            <strong>Pharmacy — Dispensed Medicines</strong>
-                                                            <span>{(billing.pharmacyOrders || []).reduce((s, p) => s + (p.items || []).length, 0)} medicine item(s) across {(billing.pharmacyOrders || []).length} order(s)</span>
-                                                            <div className="cbill-items-mini">
-                                                                {(billing.pharmacyOrders || []).map(p => (
-                                                                    <React.Fragment key={p._id}>
-                                                                        {(p.items || []).map((med, idx) => (
-                                                                            <div key={idx} className="cbill-mini-row">
-                                                                                <span>💊 {med.name || '—'} ×{med.qty || 1}</span>
-                                                                                <span className="cbill-status-due">{idx === 0 && (p.paymentStatus !== 'Paid' ? '● Due' : '✓ Paid')}</span>
-                                                                                <span>{fmt((med.qty || 1) * (med.price || 0))}</span>
-                                                                            </div>
-                                                                        ))}
-                                                                    </React.Fragment>
-                                                                ))}
-                                                            </div>
-                                                        </div>
-                                                        <div className="cbill-dept-amounts">
-                                                            <div className="cbill-amount-row"><span>Total</span><strong>{fmt(total)}</strong></div>
-                                                            <div className="cbill-amount-row paid"><span>Paid</span><strong>{fmt(paid)}</strong></div>
-                                                            <div className="cbill-amount-row due"><span>Due</span><strong>{fmt(total - paid)}</strong></div>
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })()}
-
-                                            {/* Facility */}
-                                            {(billing.facilityCharges || []).length > 0 && (() => {
-                                                const total = (billing.facilityCharges || []).reduce((s, f) => s + (f.totalAmount || 0), 0);
-                                                const paid  = (billing.facilityCharges || []).filter(f => f.paymentStatus === 'Paid').reduce((s, f) => s + (f.totalAmount || 0), 0);
-                                                return (
-                                                    <div className="cbill-dept-row cbill-facility">
-                                                        <div className="cbill-dept-icon">🏨</div>
-                                                        <div className="cbill-dept-info">
-                                                            <strong>Facility & Room Charges</strong>
-                                                            <span>{(billing.facilityCharges || []).length} facility charge(s)</span>
-                                                            <div className="cbill-items-mini">
-                                                                {(billing.facilityCharges || []).map(f => (
-                                                                    <div key={f._id} className="cbill-mini-row">
-                                                                        <span>{f.facilityName} — {f.daysUsed} day(s)</span>
-                                                                        <span className={f.paymentStatus === 'Paid' ? 'cbill-status-paid' : 'cbill-status-due'}>{f.paymentStatus === 'Paid' ? '✓ Paid' : '● Due'}</span>
-                                                                        <span>{fmt(f.totalAmount || 0)}</span>
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        </div>
-                                                        <div className="cbill-dept-amounts">
-                                                            <div className="cbill-amount-row"><span>Total</span><strong>{fmt(total)}</strong></div>
-                                                            <div className="cbill-amount-row paid"><span>Paid</span><strong>{fmt(paid)}</strong></div>
-                                                            <div className="cbill-amount-row due"><span>Due</span><strong>{fmt(total - paid)}</strong></div>
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })()}
-
-                                            {/* IPD */}
-                                            {(billing.admissions || []).length > 0 && (() => {
-                                                const total = (billing.admissions || []).reduce((s, a) => s + getAdmAmt(a), 0);
-                                                const paid  = (billing.admissions || []).filter(a => a.paymentStatus === 'Paid').reduce((s, a) => s + getAdmAmt(a), 0);
-                                                return (
-                                                    <div className="cbill-dept-row cbill-admission">
-                                                        <div className="cbill-dept-icon">🏥</div>
-                                                        <div className="cbill-dept-info">
-                                                            <strong>IPD Hospitalization</strong>
-                                                            <span>{(billing.admissions || []).length} admission(s)</span>
-                                                            <div className="cbill-items-mini">
-                                                                {(billing.admissions || []).map(a => (
-                                                                    <div key={a._id} className="cbill-mini-row">
-                                                                        <span>Ward: {a.ward} — Bed: {a.bedNumber} ({a.status})</span>
-                                                                        <span className={a.paymentStatus === 'Paid' ? 'cbill-status-paid' : 'cbill-status-due'}>{a.paymentStatus === 'Paid' ? '✓ Paid' : '● Due'}</span>
-                                                                        <span>{fmt(getAdmAmt(a))}</span>
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        </div>
-                                                        <div className="cbill-dept-amounts">
-                                                            <div className="cbill-amount-row"><span>Total</span><strong>{fmt(total)}</strong></div>
-                                                            <div className="cbill-amount-row paid"><span>Paid</span><strong>{fmt(paid)}</strong></div>
-                                                            <div className="cbill-amount-row due"><span>Due</span><strong>{fmt(total - paid)}</strong></div>
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })()}
-                                        </div>
-
-                                        {/* Grand Total Footer */}
-                                        {(() => {
-                                            const grandTot = [
-                                                ...(billing.appointments || []).map(a => a.amount || 0),
-                                                ...(billing.labReports || []).map(l => l.amount || 0),
-                                                ...(billing.pharmacyOrders || []).map(p => p.totalAmount || 0),
-                                                ...(billing.facilityCharges || []).map(f => f.totalAmount || 0),
-                                                ...(billing.admissions || []).map(a => getAdmAmt(a))
-                                            ].reduce((s, v) => s + v, 0);
-
-                                            const paidTot = [
-                                                ...(billing.appointments || []).filter(a => a.paymentStatus === 'Paid').map(a => a.amount || 0),
-                                                ...(billing.labReports || []).filter(l => l.paymentStatus === 'PAID').map(l => l.amount || 0),
-                                                ...(billing.pharmacyOrders || []).filter(p => p.paymentStatus === 'Paid').map(p => p.totalAmount || 0),
-                                                ...(billing.facilityCharges || []).filter(f => f.paymentStatus === 'Paid').map(f => f.totalAmount || 0),
-                                                ...(billing.admissions || []).filter(a => a.paymentStatus === 'Paid').map(a => getAdmAmt(a))
-                                            ].reduce((s, v) => s + v, 0);
-
-                                            const dueTot = grandTot - paidTot;
-
-                                            // Also add invoice paid amounts
-                                            const invPaid = (billing.invoices || []).reduce((s, inv) => s + (inv.amountPaid || 0), 0);
-                                            const invDue  = (billing.invoices || []).reduce((s, inv) => s + (inv.outstandingAmount || 0), 0);
-
-                                            return (
-                                                <div className="cbill-grand-total-bar">
-                                                    <div className="cbill-gt-col">
-                                                        <span>Total Charges Incurred</span>
-                                                        <strong className="cbill-gt-total">{fmt(grandTot)}</strong>
-                                                    </div>
-                                                    <div className="cbill-gt-divider" />
-                                                    <div className="cbill-gt-col">
-                                                        <span>Invoiced & Paid</span>
-                                                        <strong className="cbill-gt-paid">{fmt(invPaid)}</strong>
-                                                    </div>
-                                                    <div className="cbill-gt-divider" />
-                                                    <div className="cbill-gt-col">
-                                                        <span>Pending / Outstanding</span>
-                                                        <strong className="cbill-gt-due">{fmt(invDue > 0 ? invDue : dueTot)}</strong>
-                                                    </div>
-                                                    <div className="cbill-gt-divider" />
-                                                    <div className="cbill-gt-col">
-                                                        <span>Un-invoiced Charges</span>
-                                                        <strong style={{ fontSize: '1rem', color: '#d97706' }}>{fmt(dueTot)}</strong>
-                                                    </div>
-                                                    <button className="btn-print-complete" onClick={printCompleteBill} style={{ marginLeft: 'auto' }}>
-                                                        🖨️ Print / Download PDF
-                                                    </button>
-                                                </div>
-                                            );
-                                        })()}
                                     </div>
 
                                 </div>

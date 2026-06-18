@@ -326,3 +326,14 @@
         grid-column: span 1;
     }
 }
+
+.table-wrapper {
+    overflow-x: auto;
+    width: 100%;
+}
+
+.finance-table {
+    width: 100%;
+    min-width: 1100px;
+    border-collapse: collapse;
+}

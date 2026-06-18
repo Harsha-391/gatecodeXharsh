@@ -798,9 +798,6 @@ export const adminAPI = {
     createRole: async (data) => (await apiClient.post('/api/admin/roles', data)).data,
     updateRole: async (id, data) => (await apiClient.put(`/api/admin/roles/${id}`, data)).data,
     deleteRole: async (id) => (await apiClient.delete(`/api/admin/roles/${id}`)).data,
-    getAdministrators: async () => (await apiClient.get('/api/admin/administrators')).data,
-    createAdministrator: async (data) => (await apiClient.post('/api/admin/administrators', data)).data,
-    updateAdministrator: async (id, data) => (await apiClient.put(`/api/admin/administrators/${id}`, data)).data,
     updateUserPermissions: async (id, customPermissions, deniedPermissions) => (await apiClient.put(`/api/admin/users/${id}/permissions`, { customPermissions, deniedPermissions })).data,
 };
 

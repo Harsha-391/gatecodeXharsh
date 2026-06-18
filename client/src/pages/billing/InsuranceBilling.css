@@ -169,11 +169,12 @@
     background: #fff;
     border-radius: 16px;
     border: 1.5px solid #f1f5f9;
-    overflow: hidden;
+    overflow-x: auto;
     box-shadow: 0 4px 16px rgba(0,0,0,0.04);
 }
 .ib-table {
     width: 100%;
+    min-width: 1100px;
     border-collapse: collapse;
     font-size: 0.85rem;
 }
