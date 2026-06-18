@@ -162,6 +162,7 @@
 .erp-main-area {
   flex: 1;
   transition: padding-left 0.3s;
+  min-width: 0;
 }
 
 .erp-main-area.shifted {

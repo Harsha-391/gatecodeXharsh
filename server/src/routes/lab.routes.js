@@ -44,8 +44,8 @@ const verifyLab = async (req, res, next) => {
     if (!roleName.includes('lab') && 
         !roleName.includes('admin') && 
         !roleName.includes('accountant') &&
-        !permissions.includes('administrator_view') &&
-        !permissions.includes('administrator_manage') &&
+        !permissions.includes('accountant_view') &&
+        !permissions.includes('accountant_manage') &&
         !permissions.includes('lab_view') &&
         !permissions.includes('lab_manage') &&
         !permissions.includes('*')) {

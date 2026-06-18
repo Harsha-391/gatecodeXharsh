@@ -885,10 +885,14 @@ const KNOWN_PERMISSIONS = [
     'pharmacy_view', 'pharmacy_manage',
     'finance_view', 'billing_view', 'billing_manage',
     'admin_manage_roles', 'admin_view_stats',
-    'administrator_view', 'administrator_manage',
+    'accountant_view', 'accountant_manage',
     'staff_manage', 'department_manage', 'patient_monitor',
     'admission_manage', 'resource_manage', 'reports_view',
-    'analytics_view', 'operations_manage', 'inventory_view'
+    'analytics_view', 'operations_manage', 'inventory_view',
+    'billing_insurance', 'billing_ipd_settlement', 'billing_receipt_reprint', 'billing_discounts',
+    'finance_outstanding', 'finance_claims', 'finance_expenses', 'finance_profit_loss',
+    'finance_statements', 'finance_reconciliation', 'finance_transactions', 'finance_audit',
+    'finance_payroll', 'finance_doctor_payouts'
 ];
 
 /**
@@ -951,143 +955,6 @@ router.put('/users/:userId/permissions', verifyToken, verifySuperAdmin, auditLog
     }
 });
 
-// ==========================================
-// 4. ADMINISTRATOR MANAGEMENT (SUPER ADMIN ONLY)
-// ==========================================
 
-// Get all Administrators
-router.get('/administrators', verifyToken, verifySuperAdmin, async (req, res) => {
-    try {
-        const adminRoles = await Role.find({ name: { $regex: /^administrator/i } });
-        const adminRoleIds = adminRoles.map(r => r._id);
-
-        const admins = await User.find({
-            $or: [
-                { role: { $in: adminRoleIds } },
-                { role: 'administrator' }
-            ]
-        }, { password: 0 }).sort({ createdAt: -1 });
-
-        const adminsWithRoles = await Promise.all(admins.map(async (u) => {
-            return await buildUserResponse(u);
-        }));
-
-        res.json({ success: true, data: adminsWithRoles });
-    } catch (error) {
-        res.status(500).json({ success: false, message: 'Error fetching administrators' });
-    }
-});
-
-// Create a new Administrator
-router.post('/administrators', verifyToken, verifySuperAdmin, async (req, res) => {
-    try {
-        const { name, email, password, phone, hospitalId, permissions } = req.body;
-
-        if (!name || !email || !password || !hospitalId) {
-            return res.status(400).json({ success: false, message: 'Name, email, password, and hospitalId are required' });
-        }
-
-        const pwErr = validatePassword(password);
-        if (pwErr) return res.status(400).json({ success: false, message: pwErr });
-
-        const existingUser = await User.findOne({ email: email.toLowerCase().trim() });
-        if (existingUser) return res.status(400).json({ success: false, message: 'User already registered with this email' });
-
-        // Create a custom Role scoped to this hospital for this administrator user
-        const customRole = new Role({
-            name: `Administrator (${email.toLowerCase().trim()})`,
-            description: `Custom Administrator role for ${name}`,
-            permissions: permissions || [
-                'administrator_view', 'administrator_manage', 'staff_manage', 'department_manage',
-                'patient_monitor', 'admission_manage', 'resource_manage', 'billing_view',
-                'reports_view', 'analytics_view', 'operations_manage', 'inventory_view'
-            ],
-            dashboardPath: '/admin/dashboard',
-            navLinks: [
-                { label: 'Dashboard', path: '/admin/dashboard' },
-                { label: 'Patient Flow', path: '/admin/patient-flow' },
-                { label: 'Admissions', path: '/admin/admissions' },
-                { label: 'Bed Management', path: '/admin/beds' },
-                { label: 'Appointments', path: '/admin/appointments' },
-                { label: 'Hospital Operations Center', path: '/admin/operations' },
-                { label: 'Staff Management', path: '/admin/staff' },
-                { label: 'Doctor Management', path: '/admin/doctor-management' },
-                { label: 'Departments', path: '/admin/departments' },
-                { label: 'Roles & Permissions', path: '/admin/role-management' },
-                { label: 'Laboratory Management', path: '/admin/lab-management' },
-                { label: 'Pharmacy Management', path: '/admin/pharmacy-management' },
-                { label: 'Billing Oversight', path: '/admin/billing' },
-                { label: 'Revenue Monitoring', path: '/admin/revenue' },
-                { label: 'Inventory Monitoring', path: '/admin/inventory' },
-                { label: 'Resource Management', path: '/admin/resources' },
-                { label: 'Reports', path: '/admin/reports' },
-                { label: 'Analytics', path: '/admin/analytics' },
-                { label: 'Audit Logs', path: '/admin/audit-logs' },
-                { label: 'Notifications', path: '/admin/notifications' },
-                { label: 'Settings', path: '/admin/settings' },
-                { label: 'Profile Settings', path: '/admin/profile-settings' }
-            ],
-            hospitalId,
-            isSystemRole: false
-        });
-        await customRole.save();
-
-        const adminUser = new User({
-            name,
-            email: email.toLowerCase().trim(),
-            password,
-            phone: phone || '',
-            role: customRole._id,
-            hospitalId,
-            isActive: true
-        });
-        await adminUser.save();
-
-        // Link hospital admin to hospital record if empty
-        const hospital = await Hospital.findById(hospitalId);
-        if (hospital && !hospital.adminUserId) {
-            hospital.adminUserId = adminUser._id;
-            await hospital.save();
-        }
-
-        const userData = await buildUserResponse(adminUser);
-        res.status(201).json({ success: true, message: 'Administrator created successfully', data: userData });
-    } catch (error) {
-        res.status(500).json({ success: false, message: 'Error creating administrator' });
-    }
-});
-
-// Edit Administrator
-router.put('/administrators/:id', verifyToken, verifySuperAdmin, async (req, res) => {
-    try {
-        const { id } = req.params;
-        const { name, email, phone, hospitalId, permissions } = req.body;
-
-        const user = await User.findById(id);
-        if (!user) return res.status(404).json({ success: false, message: 'Administrator not found' });
-
-        if (name) user.name = name;
-        if (email) user.email = email.toLowerCase().trim();
-        if (phone !== undefined) user.phone = phone;
-        if (hospitalId) user.hospitalId = hospitalId;
-
-        await user.save();
-
-        // Update permissions on their specific role
-        if (mongoose.Types.ObjectId.isValid(user.role)) {
-            const roleDoc = await Role.findById(user.role);
-            if (roleDoc) {
-                if (permissions) roleDoc.permissions = permissions;
-                if (hospitalId) roleDoc.hospitalId = hospitalId;
-                await roleDoc.save();
-            }
-        }
-
-        const userData = await buildUserResponse(user);
-        res.json({ success: true, message: 'Administrator updated successfully', data: userData });
-    } catch (error) {
-        res.status(500).json({ success: false, message: 'Error updating administrator' });
-    }
-});
 
 module.exports = router;

@@ -6,7 +6,7 @@ import { useBranding, sanitizeBranding } from '../../context/BrandingContext';
 import { getSubdomain } from '../../utils/subdomain';
 import api, { publicAPI } from '../../utils/api';
 import { motion, AnimatePresence } from 'framer-motion';
-import { HiOutlineMail, HiOutlineLockClosed } from 'react-icons/hi';
+import { HiOutlineMail, HiOutlineLockClosed, HiOutlineEye, HiOutlineEyeOff } from 'react-icons/hi';
 import { RiHospitalLine } from 'react-icons/ri';
 import '../user/Login.css';
 import './HospitalLogin.css';
@@ -31,6 +31,7 @@ const HospitalLogin = () => {
     const [hospitalLoading, setHospitalLoading] = useState(true);
     const [hospitalError, setHospitalError] = useState('');
     const [formData, setFormData] = useState({ email: '', password: '' });
+    const [showPassword, setShowPassword] = useState(false);
 
     // Resolve hospital by domain/slug on mount
     useEffect(() => {
@@ -199,13 +200,22 @@ const HospitalLogin = () => {
                                         <div className="input-field-wrapper">
                                             <HiOutlineLockClosed className="input-icon" />
                                             <input
-                                                type="password" 
+                                                type={showPassword ? 'text' : 'password'}
                                                 name="password"
                                                 placeholder="••••••••"
                                                 value={formData.password}
-                                                onChange={handleChange} 
+                                                onChange={handleChange}
                                                 required
                                             />
+                                            <button
+                                                type="button"
+                                                className="password-toggle-btn"
+                                                onClick={() => setShowPassword(prev => !prev)}
+                                                tabIndex={-1}
+                                                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                                            >
+                                                {showPassword ? <HiOutlineEyeOff /> : <HiOutlineEye />}
+                                            </button>
                                         </div>
                                     </div>
                                     

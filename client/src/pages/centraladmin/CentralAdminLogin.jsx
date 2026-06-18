@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAppDispatch, useAuth } from '../../store/hooks';
 import { loginAdmin, clearError } from '../../store/slices/authSlice';
 import { motion, AnimatePresence } from 'framer-motion';
-import { HiOutlineMail, HiOutlineLockClosed } from 'react-icons/hi';
+import { HiOutlineMail, HiOutlineLockClosed, HiOutlineEye, HiOutlineEyeOff } from 'react-icons/hi';
 import { RiArrowLeftLine } from 'react-icons/ri';
 import '../user/Login.css';
 
@@ -13,6 +13,7 @@ const CentralAdminLogin = () => {
     const { loading, error, isAuthenticated, user } = useAuth();
 
     const [formData, setFormData] = useState({ email: '', password: '' });
+    const [showPassword, setShowPassword] = useState(false);
 
     useEffect(() => {
         dispatch(clearError());
@@ -106,13 +107,22 @@ const CentralAdminLogin = () => {
                                         <div className="input-field-wrapper">
                                             <HiOutlineLockClosed className="input-icon" />
                                             <input
-                                                type="password"
+                                                type={showPassword ? 'text' : 'password'}
                                                 name="password"
                                                 placeholder="••••••••"
                                                 value={formData.password}
                                                 onChange={handleChange}
                                                 required
                                             />
+                                            <button
+                                                type="button"
+                                                className="password-toggle-btn"
+                                                onClick={() => setShowPassword(prev => !prev)}
+                                                tabIndex={-1}
+                                                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                                            >
+                                                {showPassword ? <HiOutlineEyeOff /> : <HiOutlineEye />}
+                                            </button>
                                         </div>
                                     </div>
 

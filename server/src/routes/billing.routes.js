@@ -17,6 +17,8 @@ const MasterInvoice = require('../models/invoice.model');
 const MasterRefund = require('../models/refund.model');
 const MasterBillingActivityLog = require('../models/billingActivityLog.model');
 const MasterLabTest = require('../models/labTest.model');
+const MasterInsuranceClaim = require('../models/insuranceClaim.model');
+const MasterDiscountRequest = require('../models/discountRequest.model');
 
 // Billing Access Middleware
 const verifyBillingAccess = async (req, res, next) => {
@@ -61,6 +63,8 @@ const getModels = (req) => {
         Refund: MasterRefund,
         BillingActivityLog: MasterBillingActivityLog,
         LabTest: MasterLabTest,
+        InsuranceClaim: MasterInsuranceClaim,
+        DiscountRequest: MasterDiscountRequest,
     };
 };
 
@@ -878,6 +882,217 @@ router.get('/analytics', verifyBillingAccess, async (req, res) => {
     } catch (error) {
         console.error('Analytics fetch error:', error);
         res.status(500).json({ success: false, message: 'An internal error occurred' });
+    }
+});
+
+// ───────────────────────────────────────────────────────────────
+// INSURANCE CLAIMS
+// ───────────────────────────────────────────────────────────────
+
+// GET /billing/insurance/claims — list all claims for this hospital
+router.get('/insurance/claims', verifyBillingAccess, async (req, res) => {
+    try {
+        const { InsuranceClaim } = getModels(req);
+        const hFilter = req.user.hospitalId ? { hospitalId: req.user.hospitalId } : {};
+        const { status } = req.query;
+        const filter = { ...hFilter };
+        if (status && status !== 'all') filter.status = status;
+        const claims = await InsuranceClaim.find(filter).sort({ createdAt: -1 }).lean();
+        res.json({ success: true, claims });
+    } catch (err) {
+        console.error('Insurance claims fetch error:', err);
+        res.status(500).json({ success: false, message: 'Failed to fetch insurance claims' });
+    }
+});
+
+// POST /billing/insurance/claims — create a new claim
+router.post('/insurance/claims', verifyBillingAccess, async (req, res) => {
+    try {
+        const { InsuranceClaim, Invoice } = getModels(req);
+        const hFilter = req.user.hospitalId ? { hospitalId: req.user.hospitalId } : {};
+        const {
+            patientId, patientName, policyNumber, insuranceProvider,
+            invoiceNumber, claimAmount, treatmentDescription
+        } = req.body;
+
+        if (!patientId || !patientName || !policyNumber || !insuranceProvider || !claimAmount) {
+            return res.status(400).json({ success: false, message: 'Missing required fields: patientId, patientName, policyNumber, insuranceProvider, claimAmount' });
+        }
+
+        // Auto-generate claim number
+        const count = await InsuranceClaim.countDocuments({ ...hFilter });
+        const claimNumber = `CLM-${new Date().getFullYear()}-${String(count + 1).padStart(5, '0')}`;
+
+        const claim = new InsuranceClaim({
+            ...hFilter,
+            patientId,
+            patientName,
+            policyNumber,
+            insuranceProvider,
+            invoiceNumber: invoiceNumber || '',
+            claimNumber,
+            claimAmount,
+            treatmentDescription: treatmentDescription || '',
+            status: 'Pending',
+            submissionDate: new Date(),
+        });
+        await claim.save();
+        res.json({ success: true, claim, message: 'Insurance claim created successfully' });
+    } catch (err) {
+        console.error('Insurance claim create error:', err);
+        res.status(500).json({ success: false, message: 'Failed to create insurance claim' });
+    }
+});
+
+// PUT /billing/insurance/claims/:id — update claim status
+router.put('/insurance/claims/:id', verifyBillingAccess, async (req, res) => {
+    try {
+        const { InsuranceClaim } = getModels(req);
+        const hFilter = req.user.hospitalId ? { hospitalId: req.user.hospitalId } : {};
+        const { status, approvedAmount, rejectionReason } = req.body;
+
+        const claim = await InsuranceClaim.findOne({ _id: req.params.id, ...hFilter });
+        if (!claim) return res.status(404).json({ success: false, message: 'Claim not found' });
+
+        if (status) claim.status = status;
+        if (status === 'Submitted') claim.submissionDate = new Date();
+        if (approvedAmount !== undefined) claim.approvedAmount = approvedAmount;
+        if (rejectionReason) claim.rejectionReason = rejectionReason;
+        if (['Approved', 'Rejected'].includes(status)) claim.actionDate = new Date();
+
+        await claim.save();
+        res.json({ success: true, claim, message: `Claim ${status || 'updated'} successfully` });
+    } catch (err) {
+        console.error('Insurance claim update error:', err);
+        res.status(500).json({ success: false, message: 'Failed to update insurance claim' });
+    }
+});
+
+// ───────────────────────────────────────────────────────────────
+// DISCOUNT & ADJUSTMENT REQUESTS
+// ───────────────────────────────────────────────────────────────
+
+// GET /billing/discounts — list discount requests
+router.get('/discounts', verifyBillingAccess, async (req, res) => {
+    try {
+        const { DiscountRequest } = getModels(req);
+        const hFilter = req.user.hospitalId ? { hospitalId: req.user.hospitalId } : {};
+        const { status } = req.query;
+        const filter = { ...hFilter };
+        if (status && status !== 'all') filter.status = status;
+        const requests = await DiscountRequest.find(filter).sort({ createdAt: -1 }).lean();
+        res.json({ success: true, requests });
+    } catch (err) {
+        console.error('Discount requests fetch error:', err);
+        res.status(500).json({ success: false, message: 'Failed to fetch discount requests' });
+    }
+});
+
+// POST /billing/discounts — create a discount request
+router.post('/discounts', verifyBillingAccess, async (req, res) => {
+    try {
+        const { DiscountRequest } = getModels(req);
+        const hFilter = req.user.hospitalId ? { hospitalId: req.user.hospitalId } : {};
+        const { patientId, patientName, invoiceId, invoiceNumber, requestType, amount, percentage, reason } = req.body;
+
+        if (!patientId || !patientName || !requestType || !reason) {
+            return res.status(400).json({ success: false, message: 'Missing required fields' });
+        }
+        if (!amount && !percentage) {
+            return res.status(400).json({ success: false, message: 'Either amount or percentage must be provided' });
+        }
+
+        const discountReq = new DiscountRequest({
+            ...hFilter,
+            patientId,
+            patientName,
+            invoiceId: invoiceId || undefined,
+            invoiceNumber: invoiceNumber || '',
+            requestType,
+            amount: amount || 0,
+            percentage: percentage || 0,
+            reason,
+            status: 'Pending',
+            requestedBy: req.user._id,
+            requestedByName: req.user.name || 'Billing Staff',
+        });
+        await discountReq.save();
+        res.json({ success: true, request: discountReq, message: 'Discount request submitted successfully' });
+    } catch (err) {
+        console.error('Discount request create error:', err);
+        res.status(500).json({ success: false, message: 'Failed to create discount request' });
+    }
+});
+
+// PUT /billing/discounts/:id/approve — approve or reject (Accountant / Admin only)
+router.put('/discounts/:id/approve', verifyBillingAccess, async (req, res) => {
+    try {
+        const { DiscountRequest } = getModels(req);
+        const hFilter = req.user.hospitalId ? { hospitalId: req.user.hospitalId } : {};
+
+        // Authorization: only accountant, admin, hospitaladmin can approve
+        const roleStr = (req.user._roleData?.name || String(req.user.role || '')).toLowerCase();
+        const canApprove = ['accountant', 'admin', 'hospitaladmin', 'superadmin', 'centraladmin', 'administrator'].some(r => roleStr.includes(r));
+        if (!canApprove) {
+            return res.status(403).json({ success: false, message: 'Only Accountant or Admin can approve discount requests' });
+        }
+
+        const { action, notes } = req.body; // action: 'approve' | 'reject'
+        const discountReq = await DiscountRequest.findOne({ _id: req.params.id, ...hFilter });
+        if (!discountReq) return res.status(404).json({ success: false, message: 'Discount request not found' });
+        if (discountReq.status !== 'Pending') {
+            return res.status(400).json({ success: false, message: `Request is already ${discountReq.status}` });
+        }
+
+        discountReq.status = action === 'approve' ? 'Approved' : 'Rejected';
+        discountReq.approvedBy = req.user._id;
+        discountReq.approvedByName = req.user.name || 'Approver';
+        discountReq.approvalNotes = notes || '';
+        discountReq.actionDate = new Date();
+        await discountReq.save();
+
+        res.json({ success: true, request: discountReq, message: `Discount request ${discountReq.status.toLowerCase()} successfully` });
+    } catch (err) {
+        console.error('Discount approve error:', err);
+        res.status(500).json({ success: false, message: 'Failed to process approval' });
+    }
+});
+
+// PUT /billing/discounts/:id/apply — apply approved discount to invoice
+router.put('/discounts/:id/apply', verifyBillingAccess, async (req, res) => {
+    try {
+        const { DiscountRequest, Invoice } = getModels(req);
+        const hFilter = req.user.hospitalId ? { hospitalId: req.user.hospitalId } : {};
+
+        const discountReq = await DiscountRequest.findOne({ _id: req.params.id, ...hFilter });
+        if (!discountReq) return res.status(404).json({ success: false, message: 'Discount request not found' });
+        if (discountReq.status !== 'Approved') {
+            return res.status(400).json({ success: false, message: 'Discount must be approved before applying' });
+        }
+
+        // Apply to invoice if invoiceId is linked
+        if (discountReq.invoiceId) {
+            const invoice = await Invoice.findOne({ _id: discountReq.invoiceId, ...hFilter });
+            if (invoice) {
+                const discountValue = discountReq.amount > 0
+                    ? discountReq.amount
+                    : (invoice.grandTotal * discountReq.percentage / 100);
+                invoice.grandTotal = Math.max(0, invoice.grandTotal - discountValue);
+                invoice.outstandingAmount = Math.max(0, invoice.outstandingAmount - discountValue);
+                await invoice.save();
+            }
+        }
+
+        discountReq.status = 'Applied';
+        discountReq.appliedBy = req.user._id;
+        discountReq.appliedByName = req.user.name || 'Billing Staff';
+        discountReq.appliedDate = new Date();
+        await discountReq.save();
+
+        res.json({ success: true, request: discountReq, message: 'Discount applied to invoice successfully' });
+    } catch (err) {
+        console.error('Discount apply error:', err);
+        res.status(500).json({ success: false, message: 'Failed to apply discount' });
     }
 });
 

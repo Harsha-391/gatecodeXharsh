@@ -88,11 +88,30 @@ const defaultRoles = [
         isSystemRole: true
     },
     {
+        name: 'Patient',
+        description: 'Default role for patients/users',
+        permissions: [
+            'patient_view'
+        ],
+        dashboardPath: '/dashboard',
+        navLinks: [
+            { label: 'Services', path: '/services' },
+            { label: 'Doctors', path: '/doctors' },
+            { label: 'Appointment', path: '/appointment' },
+            { label: 'Lab Reports', path: '/lab-reports' },
+            { label: 'Dashboard', path: '/dashboard' }
+        ],
+        isSystemRole: true
+    },
+    {
         name: 'Accountant',
         description: 'Finance and accounting staff',
         permissions: [
             'finance_view', 'billing_view', 'billing_manage',
-            'patient_view', 'patient_search'
+            'patient_view', 'patient_search',
+            'finance_outstanding', 'finance_claims', 'finance_expenses', 'finance_profit_loss',
+            'finance_statements', 'finance_reconciliation', 'finance_transactions', 'finance_audit',
+            'finance_payroll', 'finance_doctor_payouts'
         ],
         dashboardPath: '/accountant/dashboard',
         navLinks: [
@@ -107,7 +126,8 @@ const defaultRoles = [
         permissions: [
             'billing_view', 'billing_manage', 'billing_collect_payment',
             'billing_generate_invoice', 'billing_print_invoice', 'billing_refund',
-            'billing_reports', 'billing_analytics'
+            'billing_reports', 'billing_analytics',
+            'billing_insurance', 'billing_ipd_settlement', 'billing_receipt_reprint', 'billing_discounts'
         ],
         dashboardPath: '/billing/dashboard',
         navLinks: [

@@ -1163,24 +1163,33 @@ const CentralAdminDashboard = () => {
                                         <div className="form-group" style={{ marginBottom: '16px' }}>
                                             <label className="staff-label">Departments Provided (Linked to Question Library)</label>
                                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginTop: '5px' }}>
-                                                {availableDepartments.length === 0 ? (
-                                                    <span style={{ fontSize: '13px', color: '#888' }}>No departments found in Global Question Library.</span>
-                                                ) : availableDepartments.map(dept => (
-                                                    <label key={dept} style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '14px', cursor: 'pointer', background: '#f8fafc', padding: '6px 12px', border: '1px solid #e2e8f0', borderRadius: '4px' }}>
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={(hospitalForm.departments || []).includes(dept)}
-                                                            onChange={(e) => {
-                                                                if (e.target.checked) {
-                                                                    setHospitalForm({ ...hospitalForm, departments: [...hospitalForm.departments, dept] });
-                                                                } else {
-                                                                    setHospitalForm({ ...hospitalForm, departments: hospitalForm.departments.filter(d => d !== dept) });
-                                                                }
-                                                            }}
-                                                        />
-                                                        {dept}
-                                                    </label>
-                                                ))}
+                                                {(() => {
+                                                    const mergedDepts = [...new Set([...availableDepartments, ...(hospitalForm.departments || [])])];
+                                                    if (mergedDepts.length === 0) {
+                                                        return <span style={{ fontSize: '13px', color: '#888' }}>No departments found in Global Question Library.</span>;
+                                                    }
+                                                    return mergedDepts.map(dept => {
+                                                        const isChecked = (hospitalForm.departments || []).includes(dept);
+                                                        const isCustom = !availableDepartments.includes(dept);
+                                                        return (
+                                                            <label key={dept} style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '14px', cursor: 'pointer', background: '#f8fafc', padding: '6px 12px', border: isChecked ? '1px solid #0ea5e9' : '1px solid #e2e8f0', borderRadius: '4px' }}>
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={isChecked}
+                                                                    onChange={(e) => {
+                                                                        if (e.target.checked) {
+                                                                            setHospitalForm({ ...hospitalForm, departments: [...hospitalForm.departments, dept] });
+                                                                        } else {
+                                                                            setHospitalForm({ ...hospitalForm, departments: hospitalForm.departments.filter(d => d !== dept) });
+                                                                        }
+                                                                    }}
+                                                                />
+                                                                {dept}
+                                                                {isCustom && <span style={{ fontSize: '10px', color: '#64748b', marginLeft: '4px', fontStyle: 'italic' }}>(Custom)</span>}
+                                                            </label>
+                                                        );
+                                                    });
+                                                })()}
                                             </div>
                                         </div>
                                         <button type="submit" disabled={savingHospital} className="submit-button">{savingHospital ? 'Saving...' : editHospital ? '✅ Update Hospital' : '✅ Create Hospital'}</button>
@@ -2251,13 +2260,18 @@ const CentralAdminDashboard = () => {
                         </p>
                         <form onSubmit={handleSaveDeptAccess}>
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '12px', margin: '20px 0' }}>
-                                {availableDepartments.length === 0 ? (
-                                    <div style={{ gridColumn: '1/-1', textAlign: 'center', color: '#888', padding: '20px' }}>
-                                        No departments found. Please add departments to the Question Library first.
-                                    </div>
-                                ) : (
-                                    availableDepartments.map(dept => {
+                                {(() => {
+                                    const mergedDepts = [...new Set([...availableDepartments, ...deptAccessSelections])];
+                                    if (mergedDepts.length === 0) {
+                                        return (
+                                            <div style={{ gridColumn: '1/-1', textAlign: 'center', color: '#888', padding: '20px' }}>
+                                                No departments found. Please add departments to the Question Library first.
+                                            </div>
+                                        );
+                                    }
+                                    return mergedDepts.map(dept => {
                                         const isChecked = deptAccessSelections.includes(dept);
+                                        const isCustom = !availableDepartments.includes(dept);
                                         return (
                                             <label
                                                 key={dept}
@@ -2290,10 +2304,11 @@ const CentralAdminDashboard = () => {
                                                     style={{ accentColor: '#0ea5e9', width: '16px', height: '16px' }}
                                                 />
                                                 {dept}
+                                                {isCustom && <span style={{ fontSize: '10px', color: '#64748b', marginLeft: '4px', fontStyle: 'italic' }}>(Custom)</span>}
                                             </label>
                                         );
-                                    })
-                                )}
+                                    });
+                                })()}
                             </div>
                             <div className="modal-buttons" style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '24px' }}>
                                 <button

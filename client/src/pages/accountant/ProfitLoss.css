@@ -1,0 +1,282 @@
+.profit-loss-page {
+    padding: 32px;
+    background: #f8fafc;
+    min-height: 100vh;
+    font-family: 'Outfit', 'Inter', sans-serif;
+    box-sizing: border-box;
+}
+
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 32px;
+    background: linear-gradient(135deg, #0f172a, #1e293b);
+    padding: 24px 32px;
+    border-radius: 16px;
+    color: white;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+}
+
+.page-header h1 {
+    font-size: 1.8rem;
+    font-weight: 800;
+    margin: 0 0 6px;
+    background: linear-gradient(90deg, #10b981, #06b6d4);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.page-header p {
+    margin: 0;
+    color: #94a3b8;
+    font-size: 0.95rem;
+}
+
+/* Equation Cards */
+.equation-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 36px;
+    flex-wrap: wrap;
+}
+
+.equation-card {
+    flex: 1;
+    min-width: 200px;
+    border-radius: 16px;
+    padding: 24px;
+    color: white;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+    transition: transform 0.2s;
+}
+
+.equation-card:hover {
+    transform: translateY(-2px);
+}
+
+.equation-card.revenue {
+    background: linear-gradient(135deg, #064e3b, #10b981);
+}
+
+.equation-card.expenses {
+    background: linear-gradient(135deg, #7c2d12, #f43f5e);
+}
+
+.equation-card.profit {
+    background: linear-gradient(135deg, #1e3a8a, #06b6d4);
+}
+
+.equation-card .label {
+    font-size: 0.82rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    opacity: 0.9;
+    margin-bottom: 8px;
+}
+
+.equation-card .value {
+    font-size: 1.8rem;
+    font-weight: 850;
+    margin-bottom: 6px;
+    letter-spacing: -0.5px;
+}
+
+.equation-card .sub {
+    font-size: 0.78rem;
+    opacity: 0.85;
+}
+
+.equation-operator {
+    font-size: 2.5rem;
+    font-weight: 800;
+    color: #64748b;
+    padding: 0 10px;
+}
+
+/* Charts Grid */
+.charts-grid {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    gap: 24px;
+}
+
+.card-box {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.card-box h3 {
+    margin: 0 0 20px;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #1e293b;
+}
+
+/* Bar chart styling */
+.bar-chart-container {
+    height: 240px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 12px;
+    padding-top: 20px;
+}
+
+.bar-chart-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    height: 100%;
+}
+
+.bar-wrapper {
+    flex: 1;
+    width: 36px;
+    background: #f1f5f9;
+    border-radius: 6px;
+    display: flex;
+    align-items: flex-end;
+    position: relative;
+    overflow: visible;
+}
+
+.bar-fill {
+    width: 100%;
+    border-radius: 6px;
+    position: relative;
+    cursor: pointer;
+    transition: height 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.bar-fill.positive {
+    background: linear-gradient(180deg, #10b981, #059669);
+}
+
+.bar-fill.negative {
+    background: linear-gradient(180deg, #f43f5e, #e11d48);
+}
+
+.bar-tooltip {
+    position: absolute;
+    top: -36px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #0f172a;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.2s;
+    pointer-events: none;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+.bar-fill:hover .bar-tooltip {
+    opacity: 1;
+    visibility: visible;
+    top: -42px;
+}
+
+.bar-label {
+    margin-top: 10px;
+    font-size: 0.78rem;
+    color: #64748b;
+    font-weight: 600;
+}
+
+/* Department Profitability rows */
+.dept-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.dept-profit-row {
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+    border-radius: 12px;
+    padding: 16px;
+}
+
+.row-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    font-weight: 750;
+    font-size: 0.95rem;
+}
+
+.dept-name {
+    color: #1e293b;
+}
+
+.dept-margin {
+    font-size: 0.85rem;
+}
+
+.dept-margin.pos { color: #16a34a; }
+.dept-margin.neg { color: #dc2626; }
+
+.row-details {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    font-size: 0.88rem;
+}
+
+.detail-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.detail-item span:first-child {
+    color: #64748b;
+    font-weight: 600;
+}
+
+.val-text {
+    font-weight: 600;
+}
+
+.val-text.green { color: #16a34a; }
+.val-text.red { color: #dc2626; }
+.val-text.bold { font-weight: 700; }
+
+.loading-message {
+    padding: 40px;
+    text-align: center;
+    color: #64748b;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+@media (max-width: 900px) {
+    .charts-grid {
+        grid-template-columns: 1fr;
+    }
+    .equation-operator {
+        display: none;
+    }
+    .equation-container {
+        flex-direction: column;
+    }
+    .equation-card {
+        width: 100%;
+    }
+}

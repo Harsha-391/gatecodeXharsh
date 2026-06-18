@@ -188,7 +188,10 @@ const defaultRoles = [
         description: 'Finance and accounting staff',
         permissions: [
             'finance_view', 'billing_view', 'billing_manage',
-            'patient_view', 'patient_search'
+            'patient_view', 'patient_search',
+            'finance_outstanding', 'finance_claims', 'finance_expenses', 'finance_profit_loss',
+            'finance_statements', 'finance_reconciliation', 'finance_transactions', 'finance_audit',
+            'finance_payroll', 'finance_doctor_payouts'
         ],
         dashboardPath: '/accountant/dashboard',
         navLinks: [
@@ -203,7 +206,8 @@ const defaultRoles = [
         permissions: [
             'billing_view', 'billing_manage', 'billing_collect_payment',
             'billing_generate_invoice', 'billing_print_invoice', 'billing_refund',
-            'billing_reports', 'billing_analytics'
+            'billing_reports', 'billing_analytics',
+            'billing_insurance', 'billing_ipd_settlement', 'billing_receipt_reprint', 'billing_discounts'
         ],
         dashboardPath: '/billing/dashboard',
         navLinks: [
@@ -218,41 +222,6 @@ const defaultRoles = [
             { label: 'Billing Analytics', path: '/billing/analytics' },
             { label: 'Invoice Templates', path: '/billing/templates' },
             { label: 'Settings', path: '/billing/settings' }
-        ],
-        isSystemRole: false
-    },
-    {
-        name: 'Administrator',
-        description: 'Hospital administrator managing operations, staff, resources and billing oversight',
-        permissions: [
-            'administrator_view', 'administrator_manage', 'staff_manage', 'department_manage',
-            'patient_monitor', 'admission_manage', 'resource_manage', 'billing_view',
-            'reports_view', 'analytics_view', 'operations_manage', 'inventory_view'
-        ],
-        dashboardPath: '/admin/dashboard',
-        navLinks: [
-            { label: 'Dashboard', path: '/admin/dashboard' },
-            { label: 'Patient Flow', path: '/admin/patient-flow' },
-            { label: 'Admissions', path: '/admin/admissions' },
-            { label: 'Bed Management', path: '/admin/beds' },
-            { label: 'Appointments', path: '/admin/appointments' },
-            { label: 'Hospital Operations Center', path: '/admin/operations' },
-            { label: 'Staff Management', path: '/admin/staff' },
-            { label: 'Doctor Management', path: '/admin/doctor-management' },
-            { label: 'Departments', path: '/admin/departments' },
-            { label: 'Roles & Permissions', path: '/admin/role-management' },
-            { label: 'Laboratory Management', path: '/admin/lab-management' },
-            { label: 'Pharmacy Management', path: '/admin/pharmacy-management' },
-            { label: 'Billing Oversight', path: '/admin/billing' },
-            { label: 'Revenue Monitoring', path: '/admin/revenue' },
-            { label: 'Inventory Monitoring', path: '/admin/inventory' },
-            { label: 'Resource Management', path: '/admin/resources' },
-            { label: 'Reports', path: '/admin/reports' },
-            { label: 'Analytics', path: '/admin/analytics' },
-            { label: 'Audit Logs', path: '/admin/audit-logs' },
-            { label: 'Notifications', path: '/admin/notifications' },
-            { label: 'Settings', path: '/admin/settings' },
-            { label: 'Profile Settings', path: '/admin/profile-settings' }
         ],
         isSystemRole: false
     }
@@ -414,6 +383,8 @@ router.put('/:id', verifyCentralAdmin, auditLog('HOSPITAL_UPDATE', (req) => ({ m
         if (appointmentMode !== undefined && ['slot', 'token'].includes(appointmentMode)) hospital.appointmentMode = appointmentMode;
 
         await hospital.save();
+        const { syncToTenant } = require('../utils/tenantSync');
+        await syncToTenant('Hospital', hospital, 'save', hospital._id);
         res.json({ success: true, message: 'Hospital updated successfully', hospital });
     } catch (err) {
         res.status(500).json({ success: false, message: 'An internal error occurred' });
@@ -1336,6 +1307,8 @@ router.put('/:id/branding', verifyCentralAdmin, async (req, res) => {
         hospital.branding = branding;
         hospital.markModified('branding');
         await hospital.save();
+        const { syncToTenant } = require('../utils/tenantSync');
+        await syncToTenant('Hospital', hospital, 'save', hospital._id);
 
         // Emit socket event for real-time UI updates
         const io = req.app.get('io');

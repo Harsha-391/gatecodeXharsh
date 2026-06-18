@@ -226,8 +226,8 @@ exports.verifyAdminOrSuperAdmin = async (req, res, next) => {
                 (roleData.permissions.includes('*') ||
                     roleData.permissions.includes('admin_manage_roles') ||
                     roleData.permissions.includes('admin_view_stats') ||
-                    roleData.permissions.includes('administrator_view') ||
-                    roleData.permissions.includes('administrator_manage'))) {
+                    roleData.permissions.includes('accountant_view') ||
+                    roleData.permissions.includes('accountant_manage'))) {
                 return next();
             }
 

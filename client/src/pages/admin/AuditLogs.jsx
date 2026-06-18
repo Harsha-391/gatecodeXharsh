@@ -117,12 +117,6 @@ const exportToCSV = (logs, stats) => {
 
 const AuditLogs = () => {
     const { user } = useAuth();
-    const userRole = (user?.role || '').toLowerCase();
-
-    if (userRole === 'accountant') {
-        return <Navigate to="/admin/dashboard" replace />;
-    }
-
     // ── State ─────────────────────────────────────────────────────────────────
     const [logs, setLogs] = useState([]);
     const [stats, setStats] = useState({ todayTotal: 0, todayFailed: 0, patientAccess: 0, exports: 0, updates: 0, authSuccessfulLogins: 0, authFailedLogins: 0, authLogouts: 0 });

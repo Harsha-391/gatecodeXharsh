@@ -52,6 +52,9 @@ const RoleDashboard = () => {
     if (role === 'admin' || role === 'hospitaladmin') {
         return <Navigate to="/admin" replace />;
     }
+    if (role === 'accountant') {
+        return <Navigate to="/accountant/dashboard" replace />;
+    }
 
     // Receptionist goes directly to the Reception Dashboard (skip welcome screen)
     const rawNavLinks = user.navLinks || [];
@@ -69,7 +72,7 @@ const RoleDashboard = () => {
         let standardBillingLinks = [];
         if (role === 'accountant') {
             standardBillingLinks = [
-                { label: 'Dashboard', path: '/billing/dashboard' },
+                { label: 'Dashboard', path: '/accountant/dashboard' },
                 { label: 'Revenue Reports', path: '/billing/reports' },
                 { label: 'Billing Analytics', path: '/billing/analytics' },
                 { label: 'Invoice Templates', path: '/billing/templates' },

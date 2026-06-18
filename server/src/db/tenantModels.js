@@ -36,6 +36,13 @@ function getTenantModels(tenantDb) {
         ClinicalVisit: model('ClinicalVisit', require('../models/clinicalVisit.model').schema),
         Pharmacy: model('Pharmacy', require('../models/pharmacy.model').schema),
         Reception: model('Reception', require('../models/reception.model').schema),
+        InsuranceClaim: model('InsuranceClaim', require('../models/insuranceClaim.model').schema),
+        Reconciliation: model('Reconciliation', require('../models/reconciliation.model').schema),
+        DeletedRecord: model('DeletedRecord', require('../models/deletedRecord.model').schema),
+        UserActivityLog: model('UserActivityLog', require('../models/userActivityLog.model').schema),
+        PayrollRecord: model('PayrollRecord', require('../models/payrollRecord.model').schema),
+        DoctorPayout: model('DoctorPayout', require('../models/doctorPayout.model').schema),
+        DiscountRequest: model('DiscountRequest', require('../models/discountRequest.model').schema),
     };
 }
 

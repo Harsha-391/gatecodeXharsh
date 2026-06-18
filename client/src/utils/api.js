@@ -1142,7 +1142,49 @@ export const financeAPI = {
         const qs = params.toString();
         if (qs) url += `?${qs}`;
         return (await apiClient.get(url)).data;
-    }
+    },
+    getKPIs: async () => (await apiClient.get('/api/finance/kpis')).data,
+    getRevenueAnalytics: async () => (await apiClient.get('/api/finance/revenue-analytics')).data,
+    getOutstandingPayments: async () => (await apiClient.get('/api/finance/outstanding-payments')).data,
+    getInsuranceClaims: async () => (await apiClient.get('/api/finance/insurance-claims')).data,
+    createInsuranceClaim: async (data) => (await apiClient.post('/api/finance/insurance-claims', data)).data,
+    updateInsuranceClaim: async (id, data) => (await apiClient.put(`/api/finance/insurance-claims/${id}`, data)).data,
+    getExpenses: async (datePreset, start, end) => {
+        let url = `/api/finance/expenses`;
+        const params = new URLSearchParams();
+        if (datePreset) params.append('datePreset', datePreset);
+        if (start) params.append('customStartDate', start);
+        if (end) params.append('customEndDate', end);
+        const qs = params.toString();
+        if (qs) url += `?${qs}`;
+        return (await apiClient.get(url)).data;
+    },
+    createExpense: async (data) => (await apiClient.post('/api/finance/expenses', data)).data,
+    deleteExpense: async (id) => (await apiClient.delete(`/api/finance/expenses/${id}`)).data,
+    getProfitLoss: async (timeframe) => {
+        let url = '/api/finance/profit-loss';
+        if (timeframe) url += `?timeframe=${timeframe}`;
+        return (await apiClient.get(url)).data;
+    },
+    getReconciliation: async (date) => (await apiClient.get(`/api/finance/reconciliation?targetDate=${date}`)).data,
+    submitReconciliation: async (data) => (await apiClient.post('/api/finance/reconciliation', data)).data,
+    getAuditSummary: async () => (await apiClient.get('/api/finance/audit-summary')).data,
+    getExpenseCategories: async () => (await apiClient.get('/api/finance/expense-categories')).data,
+    createExpenseCategory: async (data) => (await apiClient.post('/api/finance/expense-categories', data)).data,
+    getFinancialAuditLogs: async (params) => (await apiClient.get('/api/finance/audit-logs', { params })).data,
+    logUserActivity: async (activity, details) => (await apiClient.post('/api/finance/audit-logs/activity', { activity, details })).data,
+    getStaffPayrollConfig: async () => (await apiClient.get('/api/finance/payroll/staff')).data,
+    updateStaffPayrollConfig: async (id, data) => (await apiClient.put(`/api/finance/payroll/staff/${id}`, data)).data,
+    getPayrollRecords: async (params) => (await apiClient.get('/api/finance/payroll/records', { params })).data,
+    generatePayroll: async (data) => (await apiClient.post('/api/finance/payroll/records/generate', data)).data,
+    payPayroll: async (id, data) => (await apiClient.post(`/api/finance/payroll/records/pay/${id}`, data)).data,
+    reversePayroll: async (id) => (await apiClient.post(`/api/finance/payroll/records/reverse/${id}`)).data,
+    getDoctorPayoutConfig: async () => (await apiClient.get('/api/finance/doctor-payouts/doctors')).data,
+    updateDoctorPayoutConfig: async (id, data) => (await apiClient.put(`/api/finance/doctor-payouts/doctors/${id}`, data)).data,
+    getDoctorPayoutRecords: async (params) => (await apiClient.get('/api/finance/doctor-payouts/records', { params })).data,
+    calculateDoctorPayouts: async (data) => (await apiClient.post('/api/finance/doctor-payouts/records/calculate', data)).data,
+    approveDoctorPayout: async (id) => (await apiClient.post(`/api/finance/doctor-payouts/records/approve/${id}`)).data,
+    payDoctorPayout: async (id, data) => (await apiClient.post(`/api/finance/doctor-payouts/records/pay/${id}`, data)).data
 };
 
 export const billingAPI = {
@@ -1158,6 +1200,15 @@ export const billingAPI = {
     approveRefund: async (id, notes = '') => (await apiClient.put(`/api/billing/refunds/${id}/approve`, { notes })).data,
     getActivityLogs: async () => (await apiClient.get('/api/billing/activity-logs')).data,
     getBillingAnalytics: async () => (await apiClient.get('/api/billing/analytics')).data,
+    // Insurance Claims
+    getInsuranceClaims: async (status = 'all') => (await apiClient.get(`/api/billing/insurance/claims?status=${status}`)).data,
+    createInsuranceClaim: async (data) => (await apiClient.post('/api/billing/insurance/claims', data)).data,
+    updateInsuranceClaim: async (id, data) => (await apiClient.put(`/api/billing/insurance/claims/${id}`, data)).data,
+    // Discount & Adjustment Requests
+    getDiscountRequests: async (status = 'all') => (await apiClient.get(`/api/billing/discounts?status=${status}`)).data,
+    createDiscountRequest: async (data) => (await apiClient.post('/api/billing/discounts', data)).data,
+    approveDiscountRequest: async (id, action, notes = '') => (await apiClient.put(`/api/billing/discounts/${id}/approve`, { action, notes })).data,
+    applyDiscountRequest: async (id) => (await apiClient.put(`/api/billing/discounts/${id}/apply`, {})).data,
 };
 
 export const admissionAPI = {

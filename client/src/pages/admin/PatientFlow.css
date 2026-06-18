@@ -1,0 +1,104 @@
+.patient-flow-container {
+    padding: 8px;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: #1e293b;
+}
+
+.admin-card {
+    background: white;
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+    border: 1px solid #f1f5f9;
+}
+
+.funnel-stepper {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 14px;
+    margin-top: 20px;
+}
+
+.funnel-stage-card {
+    background: #f8fafc;
+    border: 2px solid #e2e8f0;
+    border-radius: 12px;
+    overflow: hidden;
+    transition: transform 0.2s;
+}
+
+.funnel-stage-card:hover {
+    transform: translateY(-2px);
+}
+
+.stage-header {
+    padding: 8px 12px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: white;
+    text-align: center;
+}
+
+.stage-body {
+    padding: 16px 12px;
+    text-align: center;
+}
+
+.stage-body h4 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 800;
+    color: #0f172a;
+}
+
+.stage-body span {
+    font-size: 11px;
+    color: #64748b;
+}
+
+.spinner-icon {
+    font-size: 32px;
+    animation: spin 1.5s linear infinite;
+    color: #4f46e5;
+}
+
+.loading-screen {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 100px 20px;
+    gap: 16px;
+    color: #4f46e5;
+    font-weight: 600;
+}
+
+.alert-box {
+    padding: 14px 20px;
+    border-radius: 12px;
+    margin-bottom: 20px;
+    font-size: 14px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.alert-box.error {
+    background: #fff1f2;
+    border: 1px solid #fecdd3;
+    color: #be123c;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+@keyframes spinning {
+    to { transform: rotate(360deg); }
+}
+
+.spinner-icon.spinning {
+    animation: spin 1s linear infinite;
+}

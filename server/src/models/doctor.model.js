@@ -147,6 +147,19 @@ const doctorSchema = new mongoose.Schema({
     enum: ['Full-time', 'Part-time', 'Visiting Consultant'],
     default: 'Full-time'
   },
+  payoutModel: {
+    type: String,
+    enum: ['Fixed', 'Commission', 'Hybrid'],
+    default: 'Fixed'
+  },
+  commissionPercent: {
+    type: Number,
+    default: 0
+  },
+  fixedSalary: {
+    type: Number,
+    default: 0
+  },
   status: {
     type: String,
     enum: ['Active', 'Inactive', 'On leave'],

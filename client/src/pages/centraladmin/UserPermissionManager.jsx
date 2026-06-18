@@ -45,16 +45,30 @@ const PERMISSION_GROUPS = [
         items: [
             { key: 'finance_view', label: 'View Hospital Financials' },
             { key: 'billing_view', label: 'View Patient Billing' },
-            { key: 'billing_manage', label: 'Manage Patient Billing (Cashier)' }
+            { key: 'billing_manage', label: 'Manage Patient Billing (Cashier)' },
+            { key: 'billing_insurance', label: 'Insurance Billing' },
+            { key: 'billing_ipd_settlement', label: 'IPD Settlement' },
+            { key: 'billing_receipt_reprint', label: 'Receipt Reprint' },
+            { key: 'billing_discounts', label: 'Discounts & Adjustments' },
+            { key: 'finance_outstanding', label: 'Outstanding Payments Monitoring' },
+            { key: 'finance_claims', label: 'Insurance Claims Monitoring' },
+            { key: 'finance_expenses', label: 'Expenses Management' },
+            { key: 'finance_profit_loss', label: 'Profit & Loss Reports' },
+            { key: 'finance_statements', label: 'Financial Statements' },
+            { key: 'finance_reconciliation', label: 'Bank/Cash Reconciliation' },
+            { key: 'finance_transactions', label: 'Transaction Logs' },
+            { key: 'finance_audit', label: 'Financial Audit Logs' },
+            { key: 'finance_payroll', label: 'Payroll Management' },
+            { key: 'finance_doctor_payouts', label: 'Doctor Payouts' }
         ]
     },
     {
-        group: 'Administration',
+        group: 'Accountant',
         color: '#8b5cf6',
-        icon: '🛡️',
+        icon: '💼',
         items: [
-            { key: 'administrator_view', label: 'View Admin Command Center' },
-            { key: 'administrator_manage', label: 'Configure Admin Command Center' },
+            { key: 'accountant_view', label: 'View Accountant Dashboard' },
+            { key: 'accountant_manage', label: 'Configure Accountant Dashboard' },
             { key: 'staff_manage', label: 'Manage Staff Roster' },
             { key: 'department_manage', label: 'Manage Departments' },
             { key: 'patient_monitor', label: 'Monitor Patients & Queues' },

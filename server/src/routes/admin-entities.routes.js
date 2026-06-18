@@ -166,29 +166,7 @@ router.post('/doctors', verifyAdminOrSuperAdmin, async (req, res) => {
     await syncToTenant('User', user, 'save', hospitalId);
     await syncToTenant('Doctor', doctor, 'save', hospitalId);
 
-    // Automatically add the doctor's departments to the Hospital's departments if not already present
-    const docHospitalId = getHospitalId(req);
-    if (docHospitalId) {
-      const Hospital = require('../models/hospital.model');
-      const hospitalObj = await Hospital.findById(docHospitalId);
-      if (hospitalObj) {
-        let updatedDepts = [...(hospitalObj.departments || [])];
-        let hasNewDept = false;
-        
-        const deptsToAdd = doctor.departments || [];
-        deptsToAdd.forEach(d => {
-          if (d && !updatedDepts.includes(d)) {
-            updatedDepts.push(d);
-            hasNewDept = true;
-          }
-        });
-
-        if (hasNewDept) {
-          hospitalObj.departments = updatedDepts;
-          await hospitalObj.save();
-        }
-      }
-    }
+    // No automatic department addition to the hospital record to ensure strict Superadmin control
 
     const populatedDoctor = await Doctor.findById(doctor._id).populate('userId', 'name email phone role');
 
@@ -384,29 +362,7 @@ router.put('/doctors/:id', verifyAdminOrSuperAdmin, async (req, res) => {
 
     await doctor.save();
 
-    // Automatically add the doctor's departments to the Hospital's departments if not already present
-    const docHospitalId = doctor.hospitalId;
-    if (docHospitalId) {
-      const Hospital = require('../models/hospital.model');
-      const hospitalObj = await Hospital.findById(docHospitalId);
-      if (hospitalObj) {
-        let updatedDepts = [...(hospitalObj.departments || [])];
-        let hasNewDept = false;
-        
-        const deptsToAdd = doctor.departments || [];
-        deptsToAdd.forEach(d => {
-          if (d && !updatedDepts.includes(d)) {
-            updatedDepts.push(d);
-            hasNewDept = true;
-          }
-        });
-
-        if (hasNewDept) {
-          hospitalObj.departments = updatedDepts;
-          await hospitalObj.save();
-        }
-      }
-    }
+    // No automatic department addition to the hospital record to ensure strict Superadmin control
 
     // Update user if exists
     if (doctor.userId) {

@@ -36,7 +36,9 @@ const verifyAdministratorAccess = async (req, res, next) => {
 
             if (isAdministrator || 
                 perms.includes('administrator_view') || 
+                perms.includes('accountant_view') || 
                 perms.includes('administrator_manage') || 
+                perms.includes('accountant_manage') || 
                 perms.includes('patient_monitor') || 
                 perms.includes('admission_manage') || 
                 perms.includes('inventory_view') || 

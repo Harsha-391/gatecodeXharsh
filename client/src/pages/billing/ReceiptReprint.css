@@ -1,0 +1,276 @@
+/* ═══════════════════════════════════════════════════════════
+   Receipt Reprint — Premium Design
+   ═══════════════════════════════════════════════════════════ */
+
+.receipt-reprint-page {
+    padding: 28px 32px;
+    min-height: 100vh;
+    background: #f8fafc;
+    font-family: 'Inter', system-ui, sans-serif;
+    position: relative;
+}
+
+.rr-toast {
+    position: fixed;
+    top: 20px;
+    right: 24px;
+    padding: 12px 20px;
+    border-radius: 10px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    z-index: 9999;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+}
+.rr-toast-success { background: #10b981; color: #fff; }
+.rr-toast-error   { background: #ef4444; color: #fff; }
+.rr-toast-info    { background: #3b82f6; color: #fff; }
+
+/* Header */
+.rr-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+.rr-header-left { display: flex; align-items: center; gap: 16px; }
+.rr-header-icon {
+    width: 52px;
+    height: 52px;
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 1.4rem;
+    box-shadow: 0 8px 20px rgba(245,158,11,0.3);
+    flex-shrink: 0;
+}
+.rr-header h1 { font-size: 1.6rem; font-weight: 800; color: #0f172a; margin: 0 0 4px; }
+.rr-header p  { font-size: 0.85rem; color: #64748b; margin: 0 0 6px; }
+.rr-theme-pill {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+}
+.rr-btn-refresh {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 18px;
+    background: #fff;
+    border: 1.5px solid #e5e7eb;
+    border-radius: 10px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #374151;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.rr-btn-refresh:hover { border-color: #f59e0b; color: #f59e0b; }
+
+/* Search Panel */
+.rr-search-panel {
+    background: #fff;
+    border-radius: 16px;
+    padding: 24px 28px;
+    border: 1.5px solid #f1f5f9;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.04);
+    margin-bottom: 20px;
+}
+.rr-search-type-tabs {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+}
+.rr-type-tab {
+    padding: 7px 16px;
+    border-radius: 8px;
+    border: 1.5px solid #e5e7eb;
+    background: #f8fafc;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #64748b;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.rr-type-tab.active {
+    background: #f59e0b;
+    border-color: #f59e0b;
+    color: #fff;
+}
+.rr-type-tab:hover:not(.active) { border-color: #f59e0b; color: #d97706; }
+.rr-search-form {
+    display: flex;
+    gap: 12px;
+}
+.rr-search-input {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+    background: #f8fafc;
+    border: 1.5px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 12px 16px;
+    transition: border-color 0.2s;
+}
+.rr-search-input:focus-within { border-color: #f59e0b; }
+.rr-search-input svg { color: #94a3b8; font-size: 1rem; flex-shrink: 0; }
+.rr-search-input input {
+    border: none;
+    outline: none;
+    font-size: 0.9rem;
+    color: #0f172a;
+    background: transparent;
+    width: 100%;
+}
+.rr-search-btn {
+    padding: 12px 28px;
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+    box-shadow: 0 4px 12px rgba(245,158,11,0.3);
+}
+.rr-search-btn:hover { transform: translateY(-1px); }
+
+/* Stats */
+.rr-stats-row {
+    display: flex;
+    gap: 14px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+.rr-stat-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 16px 22px;
+    border: 1.5px solid #f1f5f9;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1;
+    min-width: 110px;
+}
+.rr-stat-wide { min-width: 180px; }
+.rr-stat-label { font-size: 0.72rem; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+.rr-stat-card strong { font-size: 1.4rem; font-weight: 800; }
+
+/* Results */
+.rr-results-area {
+    background: #fff;
+    border-radius: 16px;
+    border: 1.5px solid #f1f5f9;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.04);
+    overflow: hidden;
+}
+.rr-results-header {
+    padding: 14px 24px;
+    background: #f8fafc;
+    border-bottom: 1.5px solid #e5e7eb;
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #374151;
+}
+.rr-loading, .rr-prompt, .rr-empty {
+    padding: 64px 32px;
+    text-align: center;
+    color: #94a3b8;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+.rr-prompt svg, .rr-empty svg { font-size: 2.5rem; color: #cbd5e1; }
+.rr-prompt p, .rr-empty p { font-size: 0.95rem; color: #374151; margin: 0; font-weight: 600; }
+.rr-prompt span, .rr-empty span { font-size: 0.82rem; color: #94a3b8; }
+
+.rr-results-list { display: flex; flex-direction: column; }
+.rr-receipt-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 24px;
+    border-bottom: 1px solid #f1f5f9;
+    gap: 20px;
+    flex-wrap: wrap;
+    transition: background 0.15s;
+}
+.rr-receipt-card:last-child { border-bottom: none; }
+.rr-receipt-card:hover { background: #fafbff; }
+
+.rr-receipt-left {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1;
+}
+.rr-receipt-nums { display: flex; flex-direction: column; gap: 2px; }
+.rr-receipt-num {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: monospace;
+    font-weight: 700;
+    color: #f59e0b;
+    font-size: 0.88rem;
+    background: rgba(245,158,11,0.08);
+    padding: 4px 10px;
+    border-radius: 6px;
+    width: fit-content;
+}
+.rr-invoice-ref { font-size: 0.75rem; color: #64748b; font-weight: 600; }
+.rr-receipt-patient { display: flex; flex-direction: column; gap: 2px; }
+.rr-receipt-patient strong { font-size: 0.92rem; color: #0f172a; }
+.rr-receipt-patient span  { font-size: 0.78rem; color: #64748b; }
+.rr-receipt-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.rr-method-badge {
+    background: rgba(99,102,241,0.1);
+    color: #4f46e5;
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-size: 0.72rem;
+    font-weight: 700;
+}
+.rr-ref, .rr-by { font-size: 0.75rem; color: #64748b; }
+
+.rr-receipt-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 10px;
+    flex-shrink: 0;
+}
+.rr-amount { font-size: 1.25rem; font-weight: 800; color: #0f172a; }
+.rr-action-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+.rr-act-btn {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 7px 13px;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s;
+}
+.rr-act-download { background: rgba(99,102,241,0.1); color: #4f46e5; }
+.rr-act-download:hover { background: #4f46e5; color: #fff; }
+.rr-act-print { background: rgba(245,158,11,0.1); color: #d97706; }
+.rr-act-print:hover { background: #d97706; color: #fff; }
+.rr-act-email { background: rgba(16,185,129,0.1); color: #059669; }
+.rr-act-email:hover { background: #059669; color: #fff; }

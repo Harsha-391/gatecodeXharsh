@@ -1,0 +1,228 @@
+.transaction-logs-page {
+    padding: 32px;
+    background: #f8fafc;
+    min-height: 100vh;
+    font-family: 'Outfit', 'Inter', sans-serif;
+    box-sizing: border-box;
+}
+
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 32px;
+    background: linear-gradient(135deg, #0f172a, #1e293b);
+    padding: 24px 32px;
+    border-radius: 16px;
+    color: white;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+}
+
+.page-header h1 {
+    font-size: 1.8rem;
+    font-weight: 800;
+    margin: 0 0 6px;
+    background: linear-gradient(90deg, #6366f1, #3b82f6);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.page-header p {
+    margin: 0;
+    color: #94a3b8;
+    font-size: 0.95rem;
+}
+
+/* Audit Cards */
+.audit-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 20px;
+    margin-bottom: 32px;
+}
+
+.stat-card {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.04);
+    border-color: #6366f1;
+}
+
+.stat-card .icon {
+    font-size: 2.2rem;
+    background: #f1f5f9;
+    padding: 10px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.stat-card .info h3 {
+    margin: 0 0 4px;
+    font-size: 0.85rem;
+    color: #64748b;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.stat-card .info .value {
+    font-size: 1.6rem;
+    font-weight: 850;
+    margin: 0 0 2px;
+    color: #0f172a;
+}
+
+.stat-card .info .desc {
+    font-size: 0.78rem;
+    color: #94a3b8;
+    font-weight: 500;
+}
+
+/* Tabs */
+.tab-navigation {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 24px;
+    border-bottom: 1px solid #e2e8f0;
+    padding-bottom: 8px;
+    flex-wrap: wrap;
+}
+
+.tab-btn {
+    background: transparent;
+    border: none;
+    padding: 10px 20px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #64748b;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: all 0.2s;
+}
+
+.tab-btn:hover {
+    background: #f1f5f9;
+    color: #1e293b;
+}
+
+.tab-btn.active {
+    background: #e2e8f0;
+    color: #0f172a;
+}
+
+/* Tables */
+.finance-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 16px;
+    text-align: left;
+}
+
+.finance-table th {
+    background: #f8fafc;
+    color: #475569;
+    padding: 14px 16px;
+    font-weight: 700;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 2px solid #e2e8f0;
+}
+
+.finance-table td {
+    padding: 14px 16px;
+    color: #334155;
+    border-bottom: 1px solid #e2e8f0;
+    font-size: 0.92rem;
+}
+
+.finance-table tr:hover td {
+    background: #f8fafc;
+}
+
+.finance-table td.bold {
+    font-weight: 600;
+    color: #0f172a;
+}
+
+.finance-table td.highlight-green {
+    color: #16a34a;
+    font-weight: 700;
+}
+
+.finance-table td.highlight-red {
+    color: #dc2626;
+    font-weight: 700;
+}
+
+.finance-table td.text-right {
+    text-align: right;
+}
+
+.block-span {
+    display: block;
+}
+
+.sub-text {
+    font-size: 0.75rem;
+    color: #64748b;
+}
+
+/* Action & Status Pills */
+.action-pill {
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 0.74rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    display: inline-block;
+}
+
+.action-pill.invoice-generated { background: #dbeafe; color: #1d4ed8; }
+.action-pill.payment-collected { background: #dcfce7; color: #15803d; }
+.action-pill.refund-issued { background: #fef3c7; color: #d97706; }
+.action-pill.invoice-cancelled { background: #fee2e2; color: #b91c1c; }
+
+.status-pill {
+    padding: 4px 8px;
+    border-radius: 9999px;
+    font-size: 0.74rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    display: inline-block;
+}
+
+.status-pill.refund-pending { background: #fee2e2; color: #b91c1c; }
+.status-pill.refund-approved { background: #dcfce7; color: #15803d; }
+.status-pill.refund-rejected { background: #f1f5f9; color: #475569; }
+
+.empty-state {
+    padding: 40px;
+    text-align: center;
+    color: #94a3b8;
+    font-weight: 500;
+    font-size: 0.95rem;
+}
+
+.loading-message {
+    padding: 40px;
+    text-align: center;
+    color: #64748b;
+    font-size: 1.1rem;
+    font-weight: 600;
+}

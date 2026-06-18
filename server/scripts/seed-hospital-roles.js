@@ -108,7 +108,10 @@ const defaultRoles = [
         description: 'Finance and accounting staff',
         permissions: [
             'finance_view', 'billing_view', 'billing_manage',
-            'patient_view', 'patient_search'
+            'patient_view', 'patient_search',
+            'finance_outstanding', 'finance_claims', 'finance_expenses', 'finance_profit_loss',
+            'finance_statements', 'finance_reconciliation', 'finance_transactions', 'finance_audit',
+            'finance_payroll', 'finance_doctor_payouts'
         ],
         dashboardPath: '/accountant/dashboard',
         navLinks: [
@@ -123,7 +126,8 @@ const defaultRoles = [
         permissions: [
             'billing_view', 'billing_manage', 'billing_collect_payment',
             'billing_generate_invoice', 'billing_print_invoice', 'billing_refund',
-            'billing_reports', 'billing_analytics'
+            'billing_reports', 'billing_analytics',
+            'billing_insurance', 'billing_ipd_settlement', 'billing_receipt_reprint', 'billing_discounts'
         ],
         dashboardPath: '/billing/dashboard',
         navLinks: [
@@ -140,41 +144,6 @@ const defaultRoles = [
             { label: 'Settings', path: '/billing/settings' }
         ],
         isSystemRole: false
-    },
-    {
-        name: 'Administrator',
-        description: 'Hospital administrator managing operations, staff, resources and billing oversight',
-        permissions: [
-            'administrator_view', 'administrator_manage', 'staff_manage', 'department_manage',
-            'patient_monitor', 'admission_manage', 'resource_manage', 'billing_view',
-            'reports_view', 'analytics_view', 'operations_manage', 'inventory_view'
-        ],
-        dashboardPath: '/administrator/dashboard',
-        navLinks: [
-            { label: 'Dashboard', path: '/administrator/dashboard' },
-            { label: 'Patient Flow', path: '/administrator/patient-flow' },
-            { label: 'Admissions', path: '/administrator/admissions' },
-            { label: 'Bed Management', path: '/administrator/beds' },
-            { label: 'Appointments', path: '/administrator/appointments' },
-            { label: 'Hospital Operations Center', path: '/administrator/operations' },
-            { label: 'Staff Management', path: '/administrator/staff' },
-            { label: 'Doctor Management', path: '/administrator/doctors' },
-            { label: 'Departments', path: '/administrator/departments' },
-            { label: 'Roles & Permissions', path: '/administrator/roles' },
-            { label: 'Laboratory Management', path: '/administrator/lab' },
-            { label: 'Pharmacy Management', path: '/administrator/pharmacy' },
-            { label: 'Billing Oversight', path: '/administrator/billing' },
-            { label: 'Revenue Monitoring', path: '/administrator/revenue' },
-            { label: 'Inventory Monitoring', path: '/administrator/inventory' },
-            { label: 'Resource Management', path: '/administrator/resources' },
-            { label: 'Reports', path: '/administrator/reports' },
-            { label: 'Analytics', path: '/administrator/analytics' },
-            { label: 'Audit Logs', path: '/administrator/audit-logs' },
-            { label: 'Notifications', path: '/administrator/notifications' },
-            { label: 'Settings', path: '/administrator/settings' },
-            { label: 'Profile Settings', path: '/administrator/profile-settings' }
-        ],
-        isSystemRole: false
     }
 ];
 
@@ -189,7 +158,11 @@ async function seedDefaultRolesForHospital(hospitalId) {
             });
             console.log(`  [Master DB] Created default role: "${roleData.name}"`);
         } else {
-            console.log(`  [Master DB] Role "${roleData.name}" already exists`);
+            role.permissions = roleData.permissions;
+            role.description = roleData.description;
+            role.navLinks = roleData.navLinks;
+            await role.save();
+            console.log(`  [Master DB] Updated existing role: "${roleData.name}" permissions`);
         }
         // Sync to tenant DB
         await syncToTenant('Role', role, 'save', hospitalId);
@@ -205,6 +178,10 @@ async function run() {
 
         const hospitals = await Hospital.find({});
         console.log(`Found ${hospitals.length} hospitals. Starting roles sync...\n`);
+
+        console.log('🌍 Synchronizing global system roles...');
+        await seedDefaultRolesForHospital(null);
+        console.log('✅ Global system roles updated successfully!\n');
 
         for (const hosp of hospitals) {
             console.log(`🏥 Processing hospital: "${hosp.name}" (ID: ${hosp._id})`);

@@ -7,7 +7,7 @@ import {
     FiHome, FiUsers, FiCalendar, FiActivity, FiPackage,
     FiSettings, FiLogOut, FiPieChart, FiClipboard,
     FiFileText, FiPlusSquare, FiDatabase, FiGrid, FiShield,
-    FiChevronDown, FiChevronRight, FiAlertCircle, FiUser, FiX
+    FiChevronDown, FiChevronRight, FiAlertCircle, FiUser, FiX, FiCheckCircle
 } from 'react-icons/fi';
 import './DashboardLayout.css';
 
@@ -16,6 +16,15 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
     const { branding, hospitalName } = useBranding();
     const role = (user?.role || '').toLowerCase();
     const location = useLocation();
+
+    const [expandedItems, setExpandedItems] = useState({ 'Audit Logs': true });
+
+    const toggleItemExpand = (label) => {
+        setExpandedItems(prev => ({
+            ...prev,
+            [label]: !prev[label]
+        }));
+    };
 
     // Custom active check: for links with search params (e.g. ?view=collection),
     // match both pathname AND the specific search param.
@@ -52,7 +61,10 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
         'Financial Management': true,
         'Resources': true,
         'Insights': true,
-        'Administration': true
+        'Administration': true,
+        'Billing Operations': true,
+        'Special Billing': true,
+        'Utility': true,
     });
 
     const toggleGroup = (groupName) => {
@@ -120,85 +132,144 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
                 { label: 'Pharmacy Orders', path: '/pharmacy/orders', icon: <FiClipboard /> },
             ];
         } else if (['cashier', 'billing', 'billing executive', 'billing manager', 'senior billing officer'].includes(role)) {
-            baseMenu = [
-                { label: 'Billing Dashboard', path: '/billing/dashboard', icon: <FiPieChart /> },
-                { label: 'Patient Billing', path: '/billing/patient', icon: <FiUsers /> },
-                { label: 'Pending Payments', path: '/billing/pending', icon: <FiClipboard /> },
-                { label: 'Invoices', path: '/billing/invoices', icon: <FiFileText /> },
-                { label: 'Payment Collection', path: '/billing/collect', icon: <FiPlusSquare /> },
-                { label: 'Payment History', path: '/billing/history', icon: <FiDatabase /> },
-                { label: 'Refunds', path: '/billing/refunds', icon: <FiLogOut /> },
-                { label: 'Invoice Templates', path: '/billing/templates', icon: <FiClipboard /> },
-                { label: 'Settings', path: '/billing/settings', icon: <FiSettings /> },
+            return [
+                {
+                    category: '',
+                    items: [
+                        { label: 'Billing Dashboard', path: '/billing/dashboard', icon: <FiPieChart /> },
+                    ]
+                },
+                {
+                    category: 'Billing Operations',
+                    items: [
+                        { label: 'Patient Billing', path: '/billing/patient', icon: <FiUsers /> },
+                        { label: 'Pending Payments', path: '/billing/pending', icon: <FiClipboard /> },
+                        { label: 'Invoices', path: '/billing/invoices', icon: <FiFileText /> },
+                        { label: 'Payment Collection', path: '/billing/collect', icon: <FiPlusSquare /> },
+                        { label: 'Payment History', path: '/billing/history', icon: <FiDatabase /> },
+                        { label: 'Refunds', path: '/billing/refunds', icon: <FiLogOut /> },
+                    ]
+                },
+                {
+                    category: 'Special Billing',
+                    items: [
+                        { label: 'Insurance Billing', path: '/billing/insurance', icon: <FiShield /> },
+                        { label: 'IPD Settlement', path: '/billing/ipd-settlement', icon: <FiHome /> },
+                    ]
+                },
+                {
+                    category: 'Utility',
+                    items: [
+                        { label: 'Receipt Reprint', path: '/billing/receipt-reprint', icon: <FiGrid /> },
+                        { label: 'Discounts & Adjustments', path: '/billing/discounts', icon: <FiAlertCircle /> },
+                    ]
+                },
+                {
+                    category: 'Administration',
+                    items: [
+                        { label: 'Invoice Templates', path: '/billing/templates', icon: <FiClipboard /> },
+                        { label: 'Settings', path: '/billing/settings', icon: <FiSettings /> },
+                        { label: 'Profile Settings', path: '/admin/profile-settings', icon: <FiUser /> },
+                    ]
+                },
             ];
         } else if (role === 'nurse') {
             baseMenu = [
                 { label: 'Patient Queue', path: '/doctor/patients', icon: <FiUsers /> },
                 { label: 'Appointments', path: '/appointment', icon: <FiCalendar /> },
             ];
-        } else if (role === 'administrator' || role === 'accountant') {
+        } else if (role === 'admin') {
             return [
                 {
                     category: '',
                     items: [
-                        { label: 'Dashboard', path: '/admin/dashboard', icon: <FiHome /> }
-                    ]
-                },
-                {
-                    category: 'Hospital Operations',
-                    items: [
-                        ...(role !== 'accountant' ? [
-                            { label: 'Patient Flow', path: '/admin/patient-flow', icon: <FiUsers /> },
-                            { label: 'Admissions', path: '/admin/admissions', icon: <FiPlusSquare /> },
-                            { label: 'Bed Management', path: '/admin/beds', icon: <FiDatabase /> },
-                            { label: 'Appointments', path: '/admin/appointments', icon: <FiCalendar /> },
-                            { label: 'Hospital Operations Center', path: '/admin/operations', icon: <FiActivity /> }
-                        ] : [])
+                        { label: 'Dashboard', path: '/admin', icon: <FiHome /> }
                     ]
                 },
                 {
                     category: 'Human Resources',
                     items: [
-                        { label: 'Staff Management', path: '/admin/staff', icon: <FiUsers /> },
-                        { label: 'Doctor Management', path: '/admin/doctor-management', icon: <FiActivity /> },
-                        { label: 'Departments', path: '/admin/departments', icon: <FiGrid /> },
-                        ...(role !== 'accountant' ? [{ label: 'Roles & Permissions', path: '/admin/role-management', icon: <FiShield /> }] : [])
+                        { label: 'Manage Users', path: '/admin/users', icon: <FiUsers /> },
+                        { label: 'Doctors', path: '/admin/doctors', icon: <FiActivity /> },
+                        { label: 'Roles & Permissions', path: '/admin/roles', icon: <FiShield /> },
+                        { label: 'Dynamic Permissions', path: '/admin/permissions', icon: <FiShield /> }
                     ]
                 },
                 {
                     category: 'Clinical Services',
                     items: [
+                        { label: 'Labs', path: '/admin/labs', icon: <FiGrid /> },
+                        { label: 'Lab Tests Catalog', path: '/admin/lab-tests', icon: <FiClipboard /> },
                         { label: 'Laboratory Management', path: '/admin/lab-management', icon: <FiGrid /> },
+                        { label: 'Tests & Packages', path: '/admin/test-packages', icon: <FiPackage /> },
+                        { label: 'Pharmacy', path: '/admin/pharmacy', icon: <FiPackage /> },
+                        { label: 'Medicine Catalog', path: '/admin/medicines', icon: <FiPackage /> },
                         { label: 'Pharmacy Management', path: '/admin/pharmacy-management', icon: <FiPackage /> }
+                    ]
+                },
+                {
+                    category: 'Hospital Operations',
+                    items: [
+                        { label: 'Reception', path: '/admin/reception', icon: <FiHome /> },
+                        { label: 'Services', path: '/admin/services', icon: <FiSettings /> },
+                        { label: 'Wards & Facilities', path: '/admin/facilities', icon: <FiGrid /> },
+                        { label: 'Inventory Monitoring', path: '/admin/inventory', icon: <FiPackage /> },
+                        { label: 'Resource Management', path: '/admin/resources', icon: <FiSettings /> },
+                        { label: 'Admissions Oversight', path: '/admin/admissions', icon: <FiPlusSquare /> },
+                        { label: 'Question Library', path: '/admin/question-library', icon: <FiFileText /> }
+                    ]
+                },
+                {
+                    category: 'Insights',
+                    items: [
+                        { label: 'Reports', path: '/admin/reports', icon: <FiFileText /> },
+                        { label: 'Audit Logs', path: '/admin/audit-logs', icon: <FiClipboard /> }
+                    ]
+                }
+            ];
+        } else if (role === 'accountant') {
+            return [
+                {
+                    category: '',
+                    items: [
+                        { label: 'Dashboard', path: '/accountant/dashboard', icon: <FiHome /> }
                     ]
                 },
                 {
                     category: 'Financial Management',
                     items: [
-                        { label: 'Billing Oversight', path: '/admin/billing', icon: <FiFileText /> },
-                        { label: 'Revenue Monitoring', path: '/admin/revenue', icon: <FiPieChart /> },
                         { label: 'Revenue Reports', path: '/billing/reports', icon: <FiGrid /> },
-                        { label: 'Billing Analytics', path: '/billing/analytics', icon: <FiPieChart /> }
+                        { label: 'Billing Analytics', path: '/billing/analytics', icon: <FiPieChart /> },
+                        { label: 'Outstanding Payments', path: '/accountant/outstanding', icon: <FiFileText /> },
+                        { label: 'Insurance Claims', path: '/accountant/claims', icon: <FiClipboard /> }
                     ]
                 },
-
                 {
-                    category: 'Insights',
+                    category: 'Accounting',
                     items: [
-                        ...(role !== 'accountant' ? [
-                            { label: 'Reports', path: '/admin/reports', icon: <FiFileText /> }
-                        ] : []),
-                        { label: 'Analytics', path: '/admin/analytics', icon: <FiPieChart /> },
-                        ...(role !== 'accountant' ? [
-                            { label: 'Audit Logs', path: '/admin/audit-logs', icon: <FiClipboard /> }
-                        ] : [])
+                        { label: 'Expenses', path: '/accountant/expenses', icon: <FiPackage /> },
+                        { label: 'Profit & Loss', path: '/accountant/profit-loss', icon: <FiPieChart /> },
+                        { label: 'Financial Statements', path: '/accountant/statements', icon: <FiFileText /> },
+                        { label: 'Reconciliation', path: '/accountant/reconciliation', icon: <FiCheckCircle /> },
+                        { label: 'Payroll Management', path: '/accountant/payroll', icon: <FiUsers /> },
+                        { label: 'Doctor Payouts', path: '/accountant/doctor-payouts', icon: <FiActivity /> }
+                    ]
+                },
+                {
+                    category: 'Audit',
+                    items: [
+                        { 
+                            label: 'Audit Logs', 
+                            path: '/accountant/audit-logs', 
+                            icon: <FiClipboard />
+                        },
+                        { label: 'Transaction Logs', path: '/accountant/transactions', icon: <FiDatabase /> }
                     ]
                 },
                 {
                     category: 'Administration',
                     items: [
-                        { label: 'Notifications', path: '/admin/notifications', icon: <FiAlertCircle /> },
-                        { label: 'Settings', path: '/admin/settings', icon: <FiSettings /> },
+                        { label: 'Settings', path: '/billing/settings', icon: <FiSettings /> },
                         { label: 'Profile Settings', path: '/admin/profile-settings', icon: <FiUser /> }
                     ]
                 }
@@ -313,8 +384,11 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
         return baseMenu;
     };
 
-    const menuItems = (role === 'administrator' || role === 'accountant') 
-        ? getMenu().filter(group => group.items && group.items.length > 0) 
+    const isCategorizedRole = role === 'accountant' || role === 'admin' ||
+        ['cashier', 'billing', 'billing executive', 'billing manager', 'senior billing officer'].includes(role);
+
+    const menuItems = isCategorizedRole
+        ? getMenu().filter(group => group.items && group.items.length > 0)
         : getMenu();
 
     return (
@@ -335,7 +409,7 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
             </div>
             
             <nav className="sidebar-nav">
-                {role === 'administrator' || role === 'accountant' ? (
+                {isCategorizedRole ? (
                     menuItems.map((group, gIdx) => {
                         const hasHeader = !!group.category;
                         const isExpanded = openGroups[group.category] ?? true;
@@ -356,17 +430,69 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
                                 )}
                                 {(!hasHeader || !isOpen || isExpanded) && (
                                     <div className="sidebar-group-links">
-                                        {group.items.map((item, idx) => (
-                                            <NavLink 
-                                                key={idx} 
-                                                to={item.path} 
-                                                className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
-                                                title={!isOpen ? item.label : undefined}
-                                            >
-                                                <span className="sidebar-link-icon">{item.icon}</span>
-                                                <span className="sidebar-link-text">{item.label}</span>
-                                            </NavLink>
-                                        ))}
+                                        {group.items.map((item, idx) => {
+                                            const hasSubItems = item.subItems && item.subItems.length > 0;
+                                            const isItemExpanded = !!expandedItems[item.label];
+                                            const isParentActive = location.pathname.startsWith(item.path);
+
+                                            return (
+                                                <div key={idx} className="sidebar-link-container" style={{ width: '100%' }}>
+                                                    {hasSubItems ? (
+                                                        <>
+                                                            <div 
+                                                                className={`sidebar-link ${isParentActive ? 'active' : ''}`}
+                                                                onClick={() => toggleItemExpand(item.label)}
+                                                                style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', justifyContent: 'space-between' }}
+                                                            >
+                                                                <div style={{ display: 'flex', alignItems: 'center' }}>
+                                                                    <span className="sidebar-link-icon">{item.icon}</span>
+                                                                    <span className="sidebar-link-text">{item.label}</span>
+                                                                </div>
+                                                                {isOpen && (
+                                                                    <span className="caret-icon" style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center' }}>
+                                                                        {isItemExpanded ? <FiChevronDown size={14} /> : <FiChevronRight size={14} />}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            {isItemExpanded && isOpen && (
+                                                                <div className="sidebar-sub-links" style={{ paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px', marginBottom: '8px' }}>
+                                                                    {item.subItems.map((sub, sIdx) => (
+                                                                        <NavLink 
+                                                                            key={sIdx} 
+                                                                            to={sub.path} 
+                                                                            className={({ isActive }) => `sidebar-sub-link ${isActive ? 'active' : ''}`}
+                                                                            style={({ isActive }) => ({
+                                                                                display: 'flex',
+                                                                                alignItems: 'center',
+                                                                                padding: '8px 12px',
+                                                                                fontSize: '0.8rem',
+                                                                                color: isActive ? '#ec4899' : '#94a3b8',
+                                                                                fontWeight: isActive ? '700' : '500',
+                                                                                textDecoration: 'none',
+                                                                                borderRadius: '6px',
+                                                                                background: isActive ? 'rgba(236, 72, 153, 0.05)' : 'transparent',
+                                                                                transition: 'all 0.2s'
+                                                                            })}
+                                                                        >
+                                                                            {sub.label}
+                                                                        </NavLink>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                        </>
+                                                    ) : (
+                                                        <NavLink 
+                                                            to={item.path} 
+                                                            className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
+                                                            title={!isOpen ? item.label : undefined}
+                                                        >
+                                                            <span className="sidebar-link-icon">{item.icon}</span>
+                                                            <span className="sidebar-link-text">{item.label}</span>
+                                                        </NavLink>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 )}
                             </div>
@@ -495,7 +621,7 @@ const WelcomeCard = () => {
         if (r === 'lab' || r === 'lab technician') return '🧪';
         if (r === 'pharmacy' || r === 'pharmacist') return '💊';
         if (r === 'cashier' || r.includes('billing')) return '💳';
-        if (r === 'administrator' || r === 'accountant') return '🏥';
+        if (r === 'accountant') return '🏥';
         if (r === 'hospitaladmin') return '🏨';
         return '👤';
     };
@@ -515,7 +641,7 @@ const WelcomeCard = () => {
         if (r === 'lab' || r === 'lab technician') return 'Accuracy and precision — you\'ve got this.';
         if (r === 'pharmacy' || r === 'pharmacist') return 'Keeping medications safe and patients healthy.';
         if (r === 'cashier' || r.includes('billing')) return 'Keeping the finances in perfect order.';
-        if (r === 'administrator' || r === 'accountant') return 'Operations running smoothly starts with you.';
+        if (r === 'accountant') return 'Operations running smoothly starts with you.';
         if (r === 'hospitaladmin') return 'Your hospital depends on your leadership today.';
         return 'Have a focused and productive shift today.';
     };

@@ -137,8 +137,10 @@ const BillingDashboard = ({ tab }) => {
         currency: 'INR'
     });
 
-    // Templates state
-    const [activeTemplate, setActiveTemplate] = useState('Classic Navy');
+    // Templates state — persist across billing pages
+    const [activeTemplate, setActiveTemplate] = useState(
+        () => localStorage.getItem('billing_invoice_template') || 'Classic Navy'
+    );
 
     useEffect(() => {
         fetchAnalytics();
@@ -2032,6 +2034,7 @@ const BillingDashboard = ({ tab }) => {
                                         key={theme}
                                         onClick={() => {
                                             setActiveTemplate(theme);
+                                            localStorage.setItem('billing_invoice_template', theme);
                                             setSuccess(`Invoice layout theme switched to ${theme}`);
                                         }}
                                         className={`theme-card ${activeTemplate === theme ? 'active' : ''}`}

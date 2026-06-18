@@ -142,7 +142,8 @@ const defaultRoles = [
         permissions: [
             'billing_view', 'billing_manage', 'billing_collect_payment',
             'billing_generate_invoice', 'billing_print_invoice', 'billing_refund',
-            'billing_reports', 'billing_analytics'
+            'billing_reports', 'billing_analytics',
+            'billing_insurance', 'billing_ipd_settlement', 'billing_receipt_reprint', 'billing_discounts'
         ],
         dashboardPath: '/billing/dashboard',
         navLinks: [
@@ -165,47 +166,15 @@ const defaultRoles = [
         description: 'Finance and accounting staff',
         permissions: [
             'finance_view', 'billing_view', 'billing_manage',
-            'patient_view', 'patient_search'
+            'patient_view', 'patient_search',
+            'finance_outstanding', 'finance_claims', 'finance_expenses', 'finance_profit_loss',
+            'finance_statements', 'finance_reconciliation', 'finance_transactions', 'finance_audit',
+            'finance_payroll', 'finance_doctor_payouts'
         ],
         dashboardPath: '/accountant/dashboard',
         navLinks: [
             { label: 'Finance Dashboard', path: '/accountant/dashboard' },
             { label: 'Patient Billing', path: '/cashier/billing' }
-        ],
-        isSystemRole: true
-    },
-    {
-        name: 'Administrator',
-        description: 'Hospital administrator managing operations, staff, resources and billing oversight',
-        permissions: [
-            'administrator_view', 'administrator_manage', 'staff_manage', 'department_manage',
-            'patient_monitor', 'admission_manage', 'resource_manage', 'billing_view',
-            'reports_view', 'analytics_view', 'operations_manage', 'inventory_view'
-        ],
-        dashboardPath: '/administrator/dashboard',
-        navLinks: [
-            { label: 'Dashboard', path: '/administrator/dashboard' },
-            { label: 'Patient Flow', path: '/administrator/patient-flow' },
-            { label: 'Admissions', path: '/administrator/admissions' },
-            { label: 'Bed Management', path: '/administrator/beds' },
-            { label: 'Appointments', path: '/administrator/appointments' },
-            { label: 'Hospital Operations Center', path: '/administrator/operations' },
-            { label: 'Staff Management', path: '/administrator/staff' },
-            { label: 'Doctor Management', path: '/administrator/doctors' },
-            { label: 'Departments', path: '/administrator/departments' },
-            { label: 'Roles & Permissions', path: '/administrator/roles' },
-            { label: 'Laboratory Management', path: '/administrator/lab' },
-            { label: 'Pharmacy Management', path: '/administrator/pharmacy' },
-            { label: 'Billing Oversight', path: '/administrator/billing' },
-            { label: 'Revenue Monitoring', path: '/administrator/revenue' },
-            { label: 'Inventory Monitoring', path: '/administrator/inventory' },
-            { label: 'Resource Management', path: '/administrator/resources' },
-            { label: 'Reports', path: '/administrator/reports' },
-            { label: 'Analytics', path: '/administrator/analytics' },
-            { label: 'Audit Logs', path: '/administrator/audit-logs' },
-            { label: 'Notifications', path: '/administrator/notifications' },
-            { label: 'Settings', path: '/administrator/settings' },
-            { label: 'Profile Settings', path: '/administrator/profile-settings' }
         ],
         isSystemRole: true
     }
@@ -527,19 +496,6 @@ async function resetAndSeed() {
         });
         await accountantUser.save();
         console.log('✅ Accountant User created: accountant@crm.com / Accountant@123');
-
-        const administratorUser = new User({
-            name: 'Hospital Administrator',
-            email: 'administrator@crm.com',
-            password: '12344321a',
-            role: roleMapping['Administrator'],
-            hospitalId: hospital._id,
-            phone: '3333333333',
-            services: ['Operations Management', 'Resource Control', 'Billing Oversight'],
-            isActive: true
-        });
-        await administratorUser.save();
-        console.log('✅ Administrator User created: administrator@crm.com / 12344321a');
 
         // Seed admitadmin@crm.com as Hospital Admin
         const hospitalAdminUser = new User({
@@ -906,7 +862,7 @@ async function resetAndSeed() {
         console.log('Demo Staff Logins (Password: "123" for staff unless specified):');
         console.log('  - Super Admin:   admin@admin.com / admin');
         console.log('  - Hosp Admin:    admitadmin@crm.com / 12344321a');
-        console.log('  - Accountant:    accountant@crm.com / Accountant@123 (or administrator@crm.com / 12344321a)');
+        console.log('  - Accountant:    accountant@crm.com / Accountant@123');
         console.log('  - Receptionist:  reception@crm.com');
         console.log('  - Lab Tech:      lab@crm.com');
         console.log('  - Pharmacist:    pharmacy@crm.com');

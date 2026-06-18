@@ -1,0 +1,280 @@
+{
+  "hospitals": [
+    {
+      "name": "Admit Hospital",
+      "id": "6a33bf579c1598ea504b93ef",
+      "collectionCounts": {
+        "User": 0,
+        "Appointment": 0,
+        "LabReport": 0,
+        "PharmacyOrder": 0,
+        "FacilityCharge": 0,
+        "Role": 0,
+        "Admission": 0,
+        "Transfer": 0,
+        "Invoice": 0,
+        "Refund": 0,
+        "BillingActivityLog": 0,
+        "Inventory": 0,
+        "ExpenseCategory": 0,
+        "Expense": 0,
+        "Doctor": 0,
+        "Lab": 0,
+        "ClinicPatient": 0,
+        "Hospital": 0,
+        "ClinicalVisit": 0,
+        "Pharmacy": 0,
+        "Reception": 0,
+        "InsuranceClaim": 0,
+        "Reconciliation": 0,
+        "DeletedRecord": 0,
+        "UserActivityLog": 0,
+        "PayrollRecord": 0,
+        "DoctorPayout": 0,
+        "DiscountRequest": 0
+      },
+      "indexes": {
+        "User": [
+          "_id_",
+          "email_1",
+          "patientId_1",
+          "aadhaarNumber_1",
+          "hospitalId_1",
+          "createdAt_1"
+        ],
+        "Appointment": [
+          "_id_",
+          "patientId_1",
+          "hospitalId_1",
+          "status_1",
+          "doctorId_1",
+          "appointmentDate_1",
+          "createdAt_1",
+          "doctorId_1_appointmentDate_1_appointmentTime_1"
+        ],
+        "LabReport": [
+          "_id_",
+          "appointmentId_1",
+          "hospitalId_1",
+          "testStatus_1",
+          "paymentStatus_1",
+          "status_1"
+        ],
+        "PharmacyOrder": [
+          "_id_",
+          "hospitalId_1"
+        ],
+        "FacilityCharge": [
+          "_id_"
+        ],
+        "Role": [
+          "_id_",
+          "hospitalId_1",
+          "name_1_hospitalId_1"
+        ],
+        "Admission": [
+          "_id_",
+          "hospitalId_1",
+          "patientId_1",
+          "createdAt_1"
+        ],
+        "Transfer": [
+          "_id_",
+          "hospitalId_1",
+          "patientId_1",
+          "createdAt_-1"
+        ],
+        "Invoice": [
+          "_id_",
+          "hospitalId_1",
+          "patientId_1",
+          "invoiceNumber_1",
+          "createdAt_1",
+          "hospitalId_1_invoiceNumber_1"
+        ],
+        "Refund": [
+          "_id_"
+        ],
+        "BillingActivityLog": [
+          "_id_"
+        ],
+        "Inventory": [
+          "_id_",
+          "hospitalId_1",
+          "createdAt_1"
+        ],
+        "ExpenseCategory": [
+          "_id_",
+          "hospitalId_1_name_1"
+        ],
+        "Expense": [
+          "_id_"
+        ],
+        "Doctor": [
+          "_id_",
+          "doctorId_1",
+          "userId_1",
+          "hospitalId_1",
+          "services_1",
+          "email_1"
+        ],
+        "Lab": [
+          "_id_",
+          "userId_1",
+          "hospitalId_1"
+        ],
+        "ClinicPatient": [
+          "_id_",
+          "clinicId_1",
+          "clinicId_1_patientUid_1",
+          "clinicId_1_phone_1"
+        ],
+        "Hospital": [
+          "_id_",
+          "slug_1",
+          "customDomain_1"
+        ],
+        "ClinicalVisit": [
+          "_id_",
+          "hospitalId_1"
+        ],
+        "Pharmacy": [
+          "_id_",
+          "userId_1",
+          "hospitalId_1"
+        ],
+        "Reception": [
+          "_id_",
+          "userId_1",
+          "hospitalId_1"
+        ],
+        "InsuranceClaim": [
+          "_id_",
+          "claimNumber_1"
+        ],
+        "Reconciliation": [
+          "_id_",
+          "hospitalId_1_date_1"
+        ],
+        "DeletedRecord": [
+          "_id_"
+        ],
+        "UserActivityLog": [
+          "_id_"
+        ],
+        "PayrollRecord": [
+          "_id_",
+          "hospitalId_1",
+          "employeeId_1",
+          "month_1",
+          "status_1",
+          "hospitalId_1_employeeId_1_month_1"
+        ],
+        "DoctorPayout": [
+          "_id_",
+          "hospitalId_1",
+          "doctorId_1",
+          "month_1",
+          "status_1",
+          "hospitalId_1_doctorId_1_month_1"
+        ],
+        "DiscountRequest": [
+          "_id_",
+          "hospitalId_1",
+          "status_1",
+          "hospitalId_1_status_1",
+          "hospitalId_1_createdAt_-1"
+        ]
+      },
+      "crud": {
+        "ClinicPatient": "PASS",
+        "Appointment": "PASS"
+      },
+      "orphans": {
+        "Appointment": 0,
+        "Invoice": 0,
+        "LabReport": 0
+      }
+    }
+  ],
+  "brokenReferences": [],
+  "missingIndexes": [
+    {
+      "model": "Appointment",
+      "key": "clinicPatientId"
+    },
+    {
+      "model": "LabReport",
+      "key": "doctorId"
+    },
+    {
+      "model": "LabReport",
+      "key": "patientId"
+    },
+    {
+      "model": "LabReport",
+      "key": "userId"
+    },
+    {
+      "model": "PharmacyOrder",
+      "key": "patientId"
+    },
+    {
+      "model": "PharmacyOrder",
+      "key": "appointmentId"
+    },
+    {
+      "model": "Invoice",
+      "key": "userId"
+    },
+    {
+      "model": "Invoice",
+      "key": "admissionId"
+    },
+    {
+      "model": "Invoice",
+      "key": "appointmentId"
+    },
+    {
+      "model": "Admission",
+      "key": "userId"
+    },
+    {
+      "model": "Admission",
+      "key": "bedId"
+    },
+    {
+      "model": "Refund",
+      "key": "invoiceId"
+    },
+    {
+      "model": "Refund",
+      "key": "hospitalId"
+    },
+    {
+      "model": "Expense",
+      "key": "hospitalId"
+    },
+    {
+      "model": "Expense",
+      "key": "category"
+    },
+    {
+      "model": "PayrollRecord",
+      "key": "userId"
+    },
+    {
+      "model": "DoctorPayout",
+      "key": "userId"
+    },
+    {
+      "model": "InsuranceClaim",
+      "key": "invoiceId"
+    },
+    {
+      "model": "InsuranceClaim",
+      "key": "hospitalId"
+    }
+  ],
+  "crudStatus": {}
+}

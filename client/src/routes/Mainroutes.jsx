@@ -79,22 +79,31 @@ import ReceptionDashboard from '../pages/reception/ReceptionDashboard';
 
 // Accountant / Finance Pages
 import AccountantDashboard from '../pages/accountant/AccountantDashboard';
+import OutstandingPayments from '../pages/accountant/OutstandingPayments';
+import InsuranceClaims from '../pages/accountant/InsuranceClaims';
+import ExpensesPage from '../pages/accountant/ExpensesPage';
+import ProfitLoss from '../pages/accountant/ProfitLoss';
+import FinancialStatements from '../pages/accountant/FinancialStatements';
+import Reconciliation from '../pages/accountant/Reconciliation';
+import TransactionLogs from '../pages/accountant/TransactionLogs';
+import FinancialAuditCenter from '../pages/accountant/FinancialAuditCenter';
+import PayrollManagement from '../pages/accountant/PayrollManagement';
+import DoctorPayouts from '../pages/accountant/DoctorPayouts';
 
 // Billing Pages
 import BillingDashboard from '../pages/billing/BillingDashboard';
+import InsuranceBilling from '../pages/billing/InsuranceBilling';
+import IPDSettlement from '../pages/billing/IPDSettlement';
+import ReceiptReprint from '../pages/billing/ReceiptReprint';
+import DiscountsAdjustments from '../pages/billing/DiscountsAdjustments';
 
 // Administrator Pages
-import OldAdministratorDashboard from '../pages/administrator/AdministratorDashboard';
-import AdministratorDashboard from '../pages/admin/AdministratorDashboard';
-import DoctorManagement from '../pages/admin/DoctorManagement';
 import LaboratoryManagement from '../pages/admin/LaboratoryManagement';
 import PharmacyManagement from '../pages/admin/PharmacyManagement';
-import RoleManagement from '../pages/admin/RoleManagement';
-import NotificationCenter from '../pages/admin/NotificationCenter';
 import AuditLogs from '../pages/admin/AuditLogs';
-import RevenueMonitoring from '../pages/admin/RevenueMonitoring';
 import ResourceManagement from '../pages/admin/ResourceManagement';
 import AdmissionsOversight from '../pages/admin/AdmissionsOversight';
+import PatientFlow from '../pages/admin/PatientFlow';
 
 // Subdomains reserved for the platform itself — NOT hospital slugs
 const RESERVED_SUBDOMAINS = ['admin', 'www', 'api'];
@@ -111,22 +120,7 @@ const SmartDashboardRedirector = () => {
     return <Navigate to="/supremeadmin" replace />;
 };
 
-const AdministratorRedirect = () => {
-    const location = useLocation();
-    let subpath = location.pathname.substring('/administrator'.length);
-    if (!subpath.startsWith('/')) {
-        subpath = '/' + subpath;
-    }
-    
-    // Map conflicting paths:
-    if (subpath === '/doctors') subpath = '/doctor-management';
-    else if (subpath === '/lab') subpath = '/lab-management';
-    else if (subpath === '/pharmacy') subpath = '/pharmacy-management';
-    else if (subpath === '/roles') subpath = '/role-management';
-    else if (subpath === '/audit-log') subpath = '/audit-logs';
-    
-    return <Navigate to={`/admin${subpath}${location.search}`} replace />;
-};
+
 
 
 /**
@@ -231,6 +225,17 @@ const MainRoutes = () => {
 
                             {/* Accountant / Finance Pages */}
                             <Route path="accountant/dashboard" element={<ProtectedRoute requiredPermissions={['finance_view']} allowedRoles={['accountant', 'centraladmin', 'superadmin', 'hospitaladmin']}><AccountantDashboard /></ProtectedRoute>} />
+                            <Route path="accountant/outstanding" element={<ProtectedRoute requiredPermissions={['finance_view', 'finance_outstanding']} allowedRoles={['accountant', 'centraladmin', 'superadmin', 'hospitaladmin']}><OutstandingPayments /></ProtectedRoute>} />
+                            <Route path="accountant/claims" element={<ProtectedRoute requiredPermissions={['finance_view', 'finance_claims']} allowedRoles={['accountant', 'centraladmin', 'superadmin', 'hospitaladmin']}><InsuranceClaims /></ProtectedRoute>} />
+                            <Route path="accountant/expenses" element={<ProtectedRoute requiredPermissions={['finance_view', 'finance_expenses']} allowedRoles={['accountant', 'centraladmin', 'superadmin', 'hospitaladmin']}><ExpensesPage /></ProtectedRoute>} />
+                            <Route path="accountant/profit-loss" element={<ProtectedRoute requiredPermissions={['finance_view', 'finance_profit_loss']} allowedRoles={['accountant', 'centraladmin', 'superadmin', 'hospitaladmin']}><ProfitLoss /></ProtectedRoute>} />
+                            <Route path="accountant/statements" element={<ProtectedRoute requiredPermissions={['finance_view', 'finance_statements']} allowedRoles={['accountant', 'centraladmin', 'superadmin', 'hospitaladmin']}><FinancialStatements /></ProtectedRoute>} />
+                            <Route path="accountant/reconciliation" element={<ProtectedRoute requiredPermissions={['finance_view', 'finance_reconciliation']} allowedRoles={['accountant', 'centraladmin', 'superadmin', 'hospitaladmin']}><Reconciliation /></ProtectedRoute>} />
+                            <Route path="accountant/transactions" element={<ProtectedRoute requiredPermissions={['finance_view', 'finance_transactions']} allowedRoles={['accountant', 'centraladmin', 'superadmin', 'hospitaladmin']}><TransactionLogs /></ProtectedRoute>} />
+                            <Route path="accountant/audit-logs" element={<ProtectedRoute requiredPermissions={['finance_view', 'finance_audit']} allowedRoles={['accountant', 'centraladmin', 'superadmin', 'hospitaladmin']}><FinancialAuditCenter /></ProtectedRoute>} />
+                            <Route path="accountant/audit-logs/:section" element={<ProtectedRoute requiredPermissions={['finance_view', 'finance_audit']} allowedRoles={['accountant', 'centraladmin', 'superadmin', 'hospitaladmin']}><FinancialAuditCenter /></ProtectedRoute>} />
+                            <Route path="accountant/payroll" element={<ProtectedRoute requiredPermissions={['finance_view', 'finance_payroll']} allowedRoles={['accountant', 'centraladmin', 'superadmin', 'hospitaladmin']}><PayrollManagement /></ProtectedRoute>} />
+                            <Route path="accountant/doctor-payouts" element={<ProtectedRoute requiredPermissions={['finance_view', 'finance_doctor_payouts']} allowedRoles={['accountant', 'centraladmin', 'superadmin', 'hospitaladmin']}><DoctorPayouts /></ProtectedRoute>} />
 
                             {/* Centralized Patient Billing & Cashier Workspace */}
                             <Route path="billing/dashboard" element={<ProtectedRoute requiredPermissions={['billing_view']} allowedRoles={['receptionist', 'reception', 'billing', 'cashier', 'billing executive', 'billing manager', 'senior billing officer', 'accountant']}><BillingDashboard tab="dashboard" /></ProtectedRoute>} />
@@ -240,6 +245,10 @@ const MainRoutes = () => {
                             <Route path="billing/collect" element={<ProtectedRoute requiredPermissions={['billing_view']} allowedRoles={['receptionist', 'reception', 'billing', 'cashier', 'billing executive', 'billing manager', 'senior billing officer']}><BillingDashboard tab="collect" /></ProtectedRoute>} />
                             <Route path="billing/history" element={<ProtectedRoute requiredPermissions={['billing_view']} allowedRoles={['billing', 'cashier', 'billing executive', 'billing manager', 'senior billing officer']}><BillingDashboard tab="history" /></ProtectedRoute>} />
                             <Route path="billing/refunds" element={<ProtectedRoute requiredPermissions={['billing_view']} allowedRoles={['receptionist', 'reception', 'billing', 'cashier', 'billing executive', 'billing manager', 'senior billing officer']}><BillingDashboard tab="refunds" /></ProtectedRoute>} />
+                            <Route path="billing/insurance" element={<ProtectedRoute requiredPermissions={['billing_view', 'billing_insurance']} allowedRoles={['billing', 'cashier', 'billing executive', 'billing manager', 'senior billing officer', 'accountant']}><InsuranceBilling /></ProtectedRoute>} />
+                            <Route path="billing/ipd-settlement" element={<ProtectedRoute requiredPermissions={['billing_view', 'billing_ipd_settlement']} allowedRoles={['billing', 'cashier', 'billing executive', 'billing manager', 'senior billing officer']}><IPDSettlement /></ProtectedRoute>} />
+                            <Route path="billing/receipt-reprint" element={<ProtectedRoute requiredPermissions={['billing_view', 'billing_receipt_reprint']} allowedRoles={['billing', 'cashier', 'billing executive', 'billing manager', 'senior billing officer']}><ReceiptReprint /></ProtectedRoute>} />
+                            <Route path="billing/discounts" element={<ProtectedRoute requiredPermissions={['billing_view', 'billing_discounts']} allowedRoles={['billing', 'cashier', 'billing executive', 'billing manager', 'senior billing officer', 'accountant']}><DiscountsAdjustments /></ProtectedRoute>} />
                             <Route path="billing/reports" element={<ProtectedRoute requiredPermissions={['billing_view']} allowedRoles={['receptionist', 'reception', 'billing', 'cashier', 'billing executive', 'billing manager', 'senior billing officer', 'accountant']}><BillingDashboard tab="reports" /></ProtectedRoute>} />
                             <Route path="billing/analytics" element={<ProtectedRoute requiredPermissions={['billing_view']} allowedRoles={['receptionist', 'reception', 'billing', 'cashier', 'billing executive', 'billing manager', 'senior billing officer', 'accountant']}><BillingDashboard tab="analytics" /></ProtectedRoute>} />
                             <Route path="billing/templates" element={<ProtectedRoute requiredPermissions={['billing_view']} allowedRoles={['receptionist', 'reception', 'billing', 'cashier', 'billing executive', 'billing manager', 'senior billing officer', 'accountant']}><BillingDashboard tab="templates" /></ProtectedRoute>} />
@@ -248,34 +257,16 @@ const MainRoutes = () => {
                             <Route path="cashier/billing" element={<ProtectedRoute requiredPermissions={['billing_view']} allowedRoles={['receptionist', 'reception', 'billing', 'cashier', 'billing executive', 'billing manager', 'senior billing officer']}><BillingDashboard tab="patient" /></ProtectedRoute>} />
 
                             {/* Hospital Administrator Department */}
-                            <Route path="admin/dashboard" element={<ProtectedRoute requiredPermissions={['administrator_view']}><AdministratorDashboard /></ProtectedRoute>} />
-                            <Route path="admin/operations" element={<ProtectedRoute requiredPermissions={['administrator_view']}><OldAdministratorDashboard tab="operations" /></ProtectedRoute>} />
-                            <Route path="admin/patient-flow" element={<ProtectedRoute requiredPermissions={['administrator_view', 'patient_monitor']} allowedRoles={['receptionist', 'reception']}><OldAdministratorDashboard tab="patient-flow" /></ProtectedRoute>} />
-                            <Route path="admin/staff" element={<ProtectedRoute requiredPermissions={['administrator_view']}><OldAdministratorDashboard tab="staff" /></ProtectedRoute>} />
-                            <Route path="admin/departments" element={<ProtectedRoute requiredPermissions={['administrator_view']}><OldAdministratorDashboard tab="departments" /></ProtectedRoute>} />
-                            <Route path="admin/admissions" element={<ProtectedRoute requiredPermissions={['administrator_view', 'admission_manage']} allowedRoles={['centraladmin', 'admin', 'hospitaladmin', 'administrator']}><AdmissionsOversight /></ProtectedRoute>} />
-                            <Route path="admin/beds" element={<ProtectedRoute requiredPermissions={['administrator_view']}><OldAdministratorDashboard tab="beds" /></ProtectedRoute>} />
-                            <Route path="admin/appointments" element={<ProtectedRoute requiredPermissions={['administrator_view']}><OldAdministratorDashboard tab="appointments" /></ProtectedRoute>} />
-                            <Route path="admin/billing" element={<ProtectedRoute requiredPermissions={['administrator_view']}><OldAdministratorDashboard tab="billing" /></ProtectedRoute>} />
+                            <Route path="admin/patient-flow" element={<ProtectedRoute requiredPermissions={['patient_monitor']} allowedRoles={['receptionist', 'reception']}><PatientFlow /></ProtectedRoute>} />
+                            <Route path="admin/admissions" element={<ProtectedRoute requiredPermissions={['accountant_view', 'admission_manage']} allowedRoles={['centraladmin', 'admin', 'hospitaladmin']}><AdmissionsOversight /></ProtectedRoute>} />
                             
-                            <Route path="admin/doctor-management" element={<ProtectedRoute requiredPermissions={['administrator_view']}><DoctorManagement /></ProtectedRoute>} />
-                            <Route path="admin/lab-management" element={<ProtectedRoute requiredPermissions={['administrator_view']}><LaboratoryManagement /></ProtectedRoute>} />
-                            <Route path="admin/pharmacy-management" element={<ProtectedRoute requiredPermissions={['administrator_view']}><PharmacyManagement /></ProtectedRoute>} />
-                            <Route path="admin/role-management" element={<ProtectedRoute requiredPermissions={['administrator_view']}><RoleManagement /></ProtectedRoute>} />
-                            <Route path="admin/notifications" element={<ProtectedRoute requiredPermissions={['administrator_view']}><NotificationCenter /></ProtectedRoute>} />
-                            <Route path="admin/audit-logs" element={<ProtectedRoute requiredPermissions={['administrator_view']}><AuditLogs /></ProtectedRoute>} />
-                            <Route path="admin/audit-log" element={<ProtectedRoute requiredPermissions={['administrator_view']}><AuditLogs /></ProtectedRoute>} />
-                            <Route path="admin/revenue" element={<ProtectedRoute requiredPermissions={['administrator_view']}><RevenueMonitoring /></ProtectedRoute>} />
-                            <Route path="admin/resources" element={<ProtectedRoute requiredPermissions={['administrator_view', 'resource_manage']}><ResourceManagement /></ProtectedRoute>} />
+                            <Route path="admin/lab-management" element={<ProtectedRoute requiredPermissions={['accountant_view']}><LaboratoryManagement /></ProtectedRoute>} />
+                            <Route path="admin/pharmacy-management" element={<ProtectedRoute requiredPermissions={['accountant_view']}><PharmacyManagement /></ProtectedRoute>} />
+                            <Route path="admin/audit-logs" element={<ProtectedRoute requiredPermissions={['accountant_view']}><AuditLogs /></ProtectedRoute>} />
+                            <Route path="admin/audit-log" element={<ProtectedRoute requiredPermissions={['accountant_view']}><AuditLogs /></ProtectedRoute>} />
+                            <Route path="admin/resources" element={<ProtectedRoute requiredPermissions={['accountant_view', 'resource_manage']}><ResourceManagement /></ProtectedRoute>} />
                             
-                            <Route path="admin/inventory" element={<ProtectedRoute requiredPermissions={['administrator_view', 'inventory_view', 'pharmacy_manage']}><OldAdministratorDashboard tab="inventory" /></ProtectedRoute>} />
-                            <Route path="admin/reports" element={<ProtectedRoute requiredPermissions={['administrator_view']}><OldAdministratorDashboard tab="reports" /></ProtectedRoute>} />
-                            <Route path="admin/analytics" element={<ProtectedRoute requiredPermissions={['administrator_view']}><OldAdministratorDashboard tab="analytics" /></ProtectedRoute>} />
-                            <Route path="admin/settings" element={<ProtectedRoute requiredPermissions={['administrator_view']}><OldAdministratorDashboard tab="settings" /></ProtectedRoute>} />
-                            <Route path="admin/profile-settings" element={<ProtectedRoute requiredPermissions={['administrator_view']}><AdminProfile /></ProtectedRoute>} />
-
-                            {/* Redirect legacy /administrator/* routes to /admin/* */}
-                            <Route path="administrator/*" element={<AdministratorRedirect />} />
+                            <Route path="admin/profile-settings" element={<ProtectedRoute requiredPermissions={['accountant_view', 'billing_view']}><AdminProfile /></ProtectedRoute>} />
 
                         {/* Supreme Admin remains outside of hospital slugs */}
                         <Route path="/supremeadmin" element={<ProtectedRoute allowedRoles={['centraladmin', 'superadmin']}><CentralAdminDashboard /></ProtectedRoute>} />

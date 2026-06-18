@@ -18,6 +18,12 @@ const AdminMainDashboard = () => {
         todayRevenue: 0,
     });
     const [loading, setLoading] = useState(true);
+    const [currentTime, setCurrentTime] = useState(new Date());
+
+    useEffect(() => {
+        const timer = setInterval(() => setCurrentTime(new Date()), 60000);
+        return () => clearInterval(timer);
+    }, []);
 
     useEffect(() => {
         fetchStats();
@@ -78,101 +84,206 @@ const AdminMainDashboard = () => {
         }
     };
 
-    const hour = new Date().getHours();
-    let greeting = 'Good morning';
+    const hour = currentTime.getHours();
+    let greeting = 'Good Morning';
     let greetingEmoji = '☀️';
-    if (hour >= 12 && hour < 17) { greeting = 'Good afternoon'; greetingEmoji = '🌤️'; }
-    else if (hour >= 17) { greeting = 'Good evening'; greetingEmoji = '🌙'; }
+    let heroBg = 'linear-gradient(135deg, #1e847f 0%, #0ea5e9 60%, #6366f1 100%)';
+    if (hour >= 12 && hour < 17) {
+        greeting = 'Good Afternoon';
+        greetingEmoji = '🌤️';
+        heroBg = 'linear-gradient(135deg, #f59e0b 0%, #ef4444 40%, #ec4899 100%)';
+    } else if (hour >= 17) {
+        greeting = 'Good Evening';
+        greetingEmoji = '🌙';
+        heroBg = 'linear-gradient(135deg, #1e293b 0%, #334155 40%, #6366f1 100%)';
+    }
 
-    const dateString = new Date().toLocaleDateString('en-IN', {
+    const dateString = currentTime.toLocaleDateString('en-IN', {
         weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
     });
+    const timeString = currentTime.toLocaleTimeString('en-IN', {
+        hour: '2-digit', minute: '2-digit', hour12: true
+    });
 
+    const firstName = (user.name || 'Admin').split(' ')[0];
 
     const statCards = [
-        { icon: '👥', label: 'Total Users',   value: stats.totalUsers,   accent: '#14b8a6', bg: 'rgba(20,184,166,0.1)' },
-        { icon: '🔑', label: 'Active Roles',  value: stats.totalRoles,   accent: '#6366f1', bg: 'rgba(99,102,241,0.1)' },
-        { icon: '👨‍⚕️', label: 'Doctors',      value: stats.totalDoctors, accent: '#3b82f6', bg: 'rgba(59,130,246,0.1)' },
-        { icon: '🩺', label: 'Patients',      value: stats.totalPatients,accent: '#f59e0b', bg: 'rgba(245,158,11,0.1)' },
-        { icon: '📅', label: "Today's Appts", value: stats.todayAppointments, accent: '#0d9488', bg: 'rgba(13,148,136,0.1)' },
-        { icon: '⏳', label: 'Pending Payments', value: stats.pendingPayments, accent: '#d97706', bg: 'rgba(217,119,6,0.1)' },
-        { icon: '💰', label: "Today's Revenue", value: `₹${stats.todayRevenue.toLocaleString('en-IN')}`, accent: '#7c3aed', bg: 'rgba(124,58,237,0.1)' },
+        {
+            icon: '👥',
+            label: 'Total Users',
+            value: stats.totalUsers,
+            accent: '#14b8a6',
+            accentLight: 'rgba(20,184,166,0.12)',
+            gradStart: '#14b8a6',
+            gradEnd: '#0ea5e9',
+            path: '/admin/users',
+            desc: 'Active staff accounts'
+        },
+        {
+            icon: '🔑',
+            label: 'Active Roles',
+            value: stats.totalRoles,
+            accent: '#6366f1',
+            accentLight: 'rgba(99,102,241,0.12)',
+            gradStart: '#6366f1',
+            gradEnd: '#8b5cf6',
+            path: '/admin/roles',
+            desc: 'Permission roles'
+        },
+        {
+            icon: '🩺',
+            label: 'Doctors',
+            value: stats.totalDoctors,
+            accent: '#3b82f6',
+            accentLight: 'rgba(59,130,246,0.12)',
+            gradStart: '#3b82f6',
+            gradEnd: '#06b6d4',
+            path: '/admin/doctors',
+            desc: 'Registered physicians'
+        },
+        {
+            icon: '🧑‍🤝‍🧑',
+            label: 'Patients',
+            value: stats.totalPatients,
+            accent: '#f59e0b',
+            accentLight: 'rgba(245,158,11,0.12)',
+            gradStart: '#f59e0b',
+            gradEnd: '#fb923c',
+            path: '/admin/users',
+            desc: 'Registered patients'
+        },
+        {
+            icon: '📅',
+            label: "Today's Appointments",
+            value: stats.todayAppointments,
+            accent: '#10b981',
+            accentLight: 'rgba(16,185,129,0.12)',
+            gradStart: '#10b981',
+            gradEnd: '#14b8a6',
+            path: '/admin/admissions',
+            desc: 'Scheduled for today'
+        },
+        {
+            icon: '⏳',
+            label: 'Pending Payments',
+            value: stats.pendingPayments,
+            accent: '#f97316',
+            accentLight: 'rgba(249,115,22,0.12)',
+            gradStart: '#f97316',
+            gradEnd: '#fbbf24',
+            path: '/admin/billing',
+            desc: 'Awaiting settlement'
+        },
+        {
+            icon: '💰',
+            label: "Today's Revenue",
+            value: `₹${stats.todayRevenue.toLocaleString('en-IN')}`,
+            accent: '#7c3aed',
+            accentLight: 'rgba(124,58,237,0.12)',
+            gradStart: '#7c3aed',
+            gradEnd: '#a855f7',
+            path: '/admin/revenue',
+            desc: 'Collected today'
+        },
     ];
 
-    const quickActions = [
-        { icon: '👥', label: 'Manage Users',           desc: 'View all staff & patients, edit roles, create accounts',        path: '/admin/users',            bg: 'rgba(20,184,166,0.12)'  },
-        { icon: '🔑', label: 'Roles & Permissions',    desc: 'Create custom roles and assign granular permissions',            path: '/admin/roles',            bg: 'rgba(99,102,241,0.12)'  },
-        { icon: '🔐', label: 'Dynamic Permissions',    desc: 'Grant or revoke individual permissions per staff member',        path: '/admin/permissions',      bg: 'rgba(124,58,237,0.15)'  },
-        { icon: '👨‍⚕️', label: 'Doctors',               desc: 'Manage doctor profiles, specializations & schedules',           path: '/admin/doctors',          bg: 'rgba(59,130,246,0.12)'  },
-        { icon: '🧪', label: 'Labs',                   desc: 'Configure lab departments and lab workflows',                    path: '/admin/labs',             bg: 'rgba(245,158,11,0.12)'  },
-        { icon: '📋', label: 'Lab Tests Catalog',      desc: 'Manage predefined lab tests for prescription',                   path: '/admin/lab-tests',        bg: 'rgba(236,72,153,0.12)'  },
-        { icon: '🔬', label: 'Laboratory Management',  desc: 'Monitor lab tests processing, reports, and request queues',      path: '/admin/lab-management',   bg: 'rgba(245,158,11,0.15)'  },
-        { icon: '📦', label: 'Tests & Packages',       desc: 'Create test packages and manage individual tests',               path: '/admin/test-packages',    bg: 'rgba(124,58,237,0.12)'  },
-        { icon: '💊', label: 'Pharmacy',               desc: 'Manage pharmacy inventory and suppliers',                        path: '/admin/pharmacy',         bg: 'rgba(239,68,68,0.12)'   },
-        { icon: '💉', label: 'Medicine Catalog',       desc: 'Manage global catalog of available medicines',                   path: '/admin/medicines',        bg: 'rgba(239,68,68,0.1)'    },
-        { icon: '🏥', label: 'Pharmacy Management',    desc: 'Oversight of pharmacy sales, billing, inventory, and medicine log', path: '/admin/pharmacy-management', bg: 'rgba(239,68,68,0.15)' },
-        { icon: '🏥', label: 'Reception',              desc: 'Set up reception desk and appointment workflows',                path: '/admin/reception',        bg: 'rgba(16,185,129,0.12)'  },
-        { icon: '🛠️', label: 'Services',               desc: 'Hospital services, pricing, and categories',                     path: '/admin/services',         bg: 'rgba(245,158,11,0.12)'  },
-        { icon: '🛏️', label: 'Wards & Facilities',     desc: 'Configure hospital wards (ICU, OT, deluxe, wards, etc.)',       path: '/admin/facilities',       bg: 'rgba(59,130,246,0.12)'  },
-        { icon: '📦', label: 'Inventory Monitoring',   desc: 'Monitor pharmacy and hospital inventory levels',               path: '/admin/inventory',        bg: 'rgba(13,148,136,0.12)'  },
-        { icon: '⚙️', label: 'Resource Management',    desc: 'Manage active rooms, beds, ventilators, and equipment',       path: '/admin/resources',        bg: 'rgba(99,102,241,0.12)'  },
-        { icon: '🏥', label: 'Admissions Oversight',    desc: 'Oversight and monitoring of active admissions, bed occupancy, and transfers', path: '/admin/admissions', bg: 'rgba(14,165,233,0.12)' },
-        { icon: '❓', label: 'Question Library',       desc: 'Configure forms and assessment libraries for doctors',           path: '/admin/question-library', bg: 'rgba(167,139,250,0.15)' },
-        { icon: '📊', label: 'Reports',                desc: 'Download clinical and financial logs and custom export metrics', path: '/admin/reports', bg: 'rgba(20,184,166,0.15)' },
-        { icon: '📋', label: 'Audit Logs',             desc: 'Monitor compliance, access logs, dynamic actions, and data changes', path: '/admin/audit-logs', bg: 'rgba(99,102,241,0.12)' },
+    const quickLinks = [
+        { icon: '👥', label: 'Manage Users', path: '/admin/users', color: '#14b8a6' },
+        { icon: '🩺', label: 'Doctors', path: '/admin/doctors', color: '#3b82f6' },
+        { icon: '🧪', label: 'Labs', path: '/admin/labs', color: '#f59e0b' },
+        { icon: '💊', label: 'Pharmacy', path: '/admin/pharmacy', color: '#ef4444' },
+        { icon: '🏥', label: 'Admissions', path: '/admin/admissions', color: '#06b6d4' },
+        { icon: '📊', label: 'Reports', path: '/admin/reports', color: '#8b5cf6' },
     ];
 
     return (
-        <div className="admin-main-dashboard">
-            <div className="dash-container">
+        <div className="amd-root">
 
-                {/* Header (Greeting only, actions moved to TopBar) */}
-                <div className="dash-header" style={{ marginBottom: '20px', borderBottom: 'none', paddingBottom: 0 }}>
-                    <div className="dash-header-left">
-                        <h1 style={{ fontSize: '1.5rem', fontWeight: 800 }}>
-                            {greetingEmoji} {greeting},{' '}
-                            <span style={{ color: 'var(--brand-600)' }}>{user.name || 'Admin'}</span>
-                        </h1>
-                        <p style={{ color: '#64748b', fontSize: '0.9rem' }}>{dateString} · Here's a snapshot of your hospital.</p>
+            {/* ── Hero Banner ── */}
+            <div className="amd-hero" style={{ background: heroBg }}>
+                <div className="amd-hero-noise" />
+                <div className="amd-hero-content">
+                    <div className="amd-hero-left">
+                        <div className="amd-greeting-pill">{greetingEmoji} {greeting}</div>
+                        <h1 className="amd-hero-name">{firstName}</h1>
+                        <p className="amd-hero-sub">
+                            {dateString} &nbsp;·&nbsp; {timeString}
+                        </p>
+                        <p className="amd-hero-tagline">Here's what's happening at your hospital today.</p>
+                    </div>
+                    <div className="amd-hero-right">
+                        <div className="amd-hero-badge">
+                            <span className="amd-badge-dot" />
+                            System Live
+                        </div>
+                        <div className="amd-hero-stat-mini">
+                            <span className="amd-hstat-num">{loading ? '—' : stats.totalUsers}</span>
+                            <span className="amd-hstat-label">Staff Online</span>
+                        </div>
                     </div>
                 </div>
+                {/* decorative circles */}
+                <div className="amd-hero-circle amd-hero-circle--1" />
+                <div className="amd-hero-circle amd-hero-circle--2" />
+            </div>
 
-                {/* Stats */}
-                <div className="stats-grid">
-                    {statCards.map((stat, idx) => (
-                        <div key={idx} className="stat-card">
-                            <div className="stat-card-top">
-                                <div className="stat-icon" style={{ background: stat.bg }}>
-                                    {stat.icon}
+            {/* ── Main Body ── */}
+            <div className="amd-body">
+
+                {/* Stats Grid */}
+                <div className="amd-section-header">
+                    <span className="amd-section-title">Hospital Overview</span>
+                    <button className="amd-refresh-btn" onClick={fetchStats} title="Refresh stats">
+                        ↻ Refresh
+                    </button>
+                </div>
+
+                <div className="amd-stats-grid">
+                    {statCards.map((card, idx) => (
+                        <div
+                            key={idx}
+                            className="amd-stat-card"
+                            onClick={() => navigate(card.path)}
+                            style={{ '--card-accent': card.accent, '--card-light': card.accentLight }}
+                        >
+                            <div className="amd-stat-top">
+                                <div className="amd-stat-icon-wrap" style={{ background: card.accentLight }}>
+                                    <span className="amd-stat-emoji">{card.icon}</span>
                                 </div>
-
+                                <div className="amd-stat-arrow">→</div>
                             </div>
-                            <p className="stat-value">
+                            <div className="amd-stat-value">
                                 {loading
-                                    ? <span className="loading-pulse" />
-                                    : stat.value
+                                    ? <span className="amd-skeleton" />
+                                    : card.value
                                 }
-                            </p>
-                            <p className="stat-label">{stat.label}</p>
-                            <div className="stat-accent" style={{ background: stat.accent }} />
+                            </div>
+                            <div className="amd-stat-label">{card.label}</div>
+                            <div className="amd-stat-desc">{card.desc}</div>
+                            <div
+                                className="amd-stat-bar"
+                                style={{ background: `linear-gradient(90deg, ${card.gradStart}, ${card.gradEnd})` }}
+                            />
                         </div>
                     ))}
                 </div>
 
-                {/* Quick Actions */}
-                <div className="section-label">⚡ Quick Actions</div>
-                <div className="actions-grid">
-                    {quickActions.map((action, idx) => (
-                        <div key={idx} className="action-card" onClick={() => navigate(action.path)}>
-                            <div className="action-icon" style={{ background: action.bg }}>
-                                {action.icon}
-                            </div>
-                            <div className="action-content">
-                                <h3>{action.label}</h3>
-                                <p>{action.desc}</p>
-                            </div>
-                            <span className="action-card-arrow">→</span>
-                        </div>
+                {/* Quick Access Links */}
+                <div className="amd-section-header" style={{ marginTop: '12px' }}>
+                    <span className="amd-section-title">Quick Access</span>
+                </div>
+                <div className="amd-quick-grid">
+                    {quickLinks.map((link, idx) => (
+                        <button
+                            key={idx}
+                            className="amd-quick-btn"
+                            onClick={() => navigate(link.path)}
+                            style={{ '--qbtn-color': link.color }}
+                        >
+                            <span className="amd-quick-icon" style={{ background: `${link.color}18` }}>{link.icon}</span>
+                            <span className="amd-quick-label">{link.label}</span>
+                            <span className="amd-quick-chevron">›</span>
+                        </button>
                     ))}
                 </div>
 

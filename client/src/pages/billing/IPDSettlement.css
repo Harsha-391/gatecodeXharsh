@@ -1,0 +1,434 @@
+/* ═══════════════════════════════════════════════════════════
+   IPD Settlement — Premium Design
+   ═══════════════════════════════════════════════════════════ */
+
+.ipd-settlement-page {
+    padding: 28px 32px;
+    min-height: 100vh;
+    background: #f8fafc;
+    font-family: 'Inter', system-ui, sans-serif;
+    position: relative;
+}
+
+/* Toast */
+.ipd-toast {
+    position: fixed;
+    top: 20px;
+    right: 24px;
+    padding: 12px 20px;
+    border-radius: 10px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    z-index: 9999;
+    cursor: pointer;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+}
+.ipd-toast-success { background: #10b981; color: #fff; }
+.ipd-toast-error   { background: #ef4444; color: #fff; }
+
+/* Header */
+.ipd-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+}
+.ipd-header-left { display: flex; align-items: center; gap: 16px; }
+.ipd-header-icon {
+    width: 52px;
+    height: 52px;
+    background: linear-gradient(135deg, var(--primary-color, #14b8a6), var(--primary-color-dark, #0d9488));
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 1.4rem;
+    box-shadow: 0 8px 20px var(--primary-color-fade, rgba(20,184,166,0.3));
+    flex-shrink: 0;
+}
+.ipd-header h1 { font-size: 1.6rem; font-weight: 800; color: #0f172a; margin: 0 0 4px; }
+.ipd-header p  { font-size: 0.85rem; color: #64748b; margin: 0; }
+
+/* Search Card */
+.ipd-search-card {
+    background: #fff;
+    border-radius: 16px;
+    padding: 28px;
+    border: 1.5px solid #f1f5f9;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.04);
+    margin-bottom: 24px;
+}
+.ipd-search-form { display: flex; gap: 12px; }
+.ipd-search-input-wrap {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+    background: #f8fafc;
+    border: 1.5px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 12px 16px;
+    transition: border-color 0.2s;
+}
+.ipd-search-input-wrap:focus-within { border-color: var(--primary-color, #14b8a6); }
+.ipd-search-input-wrap svg { color: #94a3b8; font-size: 1.1rem; flex-shrink: 0; }
+.ipd-search-input-wrap input {
+    border: none;
+    outline: none;
+    font-size: 0.9rem;
+    color: #0f172a;
+    background: transparent;
+    width: 100%;
+}
+.ipd-search-btn {
+    padding: 12px 28px;
+    background: linear-gradient(135deg, var(--primary-color, #14b8a6), var(--primary-color-dark, #0d9488));
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+    box-shadow: 0 4px 12px var(--primary-color-fade, rgba(20,184,166,0.3));
+}
+.ipd-search-btn:hover { transform: translateY(-1px); }
+.ipd-search-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.ipd-search-error {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #ef4444;
+    font-size: 0.875rem;
+    font-weight: 600;
+    margin-top: 12px;
+    padding: 10px 14px;
+    background: rgba(239,68,68,0.06);
+    border-radius: 8px;
+}
+
+/* Content */
+.ipd-content { display: flex; flex-direction: column; gap: 20px; }
+
+/* Patient Card */
+.ipd-patient-card {
+    background: linear-gradient(135deg, #0f172a, #1e293b);
+    border-radius: 16px;
+    padding: 24px 28px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    color: #fff;
+    box-shadow: 0 8px 24px rgba(15,23,42,0.15);
+    flex-wrap: wrap;
+}
+.ipd-avatar {
+    width: 56px;
+    height: 56px;
+    background: linear-gradient(135deg, #14b8a6, #06b6d4);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: #fff;
+    flex-shrink: 0;
+}
+.ipd-patient-info { flex: 1; }
+.ipd-patient-info h2 { font-size: 1.25rem; font-weight: 800; margin: 0 0 8px; }
+.ipd-patient-meta {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    font-size: 0.82rem;
+    color: rgba(255,255,255,0.7);
+}
+.ipd-patient-meta strong { color: #fff; }
+.ipd-patient-actions { flex-shrink: 0; }
+.ipd-btn-pdf {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 11px 20px;
+    background: rgba(255,255,255,0.1);
+    border: 1.5px solid rgba(255,255,255,0.2);
+    border-radius: 10px;
+    color: #fff;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    backdrop-filter: blur(4px);
+}
+.ipd-btn-pdf:hover { background: rgba(255,255,255,0.2); }
+
+/* Charges Grid */
+.ipd-charges-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 14px;
+}
+@media (max-width: 1100px) { .ipd-charges-grid { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 700px)  { .ipd-charges-grid { grid-template-columns: repeat(2, 1fr); } }
+
+.ipd-charge-card {
+    background: #fff;
+    border-radius: 14px;
+    padding: 20px;
+    border: 1.5px solid #f1f5f9;
+    border-top: 4px solid;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.ipd-charge-icon { font-size: 1.25rem; }
+.ipd-charge-label { font-size: 0.78rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em; }
+.ipd-charge-amt  { font-size: 1.25rem; font-weight: 800; color: #0f172a; }
+
+/* Financial Summary */
+.ipd-summary-card {
+    background: #fff;
+    border-radius: 16px;
+    padding: 24px 28px;
+    border: 1.5px solid #f1f5f9;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.04);
+}
+.ipd-summary-card h3 { font-size: 1rem; font-weight: 800; color: #0f172a; margin: 0 0 16px; }
+.ipd-summary-rows { display: flex; flex-direction: column; gap: 10px; }
+.ipd-summary-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    background: #f8fafc;
+    border-radius: 10px;
+    font-size: 0.9rem;
+}
+.ipd-summary-row span { display: flex; align-items: center; gap: 6px; color: #374151; font-weight: 500; }
+.ipd-summary-row strong { font-size: 1.05rem; color: #0f172a; }
+.ipd-paid-row    { background: rgba(16,185,129,0.06); }
+.ipd-balance-row { background: rgba(239,68,68,0.06); padding: 14px 16px; }
+
+/* Invoices Section */
+.ipd-invoices-section, .ipd-admissions-section {
+    background: #fff;
+    border-radius: 16px;
+    padding: 24px 28px;
+    border: 1.5px solid #f1f5f9;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.04);
+}
+.ipd-invoices-section h3, .ipd-admissions-section h3 {
+    font-size: 1rem;
+    font-weight: 800;
+    color: #0f172a;
+    margin: 0 0 16px;
+}
+.ipd-no-invoices {
+    padding: 24px;
+    text-align: center;
+    color: #94a3b8;
+    font-size: 0.875rem;
+    background: #f8fafc;
+    border-radius: 10px;
+}
+.ipd-invoice-list { display: flex; flex-direction: column; gap: 10px; }
+.ipd-invoice-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 14px 18px;
+    background: #f8fafc;
+    border-radius: 12px;
+    border: 1.5px solid #f1f5f9;
+    flex-wrap: wrap;
+}
+.ipd-inv-info { display: flex; flex-direction: column; gap: 2px; }
+.ipd-inv-num { font-family: monospace; font-weight: 700; color: var(--primary-color, #6366f1); font-size: 0.85rem; }
+.ipd-inv-info span { font-size: 0.78rem; color: #64748b; }
+.ipd-inv-amounts { display: flex; gap: 20px; font-size: 0.82rem; color: #64748b; flex: 1; }
+.ipd-inv-amounts strong { color: #0f172a; }
+.ipd-inv-status-badge {
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    background: #e0f2fe;
+    color: #0369a1;
+}
+.ipd-inv-status-badge[data-status="Paid"]          { background: rgba(16,185,129,0.1); color: #065f46; }
+.ipd-inv-status-badge[data-status="Pending"]        { background: rgba(245,158,11,0.1); color: #92400e; }
+.ipd-inv-status-badge[data-status="Partially Paid"] { background: rgba(59,130,246,0.1); color: #1d4ed8; }
+.ipd-inv-status-badge[data-status="Cancelled"]      { background: rgba(239,68,68,0.1);  color: #991b1b; }
+.ipd-collect-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    background: linear-gradient(135deg, var(--primary-color, #14b8a6), var(--primary-color-dark, #0d9488));
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-left: auto;
+}
+.ipd-collect-btn:hover { transform: translateY(-1px); }
+
+/* Admissions Table */
+.ipd-adm-table-wrap { overflow-x: auto; border-radius: 12px; border: 1.5px solid #f1f5f9; }
+.ipd-adm-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+}
+.ipd-adm-table th {
+    background: #f8fafc;
+    padding: 11px 16px;
+    text-align: left;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1.5px solid #e5e7eb;
+}
+.ipd-adm-table td {
+    padding: 13px 16px;
+    border-bottom: 1px solid #f1f5f9;
+    color: #1e293b;
+}
+.ipd-adm-table tbody tr:last-child td { border-bottom: none; }
+.ipd-adm-table tbody tr:hover { background: #fafbff; }
+
+.ipd-status-pill {
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    display: inline-block;
+}
+.ipd-status-admitted  { background: rgba(59,130,246,0.1); color: #1d4ed8; }
+.ipd-status-discharged { background: rgba(16,185,129,0.1); color: #065f46; }
+.ipd-pay-paid    { background: rgba(16,185,129,0.1); color: #065f46; }
+.ipd-pay-pending { background: rgba(245,158,11,0.1);  color: #92400e; }
+
+/* Modal */
+.ipd-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15,23,42,0.5);
+    backdrop-filter: blur(4px);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+.ipd-modal {
+    background: #fff;
+    border-radius: 20px;
+    width: 100%;
+    max-width: 480px;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.2);
+    animation: ipd-modal-in 0.25s ease;
+}
+@keyframes ipd-modal-in {
+    from { opacity: 0; transform: scale(0.95) translateY(16px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+.ipd-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 24px 28px 0;
+    margin-bottom: 20px;
+}
+.ipd-modal-header h2 {
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: #0f172a;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+}
+.ipd-modal-header button {
+    background: #f1f5f9;
+    border: none;
+    border-radius: 8px;
+    width: 34px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 1rem;
+    color: #64748b;
+    transition: all 0.2s;
+}
+.ipd-modal-header button:hover { background: #fee2e2; color: #ef4444; }
+.ipd-modal-form { padding: 0 28px 28px; }
+.ipd-modal-invoice-info {
+    display: flex;
+    gap: 20px;
+    font-size: 0.85rem;
+    color: #374151;
+    margin-bottom: 16px;
+    padding: 12px 16px;
+    background: #f8fafc;
+    border-radius: 10px;
+}
+.ipd-modal-invoice-info strong { color: #0f172a; }
+.ipd-form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+.ipd-form-group label { font-size: 0.82rem; font-weight: 700; color: #374151; }
+.ipd-form-group input,
+.ipd-form-group select {
+    padding: 10px 14px;
+    border: 1.5px solid #e5e7eb;
+    border-radius: 10px;
+    font-size: 0.875rem;
+    color: #0f172a;
+    font-family: inherit;
+    background: #f8fafc;
+    transition: border-color 0.2s;
+}
+.ipd-form-group input:focus,
+.ipd-form-group select:focus { outline: none; border-color: var(--primary-color, #14b8a6); background: #fff; }
+.ipd-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid #f1f5f9;
+}
+.ipd-btn-cancel {
+    padding: 10px 20px;
+    border-radius: 10px;
+    border: 1.5px solid #e5e7eb;
+    background: #fff;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #374151;
+    cursor: pointer;
+}
+.ipd-btn-collect {
+    padding: 10px 24px;
+    border-radius: 10px;
+    border: none;
+    background: linear-gradient(135deg, var(--primary-color, #14b8a6), var(--primary-color-dark, #0d9488));
+    color: #fff;
+    font-size: 0.875rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 4px 12px var(--primary-color-fade, rgba(20,184,166,0.3));
+}
+.ipd-btn-collect:hover { transform: translateY(-1px); }
+.ipd-btn-collect:disabled { opacity: 0.6; cursor: not-allowed; }

@@ -1,10 +1,10 @@
-/* AdmissionsOversight.css — Admissions Oversight Module Styling */
+/* AdmissionsOversight.css — Admissions Oversight Module Styling (Premium Light Theme) */
 
 .admissions-oversight-page {
     padding: 24px;
     min-height: 100vh;
-    background: var(--bg-primary, #0f172a);
-    color: var(--text-primary, #f1f5f9);
+    background: #f8fafc;
+    color: #334155;
     font-family: 'Inter', 'Segoe UI', sans-serif;
 }
 
@@ -21,13 +21,13 @@
 .oversight-header-left h1 {
     font-size: 1.75rem;
     font-weight: 850;
-    color: #f1f5f9;
+    color: #0f172a;
     margin: 0 0 6px;
     letter-spacing: -0.02em;
 }
 
 .oversight-header-left p {
-    color: #94a3b8;
+    color: #64748b;
     font-size: 0.9rem;
     margin: 0;
     display: flex;
@@ -52,18 +52,20 @@
     gap: 6px;
     padding: 8px 16px;
     border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.08);
-    color: #cbd5e1;
+    border: 1px solid #e2e8f0;
+    background: #ffffff;
+    color: #475569;
     font-size: 0.875rem;
     font-weight: 500;
     cursor: pointer;
     transition: all 0.2s ease;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .btn-refresh-oversight:hover {
-    background: rgba(255, 255, 255, 0.15);
-    border-color: rgba(255, 255, 255, 0.2);
+    background: #f8fafc;
+    border-color: #cbd5e1;
+    color: #0f172a;
     transform: translateY(-1px);
 }
 
@@ -76,22 +78,22 @@
 }
 
 .oversight-stat-card {
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: #ffffff;
+    border: 1px solid #f1f5f9;
     border-radius: 14px;
     padding: 16px 20px;
     display: flex;
     align-items: center;
     gap: 14px;
-    backdrop-filter: blur(12px);
     transition: all 0.25s ease;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
 .oversight-stat-card:hover {
     transform: translateY(-2px);
-    background: rgba(255, 255, 255, 0.07);
-    border-color: rgba(255, 255, 255, 0.15);
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+    background: #ffffff;
+    border-color: #cbd5e1;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
 }
 
 .oversight-stat-icon {
@@ -105,13 +107,13 @@
     flex-shrink: 0;
 }
 
-.oversight-stat-icon.primary { background: rgba(99, 102, 241, 0.15); color: #818cf8; }
-.oversight-stat-icon.success { background: rgba(34, 197, 94, 0.15); color: #4ade80; }
-.oversight-stat-icon.danger { background: rgba(239, 68, 68, 0.15); color: #f87171; }
-.oversight-stat-icon.warning { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
-.oversight-stat-icon.teal { background: rgba(20, 184, 166, 0.15); color: #2dd4bf; }
-.oversight-stat-icon.pink { background: rgba(236, 72, 153, 0.15); color: #f472b6; }
-.oversight-stat-icon.blue { background: rgba(14, 165, 233, 0.15); color: #38bdf8; }
+.oversight-stat-icon.primary { background: rgba(99, 102, 241, 0.1); color: #4f46e5; }
+.oversight-stat-icon.success { background: rgba(34, 197, 94, 0.1); color: #16a34a; }
+.oversight-stat-icon.danger { background: rgba(239, 68, 68, 0.1); color: #dc2626; }
+.oversight-stat-icon.warning { background: rgba(245, 158, 11, 0.1); color: #d97706; }
+.oversight-stat-icon.teal { background: rgba(20, 184, 166, 0.1); color: #0d9488; }
+.oversight-stat-icon.pink { background: rgba(236, 72, 153, 0.1); color: #db2777; }
+.oversight-stat-icon.blue { background: rgba(14, 165, 233, 0.1); color: #0284c7; }
 
 .oversight-stat-info {
     flex: 1;
@@ -122,14 +124,14 @@
     display: block;
     font-size: 1.6rem;
     font-weight: 800;
-    color: #f8fafc;
+    color: #0f172a;
     line-height: 1.1;
 }
 
 .oversight-stat-label {
     display: block;
     font-size: 0.75rem;
-    color: #94a3b8;
+    color: #64748b;
     margin-top: 4px;
     font-weight: 500;
     white-space: nowrap;
@@ -140,7 +142,7 @@
 /* ── Tabs Configuration ──────────────────────────────────────────────────────── */
 .oversight-tabs-row {
     display: flex;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    border-bottom: 1px solid #e2e8f0;
     gap: 8px;
     margin-bottom: 24px;
     overflow-x: auto;
@@ -159,7 +161,7 @@
     background: transparent;
     border: none;
     border-bottom: 2px solid transparent;
-    color: #94a3b8;
+    color: #64748b;
     font-size: 0.9rem;
     font-weight: 600;
     cursor: pointer;
@@ -168,25 +170,25 @@
 }
 
 .tab-btn:hover {
-    color: #cbd5e1;
-    background: rgba(255, 255, 255, 0.02);
+    color: #0f172a;
+    background: #f1f5f9;
     border-radius: 8px 8px 0 0;
 }
 
 .tab-btn.active {
-    color: #38bdf8;
-    border-bottom-color: #38bdf8;
+    color: #0ea5e9;
+    border-bottom-color: #0ea5e9;
     background: rgba(14, 165, 233, 0.05);
     border-radius: 8px 8px 0 0;
 }
 
 /* ── Glass Container ─────────────────────────────────────────────────────────── */
 .oversight-glass-container {
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
     border-radius: 16px;
     padding: 24px;
-    backdrop-filter: blur(16px);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px -1px rgba(0, 0, 0, 0.02);
 }
 
 /* ── Filters Section ──────────────────────────────────────────────────────────── */
@@ -196,8 +198,8 @@
     gap: 16px;
     margin-bottom: 20px;
     padding: 16px;
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid rgba(255, 255, 255, 0.04);
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
     border-radius: 12px;
 }
 
@@ -216,20 +218,24 @@
 
 .search-box-wrap input {
     width: 100%;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
     border-radius: 10px;
-    color: #f1f5f9;
+    color: #1e293b;
     font-size: 0.875rem;
     padding: 10px 14px 10px 38px;
     outline: none;
     transition: all 0.2s ease;
 }
 
+.search-box-wrap input::placeholder {
+    color: #94a3b8;
+}
+
 .search-box-wrap input:focus {
-    border-color: rgba(56, 189, 248, 0.5);
-    background: rgba(255, 255, 255, 0.09);
-    box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.15);
+    border-color: #0ea5e9;
+    background: #ffffff;
+    box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.15);
 }
 
 .search-box-wrap .search-icon {
@@ -264,10 +270,10 @@
 
 .filter-input-wrap select,
 .filter-input-wrap input[type="date"] {
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
     border-radius: 8px;
-    color: #cbd5e1;
+    color: #334155;
     font-size: 0.85rem;
     padding: 8px 10px;
     outline: none;
@@ -277,20 +283,21 @@
 
 .filter-input-wrap select:focus,
 .filter-input-wrap input[type="date"]:focus {
-    border-color: rgba(56, 189, 248, 0.5);
+    border-color: #0ea5e9;
 }
 
 .filter-input-wrap input[type="date"]::-webkit-calendar-picker-indicator {
-    filter: invert(0.6);
+    filter: none;
+    opacity: 0.6;
 }
 
 .btn-clear-oversight-filters {
     display: flex;
     align-items: center;
     gap: 6px;
-    background: rgba(239, 68, 68, 0.15);
-    border: 1px solid rgba(239, 68, 68, 0.3);
-    color: #fca5a5;
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    color: #dc2626;
     border-radius: 8px;
     padding: 8px 14px;
     font-size: 0.85rem;
@@ -302,7 +309,8 @@
 }
 
 .btn-clear-oversight-filters:hover {
-    background: rgba(239, 68, 68, 0.25);
+    background: rgba(239, 68, 68, 0.15);
+    color: #b91c1c;
     transform: translateY(-1px);
 }
 
@@ -310,8 +318,8 @@
 .oversight-table-wrap {
     overflow-x: auto;
     border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    background: rgba(15, 23, 42, 0.25);
+    border: 1px solid #e2e8f0;
+    background: #ffffff;
     margin-top: 12px;
 }
 
@@ -323,11 +331,11 @@
 }
 
 .oversight-table th {
-    background: rgba(255, 255, 255, 0.03);
+    background: #f8fafc;
     padding: 14px 16px;
     font-weight: 600;
-    color: #94a3b8;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    color: #475569;
+    border-bottom: 1px solid #e2e8f0;
     font-size: 0.8rem;
     text-transform: uppercase;
     letter-spacing: 0.05em;
@@ -335,8 +343,8 @@
 
 .oversight-table td {
     padding: 14px 16px;
-    color: #cbd5e1;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    color: #334155;
+    border-bottom: 1px solid #f1f5f9;
 }
 
 .oversight-table tr:last-child td {
@@ -344,8 +352,8 @@
 }
 
 .oversight-table tr:hover td {
-    background: rgba(255, 255, 255, 0.01);
-    color: #f1f5f9;
+    background: #f8fafc;
+    color: #0f172a;
 }
 
 /* Badges */
@@ -358,23 +366,23 @@
     font-weight: 600;
 }
 
-.badge-oversight.admitted { background: rgba(34, 197, 94, 0.12); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.25); }
-.badge-oversight.observation { background: rgba(14, 165, 233, 0.12); color: #38bdf8; border: 1px solid rgba(14, 165, 233, 0.25); }
-.badge-oversight.pending-transfer { background: rgba(245, 158, 11, 0.12); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.25); }
-.badge-oversight.transferred { background: rgba(99, 102, 241, 0.12); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.25); }
-.badge-oversight.pending-discharge { background: rgba(236, 72, 153, 0.12); color: #f472b6; border: 1px solid rgba(236, 72, 153, 0.25); }
-.badge-oversight.discharged { background: rgba(100, 116, 139, 0.15); color: #94a3b8; border: 1px solid rgba(100, 116, 139, 0.25); }
+.badge-oversight.admitted { background: rgba(34, 197, 94, 0.1); color: #166534; border: 1px solid rgba(34, 197, 94, 0.2); }
+.badge-oversight.observation { background: rgba(14, 165, 233, 0.1); color: #0369a1; border: 1px solid rgba(14, 165, 233, 0.2); }
+.badge-oversight.pending-transfer { background: rgba(245, 158, 11, 0.1); color: #854d0e; border: 1px solid rgba(245, 158, 11, 0.2); }
+.badge-oversight.transferred { background: rgba(99, 102, 241, 0.1); color: #3730a3; border: 1px solid rgba(99, 102, 241, 0.2); }
+.badge-oversight.pending-discharge { background: rgba(236, 72, 153, 0.1); color: #9d174d; border: 1px solid rgba(236, 72, 153, 0.2); }
+.badge-oversight.discharged { background: rgba(100, 116, 139, 0.1); color: #475569; border: 1px solid rgba(100, 116, 139, 0.25); }
 
 .cell-patient-name {
     font-weight: 600;
-    color: #f1f5f9;
+    color: #0f172a;
 }
 
 .cell-uhid {
     font-family: 'JetBrains Mono', 'Courier New', monospace;
     font-size: 0.78rem;
-    color: #38bdf8;
-    background: rgba(14, 165, 233, 0.08);
+    color: #0284c7;
+    background: rgba(14, 165, 233, 0.1);
     padding: 2px 6px;
     border-radius: 4px;
 }
@@ -382,7 +390,7 @@
 .cell-bed {
     font-family: monospace;
     font-weight: 700;
-    color: #e2e8f0;
+    color: #334155;
 }
 
 /* ── Bed Occupancy View ──────────────────────────────────────────────────────── */
@@ -399,8 +407,8 @@
 }
 
 .bed-summary-card {
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
     border-radius: 12px;
     padding: 20px;
 }
@@ -408,7 +416,7 @@
 .bed-summary-card h3 {
     margin: 0 0 16px;
     font-size: 1.1rem;
-    color: #e2e8f0;
+    color: #1e293b;
     display: flex;
     align-items: center;
     gap: 8px;
@@ -416,7 +424,7 @@
 
 .progress-bar-container {
     height: 10px;
-    background: rgba(255, 255, 255, 0.08);
+    background: #f1f5f9;
     border-radius: 5px;
     overflow: hidden;
     margin-bottom: 12px;
@@ -440,13 +448,13 @@
     display: flex;
     justify-content: space-between;
     font-size: 0.85rem;
-    color: #94a3b8;
+    color: #64748b;
 }
 
 /* Wards monitoring visualization */
 .ward-visualization-section {
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
     border-radius: 12px;
     padding: 20px;
 }
@@ -454,7 +462,7 @@
 .ward-visualization-section h3 {
     margin: 0 0 16px;
     font-size: 1.1rem;
-    color: #e2e8f0;
+    color: #1e293b;
 }
 
 .beds-layout-grid {
@@ -477,15 +485,15 @@
 }
 
 .bed-cell-monitor.available {
-    background: rgba(34, 197, 94, 0.08);
-    color: #4ade80;
-    border-color: rgba(34, 197, 94, 0.15);
+    background: rgba(34, 197, 94, 0.1);
+    color: #166534;
+    border-color: rgba(34, 197, 94, 0.2);
 }
 
 .bed-cell-monitor.occupied {
-    background: rgba(239, 68, 68, 0.08);
-    color: #f87171;
-    border-color: rgba(239, 68, 68, 0.15);
+    background: rgba(239, 68, 68, 0.1);
+    color: #991b1b;
+    border-color: rgba(239, 68, 68, 0.2);
 }
 
 .bed-cell-label {
@@ -513,8 +521,8 @@
 }
 
 .discharge-category-block {
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
     border-radius: 12px;
     padding: 16px;
 }
@@ -522,20 +530,21 @@
 .discharge-category-block h4 {
     margin: 0 0 12px;
     font-size: 0.95rem;
-    color: #cbd5e1;
+    color: #475569;
     display: flex;
     align-items: center;
     gap: 6px;
 }
 
-.discharge-category-block h4.today { color: #4ade80; }
-.discharge-category-block h4.upcoming { color: #60a5fa; }
-.discharge-category-block h4.delayed { color: #f87171; }
+.discharge-category-block h4.today { color: #166534; }
+.discharge-category-block h4.upcoming { color: #1d4ed8; }
+.discharge-category-block h4.delayed { color: #991b1b; }
 
 .discharge-patient-item {
     padding: 10px;
     border-radius: 8px;
-    background: rgba(255, 255, 255, 0.03);
+    background: #ffffff;
+    border: 1px solid #f1f5f9;
     margin-bottom: 8px;
     display: flex;
     justify-content: space-between;

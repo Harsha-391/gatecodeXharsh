@@ -48,6 +48,12 @@ const userSchema = new mongoose.Schema({
     customPermissions: [{ type: String, trim: true }],
     deniedPermissions: [{ type: String, trim: true }],
 
+    // Staff Compensation configuration
+    basicSalary: { type: Number, default: 0 },
+    allowances: { type: Number, default: 0 },
+    deductions: { type: Number, default: 0 },
+    designation: { type: String, default: '' },
+
     // Profile Image
     avatar: { type: String, default: null },
 
