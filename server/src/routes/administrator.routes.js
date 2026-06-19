@@ -1230,47 +1230,142 @@ router.get('/reports', verifyAdministratorAccess, auditLog('DATA_EXPORT', null, 
         if (startDate) dateFilter.$gte = new Date(startDate);
         if (endDate) dateFilter.$lte = new Date(new Date(endDate).setHours(23, 59, 59, 999));
 
-        // 1. Patients Registry
-        const patientReports = await User.find({ role: { $in: [null, 'patient', 'Patient'] }, hospitalId }).select('name email phone patientId dob gender bloodGroup city createdAt').lean();
+        // 1. Prepare parallel queries concurrently to avoid sequential round-trip latency
+        const patientReportsPromise = User.find({ role: { $in: [null, 'patient', 'Patient'] }, hospitalId })
+            .select('name email phone patientId dob gender bloodGroup city createdAt')
+            .lean()
+            .catch(() => []);
 
-        // 2. Appointments Report
         const appointmentQuery = { hospitalId };
         if (startDate || endDate) appointmentQuery.appointmentDate = dateFilter;
-        const appointmentReports = await Appointment.find(appointmentQuery).select('doctorName serviceName appointmentDate appointmentTime status paymentStatus amount').lean();
+        const appointmentReportsPromise = Appointment.find(appointmentQuery)
+            .select('doctorName serviceName appointmentDate appointmentTime status paymentStatus amount')
+            .lean()
+            .catch(() => []);
 
-        // 3. Admissions & IPD Report
         const admissionQuery = { hospitalId };
         if (startDate || endDate) admissionQuery.admissionDate = dateFilter;
-        const admissionReports = await Admission.find(admissionQuery).select('patientName admissionDate dischargeDate status ward bedNumber priority paymentStatus totalAmount').lean();
+        const admissionReportsPromise = Admission.find(admissionQuery)
+            .select('patientName admissionDate dischargeDate status ward bedNumber priority paymentStatus totalAmount')
+            .lean()
+            .catch(() => []);
 
-        // 4. Laboratory Report
         const labQuery = { hospitalId };
         if (startDate || endDate) labQuery.createdAt = dateFilter;
-        const labReports = await LabReport.find(labQuery).select('patientId testNames testStatus reportStatus paymentStatus paymentMode amount sampleCollected sampleCollectedAt sampleType status notes createdAt').lean();
+        const labReportsPromise = LabReport.find(labQuery)
+            .select('patientId testNames testStatus reportStatus paymentStatus paymentMode amount sampleCollected sampleCollectedAt sampleType status notes createdAt')
+            .lean()
+            .catch(() => []);
 
-        // 5. Pharmacy Report
         const pharmaQuery = { hospitalId };
         if (startDate || endDate) pharmaQuery.createdAt = dateFilter;
-        const pharmacyReports = await PharmacyOrder.find(pharmaQuery).select('patientId items totalAmount totalCost paymentStatus orderStatus createdAt').lean();
+        const pharmacyReportsPromise = PharmacyOrder.find(pharmaQuery)
+            .select('patientId items totalAmount totalCost paymentStatus orderStatus createdAt')
+            .lean()
+            .catch(() => []);
 
-        // 6. Doctor Master Report — NO salary/payroll/bank/commission data
-        const doctorReports = await Doctor.find({ hospitalId }).select('doctorId name departments specialization qualification medicalLicense joiningDate availability status employmentType experienceYears specialty').lean();
+        const doctorReportsPromise = Doctor.find({ hospitalId })
+            .select('doctorId name departments specialization qualification medicalLicense joiningDate availability status employmentType experienceYears specialty')
+            .lean()
+            .catch(() => []);
 
-        // 7. Billing & Invoices Report
         const invoiceQuery = { hospitalId };
         if (startDate || endDate) invoiceQuery.invoiceDate = dateFilter;
-        const revenueReports = await Invoice.find(invoiceQuery).select('invoiceNumber invoiceDate patientName grandTotal amountPaid outstandingAmount paymentStatus').lean();
+        const revenueReportsPromise = Invoice.find(invoiceQuery)
+            .select('invoiceNumber invoiceDate patientName grandTotal amountPaid outstandingAmount paymentStatus')
+            .lean()
+            .catch(() => []);
 
-        // 8. Insurance Claims Report
-        let insuranceClaims = [];
-        try {
-            const claimQuery = { hospitalId };
-            if (startDate || endDate) claimQuery.submissionDate = dateFilter;
-            insuranceClaims = await InsuranceClaim.find(claimQuery).select('claimNumber patientName policyNumber insuranceProvider invoiceNumber claimAmount approvedAmount status treatmentDescription submissionDate actionDate').lean();
-        } catch (e) { insuranceClaims = []; }
+        const claimQuery = { hospitalId };
+        if (startDate || endDate) claimQuery.submissionDate = dateFilter;
+        const insuranceClaimsPromise = InsuranceClaim.find(claimQuery)
+            .select('claimNumber patientName policyNumber insuranceProvider invoiceNumber claimAmount approvedAmount status treatmentDescription submissionDate actionDate')
+            .lean()
+            .catch(() => []);
 
-        // 9. Financial Summary (Admin read-only view — totals only, NOT accountant P&L)
-        const allInvoices = await Invoice.find({ hospitalId }).select('invoiceDate amountPaid grandTotal outstandingAmount paymentStatus items').lean();
+        const allInvoicesPromise = Invoice.find({ hospitalId })
+            .select('invoiceDate amountPaid grandTotal outstandingAmount paymentStatus items')
+            .lean()
+            .catch(() => []);
+
+        const currentAdmissionsPromise = Admission.find({ hospitalId, status: 'Admitted' })
+            .select('patientName ward bedNumber admissionDate priority')
+            .lean()
+            .catch(() => []);
+
+        const dischargedPromise = Admission.find({ hospitalId, status: 'Discharged' })
+            .select('patientName ward bedNumber admissionDate dischargeDate')
+            .lean()
+            .catch(() => []);
+
+        const servicesReportPromise = (async () => {
+            try {
+                const serviceQuery = {};
+                if (hospitalId) serviceQuery.hospitalId = hospitalId;
+                let res = await Service.find(serviceQuery)
+                    .select('title description category serviceType price gst billingType duration active department visibility')
+                    .lean();
+                if (!res.length) {
+                    res = await Service.find({})
+                        .select('title description category serviceType price gst billingType duration active department visibility')
+                        .lean();
+                }
+                return res;
+            } catch (e) {
+                return [];
+            }
+        })();
+
+        const auditEntriesPromise = (async () => {
+            try {
+                const auditQuery = {};
+                // AuditLog schema uses clinicId for hospital context and has compound index on { clinicId: 1, createdAt: -1 }
+                if (hospitalId) auditQuery.clinicId = hospitalId;
+                if (startDate || endDate) auditQuery.createdAt = dateFilter;
+                return await AuditLog.find(auditQuery)
+                    .select('action userId userEmail role ip success severity createdAt')
+                    .sort({ createdAt: -1 })
+                    .limit(500)
+                    .lean();
+            } catch (e) {
+                return [];
+            }
+        })();
+
+        // 2. Execute all queries concurrently in parallel
+        const [
+            patientReports,
+            appointmentReports,
+            admissionReports,
+            labReports,
+            pharmacyReports,
+            doctorReports,
+            revenueReports,
+            rawInsuranceClaims,
+            allInvoices,
+            currentAdmissions,
+            discharged,
+            servicesReport,
+            auditEntries
+        ] = await Promise.all([
+            patientReportsPromise,
+            appointmentReportsPromise,
+            admissionReportsPromise,
+            labReportsPromise,
+            pharmacyReportsPromise,
+            doctorReportsPromise,
+            revenueReportsPromise,
+            insuranceClaimsPromise,
+            allInvoicesPromise,
+            currentAdmissionsPromise,
+            dischargedPromise,
+            servicesReportPromise,
+            auditEntriesPromise
+        ]);
+
+        const insuranceClaims = rawInsuranceClaims || [];
+
+        // 3. Compute Financial Summary
         const totalRevenue = allInvoices.reduce((s, i) => s + (i.amountPaid || 0), 0);
         const totalBilled = allInvoices.reduce((s, i) => s + (i.grandTotal || 0), 0);
         const totalOutstanding = allInvoices.reduce((s, i) => s + (i.outstandingAmount || 0), 0);
@@ -1304,9 +1399,7 @@ router.get('/reports', verifyAdministratorAccess, auditLog('DATA_EXPORT', null, 
             totalInvoices: allInvoices.length, departmentBreakdown: deptRevenue, monthlyBreakdown
         };
 
-        // 10. Bed Occupancy Report
-        const currentAdmissions = await Admission.find({ hospitalId, status: 'Admitted' }).select('patientName ward bedNumber admissionDate priority').lean();
-        const discharged = await Admission.find({ hospitalId, status: 'Discharged' }).select('patientName ward bedNumber admissionDate dischargeDate').lean();
+        // 4. Compute Bed Occupancy stats
         const totalBedCount = 50; // 40 Ward + 10 ICU
         const icuOccupied = currentAdmissions.filter(a => a.ward === 'ICU').length;
         const wardOccupied = currentAdmissions.filter(a => a.ward !== 'ICU').length;
@@ -1321,33 +1414,24 @@ router.get('/reports', verifyAdministratorAccess, auditLog('DATA_EXPORT', null, 
             recentDischarges: discharged.slice(-20)
         };
 
-        // 11. Services Report
-        let servicesReport = [];
-        try {
-            const serviceQuery = {};
-            if (hospitalId) serviceQuery.hospitalId = hospitalId;
-            servicesReport = await Service.find(serviceQuery).select('title description category serviceType price gst billingType duration active department visibility').lean();
-            if (!servicesReport.length) {
-                servicesReport = await Service.find({}).select('title description category serviceType price gst billingType duration active department visibility').lean();
-            }
-        } catch (e) { servicesReport = []; }
+        // 5. Process Audit Summary mapping to target client properties
+        const auditSummary = auditEntries.map(entry => ({
+            action: entry.action,
+            userId: entry.userId,
+            userEmail: entry.userEmail,
+            userRole: entry.role || '—',
+            ipAddress: entry.ip || '—',
+            severity: entry.severity,
+            status: entry.success ? 'Success' : 'Failure',
+            timestamp: entry.createdAt
+        }));
 
-        // 12. Audit Summary Report (last 500 entries, grouped summary)
-        let auditSummary = [];
-        let auditByAction = {};
-        try {
-            const auditQuery = {};
-            if (hospitalId) auditQuery.hospitalId = hospitalId;
-            if (startDate || endDate) auditQuery.timestamp = dateFilter;
-            const auditEntries = await AuditLog.find(auditQuery).select('action userId userEmail userRole ipAddress timestamp severity status').sort({ timestamp: -1 }).limit(500).lean();
-            auditSummary = auditEntries;
-            // Group by action
-            auditEntries.forEach(e => {
-                const key = e.action || 'UNKNOWN';
-                if (!auditByAction[key]) auditByAction[key] = 0;
-                auditByAction[key]++;
-            });
-        } catch (e) { auditSummary = []; }
+        const auditByAction = {};
+        auditEntries.forEach(entry => {
+            const key = entry.action || 'UNKNOWN';
+            if (!auditByAction[key]) auditByAction[key] = 0;
+            auditByAction[key]++;
+        });
 
         res.json({
             success: true,
