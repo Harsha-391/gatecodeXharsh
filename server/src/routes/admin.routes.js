@@ -993,10 +993,30 @@ router.get('/dashboard-stats', verifyToken, verifyAdminOrSuperAdmin, async (req,
         });
 
         // 2. Count roles (scoped to hospital or global templates, excluding Patient and Administrator)
-        const totalRoles = await Role.countDocuments({
-            $or: [{ hospitalId }, { hospitalId: null }],
-            name: { $nin: ['Patient', 'patient', 'Administrator', 'administrator'] }
+        const roles = await Role.find({
+            $or: [{ hospitalId }, { hospitalId: null }]
+        }).select('name hospitalId').lean();
+
+        const seenNames = new Set();
+        let totalRoles = 0;
+
+        // Sort: hospital-scoped (non-null) first, global templates (null) last
+        roles.sort((a, b) => {
+            const aVal = a.hospitalId ? 1 : 0;
+            const bVal = b.hospitalId ? 1 : 0;
+            return bVal - aVal;
         });
+
+        for (const r of roles) {
+            const normalizedName = r.name.trim().toLowerCase();
+            if (normalizedName === 'patient' || normalizedName === 'administrator') {
+                continue;
+            }
+            if (!seenNames.has(normalizedName)) {
+                seenNames.add(normalizedName);
+                totalRoles++;
+            }
+        }
 
         // 3. Count doctors (from Doctor collection)
         const totalDoctors = await Doctor.countDocuments({ hospitalId });
