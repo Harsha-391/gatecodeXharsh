@@ -758,31 +758,7 @@ const StaffAppointmentManager = ({ user, servicesData, doctorsData, navigate }) 
   const [error, setError] = useState('');
 
   const handleScheduleFollowUp = (appt) => {
-    const patient = appt.userId || {
-      name: appt.patientName || '',
-      phone: appt.patientPhone || '',
-      email: appt.patientEmail || '',
-      _id: appt.userId || appt.patientId
-    };
-    setSelectedPatient(patient);
-    
-    const doctorId = appt.doctorId?._id || appt.doctorId;
-    const serviceId = appt.serviceId || '';
-    const defaultFee = appt.amount || '';
-    
-    setBookingForm({
-      serviceId: serviceId,
-      doctorId: doctorId,
-      appointmentDate: new Date().toISOString().split('T')[0],
-      appointmentTime: '',
-      amount: defaultFee,
-      paymentMethod: 'Cash',
-      paymentStatus: 'Paid',
-      notes: 'Report Review Follow-up'
-    });
-    
-    setParentAppointmentId(appt._id);
-    setActiveTab('book');
+    navigate('/reception/dashboard', { state: { openIntake: true, followUpAppointment: appt } });
   };
 
   // Hospital, Admissions & Hospitalize states

@@ -207,11 +207,18 @@ const ReceptionDashboard = () => {
 
     useEffect(() => {
         if (location.state?.openIntake) {
-            setViewMode('intake');
-            // Clear the state so refreshing doesn't keep opening it
-            navigate(location.pathname, { replace: true, state: {} });
+            if (location.state.followUpAppointment) {
+                if (doctorsList.length > 0) {
+                    setViewMode('intake');
+                    handleScheduleFollowUp(location.state.followUpAppointment);
+                    navigate(location.pathname, { replace: true, state: {} });
+                }
+            } else {
+                setViewMode('intake');
+                navigate(location.pathname, { replace: true, state: {} });
+            }
         }
-    }, [location.state, navigate]);
+    }, [location.state, navigate, doctorsList]);
 
     useEffect(() => {
         const viewParam = searchParams.get('view');
@@ -551,6 +558,17 @@ const ReceptionDashboard = () => {
         const doctor = doctorsList.find(d => d._id === doctorId);
         const dept = doctor ? (doctor.departments?.[0] || doctor.specialty || doctor.specialization || '') : '';
 
+        const parseDob = (dobValue) => {
+            if (!dobValue) return '';
+            try {
+                const d = new Date(dobValue);
+                if (isNaN(d.getTime())) return '';
+                return d.toISOString().split('T')[0];
+            } catch (e) {
+                return '';
+            }
+        };
+
         setIntakeForm(prev => ({
             ...prev,
             firstName: getVal(patient.name).split(' ')[0],
@@ -558,7 +576,7 @@ const ReceptionDashboard = () => {
             mobile: getVal(patient.phone),
             email: getVal(patient.email),
             gender: getVal(patient.gender || 'Female'),
-            dob: getVal(patient.dob ? new Date(patient.dob).toISOString().split('T')[0] : ''),
+            dob: parseDob(patient.dob),
             aadhaar: p.aadhaar || '',
             isAadhaarVerified: p.aadhaar ? true : false,
             ...p,
