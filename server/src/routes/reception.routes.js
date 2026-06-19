@@ -400,16 +400,149 @@ router.get('/appointments', verifyToken, verifyReception, async (req, res) => {
 
 // 5. RESCHEDULE & CANCEL
 router.patch('/appointments/:id/reschedule', verifyToken, verifyReception, async (req, res) => {
-    const { id } = req.params; const { date, time } = req.body;
+    const { id } = req.params;
+    const { date, time, doctorId } = req.body;
     const reschQuery = { _id: id };
     if (req.user.hospitalId) reschQuery.hospitalId = req.user.hospitalId;
     const { Appointment } = getModels(req);
     const appt = await Appointment.findOne(reschQuery);
     if (!appt) return res.status(404).json({ success: false, message: 'Appointment not found or unauthorized' });
-    appt.appointmentDate = date;
-    appt.appointmentTime = time;
-    appt.status = 'confirmed';
+
+    let finalTime = time;
+    const resolvedDoctorId = doctorId || appt.doctorId;
+    let finalDoctorId = appt.doctorId;
+    let finalDoctorUserId = appt.doctorUserId;
+    let finalDoctorName = appt.doctorName;
+    let finalTokenNumber = appt.tokenNumber;
+
+    if (resolvedDoctorId) {
+        const doctor = await Doctor.findById(resolvedDoctorId);
+        if (doctor) {
+            finalDoctorId = doctor._id;
+            finalDoctorUserId = doctor.userId;
+            finalDoctorName = doctor.name;
+            
+            // Check if hospital is in token mode, then assign token number
+            const Hospital = require('../models/hospital.model');
+            const hospitalId = appt.hospitalId || req.user.hospitalId;
+            const hospital = hospitalId ? await Hospital.findById(hospitalId).select('appointmentMode') : null;
+            if (hospital?.appointmentMode === 'token') {
+                const startOfDay = new Date(date);
+                startOfDay.setUTCHours(0, 0, 0, 0);
+                const endOfDay = new Date(date);
+                endOfDay.setUTCHours(23, 59, 59, 999);
+                
+                const count = await Appointment.countDocuments({
+                    doctorId: doctor._id,
+                    appointmentDate: { $gte: startOfDay, $lte: endOfDay },
+                    status: { $ne: 'cancelled' },
+                    _id: { $ne: id }
+                });
+                const tokenNumber = count + 1;
+                finalTokenNumber = tokenNumber;
+                finalTime = `token-${tokenNumber}`;
+            } else {
+                finalTokenNumber = null;
+            }
+        }
+    }
+
+    if (appt.status === 'completed') {
+        // Create a new follow-up appointment instead of mutating the completed one
+        const appointmentData = {
+            userId: appt.userId,
+            patientId: appt.patientId || 'WALK-IN',
+            patientName: appt.patientName,
+            patientPhone: appt.patientPhone,
+            patientEmail: appt.patientEmail || '',
+            patientGender: appt.patientGender || 'Male',
+            patientDob: appt.patientDob || null,
+            hospitalId: appt.hospitalId || req.user.hospitalId,
+            doctorId: finalDoctorId,
+            doctorUserId: finalDoctorUserId,
+            doctorName: finalDoctorName,
+            serviceId: appt.serviceId || 'general',
+            serviceName: appt.serviceName || 'Walk-in Visit',
+            appointmentDate: new Date(date),
+            appointmentTime: finalTime || '',
+            tokenNumber: finalTokenNumber,
+            status: 'pending',
+            paymentStatus: 'Paid',
+            paymentMethod: 'Cash',
+            amount: 0,
+            notes: 'Follow-up appointment rescheduled from past completed session',
+            bookedBy: req.user.id || req.user.userId
+        };
+
+        const newMasterAppointment = new MasterAppointment(appointmentData);
+        await newMasterAppointment.save();
+
+        if (req.tenantDb) {
+            const TenantAppointment = getTenantModels(req.tenantDb).Appointment;
+            const newTenantAppointment = new TenantAppointment({
+                ...appointmentData,
+                _id: newMasterAppointment._id
+            });
+            await newTenantAppointment.save();
+        }
+
+        // Set followUpScheduled to true on the old completed appointment in both DBs
+        appt.followUpScheduled = true;
+        await appt.save();
+
+        if (req.tenantDb) {
+            await MasterAppointment.findByIdAndUpdate(appt._id, { $set: { followUpScheduled: true } });
+        }
+
+        const io = req.app.get('io');
+        if (io) {
+            const hId = appt.hospitalId || req.user.hospitalId;
+            const docIdStr = finalDoctorId ? finalDoctorId.toString() : '';
+            const docUserIdStr = finalDoctorUserId ? finalDoctorUserId.toString() : '';
+
+            io.to('receptionist').to('reception').to('receptiondeskmanager').emit('appointment_created', newMasterAppointment);
+            if (docIdStr) io.to(docIdStr).emit('appointment_created', newMasterAppointment);
+            if (docUserIdStr) io.to(docUserIdStr).emit('appointment_created', newMasterAppointment);
+            io.to('doctor').emit('appointment_created', newMasterAppointment);
+
+            if (hId) {
+                const hospRoom = `hospital_${hId}`;
+                io.to(hospRoom).emit('appointment_created', newMasterAppointment);
+                io.to(`${hospRoom}_receptionist`).to(`${hospRoom}_reception`).to(`${hospRoom}_receptiondeskmanager`).emit('appointment_created', newMasterAppointment);
+                if (docIdStr) io.to(`${hospRoom}_${docIdStr}`).emit('appointment_created', newMasterAppointment);
+                if (docUserIdStr) io.to(`${hospRoom}_${docUserIdStr}`).emit('appointment_created', newMasterAppointment);
+                io.to(`${hospRoom}_doctor`).emit('appointment_created', newMasterAppointment);
+            }
+        }
+
+        return res.json({ success: true, message: 'Follow-up scheduled successfully', appointment: newMasterAppointment });
+    }
+
+    appt.appointmentDate = new Date(date);
+    appt.doctorId = finalDoctorId;
+    appt.doctorUserId = finalDoctorUserId;
+    appt.doctorName = finalDoctorName;
+    appt.tokenNumber = finalTokenNumber;
+    appt.appointmentTime = finalTime;
+    appt.status = 'pending';
     await appt.save();
+
+    if (req.tenantDb) {
+        try {
+            const updateQuery = {
+                appointmentDate: appt.appointmentDate,
+                doctorId: appt.doctorId,
+                doctorUserId: appt.doctorUserId,
+                doctorName: appt.doctorName,
+                tokenNumber: appt.tokenNumber,
+                appointmentTime: appt.appointmentTime,
+                status: 'pending'
+            };
+            await MasterAppointment.findByIdAndUpdate(appt._id, { $set: updateQuery });
+        } catch (syncErr) {
+            console.error('[reschedule] Master DB sync failed:', syncErr.message);
+        }
+    }
 
     const io = req.app.get('io');
     if (io) {
@@ -548,9 +681,9 @@ router.post('/book-appointment', verifyToken, verifyReception, async (req, res) 
             appointmentDate: new Date(date),
             appointmentTime: finalTime || '',
             tokenNumber,
-            amount: Number(amount) || doctor.consultationFee || 0,
+            amount: parentAppointmentId ? 0 : (Number(amount) || doctor.consultationFee || 0),
             status: parentAppointmentId ? 'pending' : 'confirmed',
-            paymentStatus: paymentStatus || 'Paid',
+            paymentStatus: parentAppointmentId ? 'Paid' : (paymentStatus || 'Paid'),
             paymentMethod: paymentMethod || 'Cash',
             notes: notes || 'Walk-in created by reception',
             bookedBy: req.user._id

@@ -557,7 +557,7 @@ async function resetAndSeed() {
                     wednesday: { available: true, startTime: '09:00', endTime: '17:00' },
                     thursday: { available: true, startTime: '09:00', endTime: '17:00' },
                     friday: { available: true, startTime: '09:00', endTime: '17:00' },
-                    saturday: { available: false, startTime: '10:00', endTime: '13:00' },
+                    saturday: { available: true, startTime: '10:00', endTime: '13:00' },
                     sunday: { available: false, startTime: '00:00', endTime: '00:00' }
                 },
                 

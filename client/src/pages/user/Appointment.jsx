@@ -18,6 +18,18 @@ const timeSlots = [
   '16:00', '16:30', '17:00', '17:30'
 ];
 
+// Helper to parse date string in local timezone safely
+const parseLocalDate = (dateStr) => {
+  if (!dateStr) return new Date();
+  const cleanDate = typeof dateStr === 'string' ? dateStr.split('T')[0] : '';
+  if (!cleanDate) return new Date();
+  const parts = cleanDate.split('-');
+  if (parts.length !== 3) return new Date(dateStr);
+  const [y, m, d] = parts.map(Number);
+  if (isNaN(y) || isNaN(m) || isNaN(d)) return new Date(dateStr);
+  return new Date(y, m - 1, d);
+};
+
 const Appointment = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -125,7 +137,7 @@ const Appointment = () => {
         const doctor = doctorsData.find(d => d._id === currentDoctorId || d.doctorId === currentDoctorId);
         
         if (doctor && doctor.availability) {
-            const dateObj = new Date(selectedDate);
+            const dateObj = parseLocalDate(selectedDate);
             const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
             const dayName = days[dateObj.getDay()];
             const daySchedule = doctor.availability[dayName];
@@ -155,7 +167,7 @@ const Appointment = () => {
     // Filter by Current Time (if Today)
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const selectedDateObj = new Date(selectedDate);
+    const selectedDateObj = parseLocalDate(selectedDate);
     selectedDateObj.setHours(0, 0, 0, 0);
     const now = new Date();
     
@@ -758,7 +770,14 @@ const StaffAppointmentManager = ({ user, servicesData, doctorsData, navigate }) 
   const [error, setError] = useState('');
 
   const handleScheduleFollowUp = (appt) => {
-    navigate('/reception/dashboard', { state: { openIntake: true, followUpAppointment: appt } });
+    const docId = appt.doctorId?._id || appt.doctorId || '';
+    const dateStr = appt.appointmentDate?.split('T')[0] || new Date().toISOString().split('T')[0];
+    setRescheduleForm({
+      doctorId: docId,
+      date: dateStr,
+      time: ''
+    });
+    setRescheduleModal({ open: true, appointment: appt });
   };
 
   // Hospital, Admissions & Hospitalize states
@@ -831,7 +850,7 @@ const StaffAppointmentManager = ({ user, servicesData, doctorsData, navigate }) 
 
   // Modals
   const [rescheduleModal, setRescheduleModal] = useState({ open: false, appointment: null });
-  const [rescheduleForm, setRescheduleForm] = useState({ date: '', time: '' });
+  const [rescheduleForm, setRescheduleForm] = useState({ doctorId: '', date: '', time: '' });
   const [rescheduleBookedSlots, setRescheduleBookedSlots] = useState([]);
   const [rescheduleAvailableTimes, setRescheduleAvailableTimes] = useState([]);
   const [collectPaymentModal, setCollectPaymentModal] = useState({ open: false, appointment: null });
@@ -900,9 +919,10 @@ const StaffAppointmentManager = ({ user, servicesData, doctorsData, navigate }) 
   // Load booked slots when rescheduling doctor/date changes
   useEffect(() => {
     const fetchSlots = async () => {
-      if (rescheduleModal.appointment && rescheduleForm.date) {
+      const docId = rescheduleForm.doctorId || rescheduleModal.appointment?.doctorId?._id || rescheduleModal.appointment?.doctorId;
+      if (docId && rescheduleForm.date) {
         try {
-          const res = await receptionAPI.getBookedSlots(rescheduleModal.appointment.doctorId?._id, rescheduleForm.date);
+          const res = await receptionAPI.getBookedSlots(docId, rescheduleForm.date);
           if (res.success) {
             setRescheduleBookedSlots(res.bookedSlots || []);
           }
@@ -912,7 +932,7 @@ const StaffAppointmentManager = ({ user, servicesData, doctorsData, navigate }) 
       }
     };
     fetchSlots();
-  }, [rescheduleModal.appointment, rescheduleForm.date]);
+  }, [rescheduleModal.appointment, rescheduleForm.doctorId, rescheduleForm.date]);
 
   // Available times logic for Booking
   useEffect(() => {
@@ -925,7 +945,7 @@ const StaffAppointmentManager = ({ user, servicesData, doctorsData, navigate }) 
 
     // Filter out past times if the date is today
     if (bookingForm.appointmentDate) {
-      const selectedDateObj = new Date(bookingForm.appointmentDate);
+      const selectedDateObj = parseLocalDate(bookingForm.appointmentDate);
       selectedDateObj.setHours(0,0,0,0);
       const today = new Date();
       today.setHours(0,0,0,0);
@@ -948,7 +968,7 @@ const StaffAppointmentManager = ({ user, servicesData, doctorsData, navigate }) 
     if (bookingForm.doctorId && doctorsData.length > 0) {
       const doctor = doctorsData.find(d => d._id === bookingForm.doctorId);
       if (doctor && doctor.availability) {
-        const dateObj = new Date(bookingForm.appointmentDate);
+        const dateObj = parseLocalDate(bookingForm.appointmentDate);
         const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
         const dayName = days[dateObj.getDay()];
         const schedule = doctor.availability[dayName];
@@ -985,7 +1005,7 @@ const StaffAppointmentManager = ({ user, servicesData, doctorsData, navigate }) 
 
     // Filter out past times if the date is today
     if (rescheduleForm.date) {
-      const selectedDateObj = new Date(rescheduleForm.date);
+      const selectedDateObj = parseLocalDate(rescheduleForm.date);
       selectedDateObj.setHours(0,0,0,0);
       const today = new Date();
       today.setHours(0,0,0,0);
@@ -1004,11 +1024,11 @@ const StaffAppointmentManager = ({ user, servicesData, doctorsData, navigate }) 
       }
     }
 
-    const doctorId = rescheduleModal.appointment.doctorId?._id;
+    const doctorId = rescheduleForm.doctorId || rescheduleModal.appointment.doctorId?._id || rescheduleModal.appointment.doctorId;
     if (doctorId && doctorsData.length > 0) {
       const doctor = doctorsData.find(d => d._id === doctorId);
       if (doctor && doctor.availability) {
-        const dateObj = new Date(rescheduleForm.date);
+        const dateObj = parseLocalDate(rescheduleForm.date);
         const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
         const dayName = days[dateObj.getDay()];
         const schedule = doctor.availability[dayName];
@@ -1031,7 +1051,7 @@ const StaffAppointmentManager = ({ user, servicesData, doctorsData, navigate }) 
       }
     }
     setRescheduleAvailableTimes(times);
-  }, [rescheduleForm.date, rescheduleBookedSlots, rescheduleModal.appointment, doctorsData]);
+  }, [rescheduleForm.date, rescheduleForm.doctorId, rescheduleBookedSlots, rescheduleModal.appointment, doctorsData]);
 
   const handleServiceChange = (serviceId) => {
     const selectedService = servicesData.find(s => s._id === serviceId || s.id === serviceId);
@@ -1187,10 +1207,12 @@ const StaffAppointmentManager = ({ user, servicesData, doctorsData, navigate }) 
       return;
     }
     try {
+      const targetDocId = rescheduleForm.doctorId || rescheduleModal.appointment.doctorId?._id || rescheduleModal.appointment.doctorId;
       const res = await receptionAPI.rescheduleAppointment(
         rescheduleModal.appointment._id,
         rescheduleForm.date,
-        rescheduleForm.time
+        rescheduleForm.time,
+        targetDocId
       );
       if (res.success) {
         alert('Appointment rescheduled successfully.');
@@ -1657,17 +1679,6 @@ const StaffAppointmentManager = ({ user, servicesData, doctorsData, navigate }) 
                                     </button>
                                   )
                                 )}
-                                {!appt.checkedIn && !isCancelled && !isCompleted && (
-                                  <button 
-                                    onClick={() => {
-                                      setRescheduleForm({ date: appt.appointmentDate?.split('T')[0], time: appt.appointmentTime });
-                                      setRescheduleModal({ open: true, appointment: appt });
-                                    }}
-                                    style={{ padding: '6px 10px', fontSize: '0.75rem', fontWeight: 600, background: '#FFFBEB', color: '#D97706', border: '1px solid #FDE68A', borderRadius: '6px', cursor: 'pointer' }}
-                                  >
-                                    Reschedule
-                                  </button>
-                                )}
                                 {!isPaid && !isCancelled && (
                                   <button 
                                     onClick={() => {
@@ -1722,59 +1733,114 @@ const StaffAppointmentManager = ({ user, servicesData, doctorsData, navigate }) 
       {/* ==========================================
           RESCHEDULE MODAL
           ========================================== */}
-      {rescheduleModal.open && rescheduleModal.appointment && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(10, 38, 71, 0.45)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 2000 }}>
-          <div style={{ background: '#fff', width: '100%', maxWidth: '480px', borderRadius: '16px', padding: '24px', boxShadow: '0 10px 25px rgba(0,0,0,0.15)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #F1F5F9', paddingBottom: '12px', marginBottom: '16px' }}>
-              <h3 style={{ margin: 0, fontSize: '1.2rem', color: '#0A2647', fontWeight: 700 }}>Reschedule Appointment</h3>
-              <button 
-                onClick={() => setRescheduleModal({ open: false, appointment: null })}
-                style={{ background: 'none', border: 'none', fontSize: '1.3rem', cursor: 'pointer', color: '#94A3B8' }}
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={submitReschedule}>
-              <div style={{ background: '#F8FAFC', padding: '12px', borderRadius: '8px', marginBottom: '16px', fontSize: '0.9rem', color: '#334155' }}>
-                <strong>Patient:</strong> {rescheduleModal.appointment.userId?.name} <br />
-                <strong>Doctor:</strong> {rescheduleModal.appointment.doctorName}
+      {rescheduleModal.open && rescheduleModal.appointment && (() => {
+        const timeSlots = [
+          '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
+          '12:00', '12:30', '14:00', '14:30', '15:00', '15:30',
+          '16:00', '16:30', '17:00', '17:30'
+        ];
+        const todayStr = new Date().toISOString().split('T')[0];
+        
+        return (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(4px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+            <div style={{ background: '#fff', borderRadius: '16px', padding: '24px', width: '100%', maxWidth: '480px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', border: '1px solid #e2e8f0' }}>
+              
+              {/* Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '1.2rem' }}>📅</span>
+                  <h3 style={{ margin: 0, fontSize: '0.85rem', color: '#475569', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    Quick Availability
+                  </h3>
+                </div>
+                <button 
+                  onClick={() => setRescheduleModal({ open: false, appointment: null })} 
+                  style={{ background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer', color: '#94a3b8', transition: 'color 0.15s' }}
+                  onMouseEnter={e => e.currentTarget.style.color = '#475569'}
+                  onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}
+                >
+                  ✕
+                </button>
               </div>
 
-              <div style={{ marginBottom: '16px' }}>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#334155', marginBottom: '6px' }}>New Appointment Date</label>
-                <input 
-                  type="date"
-                  required
-                  value={rescheduleForm.date}
-                  onChange={e => setRescheduleForm({ ...rescheduleForm, date: e.target.value, time: '' })}
-                  min={new Date().toISOString().split('T')[0]}
-                  style={{ width: '100%', padding: '12px', border: '1.5px solid #CBD5E1', borderRadius: '8px', fontSize: '0.95rem' }}
-                />
+              {/* Patient info details */}
+              <div style={{ background: '#f8fafc', padding: '12px 16px', borderRadius: '10px', marginBottom: '20px', border: '1px solid #f1f5f9' }}>
+                <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 700, letterSpacing: '0.02em', textTransform: 'uppercase' }}>Patient being rescheduled</div>
+                <div style={{ fontSize: '0.92rem', fontWeight: 700, color: '#0f172a', marginTop: '2px' }}>
+                  {rescheduleModal.appointment.userId?.name || rescheduleModal.appointment.patientName || 'Walk-in Patient'}
+                </div>
+                <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '4px' }}>
+                  Current: <span style={{ fontWeight: 600 }}>Dr. {rescheduleModal.appointment.doctorName}</span> on <span style={{ fontWeight: 600 }}>{rescheduleModal.appointment.appointmentDate?.split('T')[0]}</span> @ <span style={{ fontWeight: 600 }}>{rescheduleModal.appointment.appointmentTime}</span>
+                </div>
               </div>
 
-              <div style={{ marginBottom: '20px' }}>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#334155', marginBottom: '8px' }}>Select Available Slot</label>
-                {rescheduleForm.date ? (
-                  rescheduleAvailableTimes.length > 0 ? (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(75px, 1fr))', gap: '8px' }}>
-                      {rescheduleAvailableTimes.map(slot => {
+              <form onSubmit={submitReschedule}>
+                {/* Controls row */}
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
+                  <select 
+                    value={rescheduleForm.doctorId}
+                    onChange={e => setRescheduleForm(prev => ({ ...prev, doctorId: e.target.value, time: '' }))}
+                    style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1.5px solid #e2e8f0', fontSize: '0.85rem', fontWeight: 600, color: '#1e293b', outline: 'none' }}
+                  >
+                    <option value="">Select Doctor</option>
+                    {doctorsData.map(d => <option key={d._id} value={d._id}>{d.name}</option>)}
+                  </select>
+                  <input 
+                    type="date" 
+                    required
+                    value={rescheduleForm.date} 
+                    onChange={e => setRescheduleForm(prev => ({ ...prev, date: e.target.value, time: '' }))}
+                    min={todayStr}
+                    style={{ padding: '10px', borderRadius: '8px', border: '1.5px solid #e2e8f0', fontSize: '0.85rem', fontWeight: 600, color: '#1e293b', outline: 'none', boxSizing: 'border-box' }} 
+                  />
+                </div>
+
+                {/* Time Slots Section */}
+                <div style={{ marginBottom: '24px' }}>
+                  {rescheduleForm.doctorId && rescheduleForm.date ? (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+                      {timeSlots.map(slot => {
+                        const isBooked = rescheduleBookedSlots.includes(slot);
+                        const isPast = rescheduleForm.date === todayStr && (() => {
+                          const [h, m] = slot.split(':').map(Number);
+                          const now = new Date();
+                          return new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m) <= now;
+                        })();
+                        
+                        const isUnavailable = isBooked || isPast || !rescheduleAvailableTimes.includes(slot);
                         const isSelected = rescheduleForm.time === slot;
+
                         return (
                           <button
                             key={slot}
                             type="button"
-                            onClick={() => setRescheduleForm({ ...rescheduleForm, time: slot })}
+                            disabled={isUnavailable}
+                            onClick={() => setRescheduleForm(prev => ({ ...prev, time: slot }))}
                             style={{
-                              padding: '10px 4px',
-                              fontSize: '0.85rem',
+                              padding: '8px 4px',
+                              fontSize: '0.82rem',
                               fontWeight: 700,
-                              border: isSelected ? 'none' : '1px solid #CBD5E1',
                               borderRadius: '6px',
-                              cursor: 'pointer',
-                              background: isSelected ? '#D97706' : '#fff',
-                              color: isSelected ? '#fff' : '#1E293B',
-                              transition: 'all 0.2s'
+                              textAlign: 'center',
+                              transition: 'all 0.15s ease',
+                              outline: 'none',
+                              border: isSelected 
+                                ? '1.5px solid #fca5a5' 
+                                : isUnavailable 
+                                  ? '1px solid #f1f5f9' 
+                                  : '1.5px solid #e2e8f0',
+                              background: isSelected 
+                                ? '#fee2e2' 
+                                : isUnavailable 
+                                  ? '#f1f5f9' 
+                                  : '#fff',
+                              color: isSelected 
+                                ? '#b91c1c' 
+                                : isUnavailable 
+                                  ? '#94a3b8' 
+                                  : '#1e293b',
+                              cursor: isUnavailable ? 'not-allowed' : 'pointer',
+                              opacity: isUnavailable ? 0.6 : 1
                             }}
                           >
                             {slot}
@@ -1783,33 +1849,45 @@ const StaffAppointmentManager = ({ user, servicesData, doctorsData, navigate }) 
                       })}
                     </div>
                   ) : (
-                    <p style={{ color: '#EF4444', fontSize: '0.9rem', margin: 0 }}>No slots available on this date.</p>
-                  )
-                ) : (
-                  <p style={{ color: '#64748B', fontSize: '0.9rem', margin: 0, fontStyle: 'italic' }}>Please select a date first.</p>
-                )}
-              </div>
+                    <div style={{ textAlign: 'center', padding: '24px', background: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: '10px', color: '#64748b', fontSize: '0.85rem' }}>
+                      {!rescheduleForm.doctorId ? 'Please select a doctor first.' : 'Please select a date first.'}
+                    </div>
+                  )}
+                </div>
 
-              <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
-                <button 
-                  type="submit"
-                  disabled={!rescheduleForm.date || !rescheduleForm.time}
-                  style={{ flex: 1, padding: '12px', background: '#D97706', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}
-                >
-                  Confirm Reschedule
-                </button>
-                <button 
-                  type="button" 
-                  onClick={() => setRescheduleModal({ open: false, appointment: null })}
-                  style={{ padding: '12px 20px', background: '#F1F5F9', border: '1px solid #CBD5E1', borderRadius: '8px', fontWeight: 600, cursor: 'pointer' }}
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
+                {/* Actions */}
+                <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', borderTop: '1px solid #f1f5f9', paddingTop: '16px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setRescheduleModal({ open: false, appointment: null })}
+                    style={{ padding: '10px 20px', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, color: '#475569', fontSize: '0.85rem' }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={!rescheduleForm.doctorId || !rescheduleForm.date || !rescheduleForm.time}
+                    style={{
+                      padding: '10px 24px',
+                      background: '#d97706',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      fontWeight: 700,
+                      fontSize: '0.85rem',
+                      opacity: (!rescheduleForm.doctorId || !rescheduleForm.date || !rescheduleForm.time) ? 0.6 : 1,
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    Confirm Reschedule
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ==========================================
           COLLECT PAYMENT MODAL

@@ -271,8 +271,8 @@ export const receptionAPI = {
         const response = await apiClient.get(url);
         return response.data;
     },
-    rescheduleAppointment: async (id, date, time) => {
-        const response = await apiClient.patch(`/api/reception/appointments/${id}/reschedule`, { date, time });
+    rescheduleAppointment: async (id, date, time, doctorId) => {
+        const response = await apiClient.patch(`/api/reception/appointments/${id}/reschedule`, { date, time, doctorId });
         return response.data;
     },
     cancelAppointment: async (id) => {

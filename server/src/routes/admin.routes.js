@@ -603,7 +603,7 @@ router.post('/users', verifyAdminOrSuperAdmin, auditLog('USER_CREATE', null, { s
                     wednesday: { available: true, startTime: '09:00', endTime: '17:00' },
                     thursday: { available: true, startTime: '09:00', endTime: '17:00' },
                     friday: { available: true, startTime: '09:00', endTime: '17:00' },
-                    saturday: { available: false, startTime: '09:00', endTime: '17:00' },
+                    saturday: { available: true, startTime: '09:00', endTime: '17:00' },
                     sunday: { available: false, startTime: '09:00', endTime: '17:00' }
                 };
                 const newDoc = await Doctor.create({
@@ -730,7 +730,7 @@ router.put('/users/:userId', verifyAdminOrSuperAdmin, auditLog('USER_UPDATE', (r
                             wednesday: { available: true, startTime: '09:00', endTime: '17:00' },
                             thursday: { available: true, startTime: '09:00', endTime: '17:00' },
                             friday: { available: true, startTime: '09:00', endTime: '17:00' },
-                            saturday: { available: false, startTime: '09:00', endTime: '17:00' },
+                            saturday: { available: true, startTime: '09:00', endTime: '17:00' },
                             sunday: { available: false, startTime: '09:00', endTime: '17:00' }
                         }
                     });

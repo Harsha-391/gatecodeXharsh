@@ -12,6 +12,18 @@ const timeSlots = [
   '16:00', '16:30', '17:00', '17:30'
 ];
 
+// Helper to parse date string in local timezone safely
+const parseLocalDate = (dateStr) => {
+  if (!dateStr) return new Date();
+  const cleanDate = typeof dateStr === 'string' ? dateStr.split('T')[0] : '';
+  if (!cleanDate) return new Date();
+  const parts = cleanDate.split('-');
+  if (parts.length !== 3) return new Date(dateStr);
+  const [y, m, d] = parts.map(Number);
+  if (isNaN(y) || isNaN(m) || isNaN(d)) return new Date(dateStr);
+  return new Date(y, m - 1, d);
+};
+
 // Helper function for fallback specialty mapping
 const getSpecialtyFromServices = (services) => {
   if (!services || services.length === 0) return 'General Practitioner';
@@ -131,7 +143,7 @@ const Services = () => {
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const selectedDateObj = new Date(selectedDate);
+    const selectedDateObj = parseLocalDate(selectedDate);
     selectedDateObj.setHours(0, 0, 0, 0);
     const now = new Date();
 

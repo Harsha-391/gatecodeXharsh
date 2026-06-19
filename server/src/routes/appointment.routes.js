@@ -83,7 +83,7 @@ router.patch('/reception/reschedule/:id', verifyToken, resolveTenant, auditLog('
         const doctorDoc = await Doctor.findById(appointment.doctorId);
         if (doctorDoc) {
             const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-            const dayName = days[reqDate.getDay()];
+            const dayName = days[reqDate.getUTCDay()];
             if (doctorDoc.availability?.[dayName]) {
                 const daySchedule = doctorDoc.availability[dayName];
                 if (!daySchedule.available) {
