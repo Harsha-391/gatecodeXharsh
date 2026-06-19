@@ -820,7 +820,13 @@ export const administratorAPI = {
     getRevenue: async () => (await apiClient.get('/api/administrator/revenue')).data,
     getResources: async () => (await apiClient.get('/api/administrator/resources')).data,
     getInventory: async () => (await apiClient.get('/api/administrator/inventory')).data,
-    getReports: async () => (await apiClient.get('/api/administrator/reports')).data,
+    getReports: async (startDate = null, endDate = null) => {
+        const params = new URLSearchParams();
+        if (startDate) params.set('startDate', startDate);
+        if (endDate) params.set('endDate', endDate);
+        const qs = params.toString();
+        return (await apiClient.get(`/api/administrator/reports${qs ? `?${qs}` : ''}`)).data;
+    },
     getAnalytics: async () => (await apiClient.get('/api/administrator/analytics')).data,
     getAuditLogs: async (params = {}) => (await apiClient.get('/api/administrator/audit-logs', { params })).data,
     getAuditLogSessionDuration: async (sessionId) => (await apiClient.get(`/api/administrator/audit-logs/session-duration/${sessionId}`)).data,

@@ -446,11 +446,7 @@ const AdminDoctors = () => {
         } catch (uploadErr) {
             console.warn('Image upload failed, using local base64 preview.', uploadErr);
         }
-    };
-
-
-
-    const handleAvailabilityChange = (day, field, value) => {
+    };    const handleAvailabilityChange = (day, field, value) => {
         setFormData(prev => ({
             ...prev,
             availability: {
@@ -463,6 +459,21 @@ const AdminDoctors = () => {
         }));
     };
 
+    const handleSelectAllDays = (checked) => {
+        setFormData(prev => {
+            const updatedAvailability = {};
+            days.forEach(day => {
+                updatedAvailability[day] = {
+                    ...(prev.availability[day] || { startTime: '09:00', endTime: '17:00' }),
+                    available: checked
+                };
+            });
+            return {
+                ...prev,
+                availability: updatedAvailability
+            };
+        });
+    };
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
@@ -993,9 +1004,23 @@ const AdminDoctors = () => {
 
                                     {/* SECTION 4: TIMINGS */}
                                     <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
-                                        <h4 style={{ margin: '0 0 16px 0', fontSize: '1rem', color: '#334155', fontWeight: '600', borderBottom: '1px solid #e2e8f0', paddingBottom: '8px' }}>
-                                            📅 Weekly Availability & Timings
-                                        </h4>
+                                        {(() => {
+                                            const areAllDaysSelected = days.every(day => formData.availability[day]?.available || false);
+                                            return (
+                                                <h4 style={{ margin: '0 0 16px 0', fontSize: '1rem', color: '#334155', fontWeight: '600', borderBottom: '1px solid #e2e8f0', paddingBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <span>📅 Weekly Availability & Timings</span>
+                                                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#475569', cursor: 'pointer', margin: 0, fontWeight: '600' }}>
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={areAllDaysSelected}
+                                                            onChange={(e) => handleSelectAllDays(e.target.checked)}
+                                                            style={{ width: '14px', height: '14px', cursor: 'pointer' }}
+                                                        />
+                                                        Select All
+                                                    </label>
+                                                </h4>
+                                            );
+                                        })()}
                                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
                                             {days.map(day => (
                                                 <div key={day} style={{ padding: '10px', background: '#ffffff', borderRadius: '8px', border: '1px solid #cbd5e1' }}>

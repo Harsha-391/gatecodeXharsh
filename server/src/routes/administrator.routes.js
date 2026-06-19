@@ -21,6 +21,9 @@ const MasterExpenseCategory = require('../models/expenseCategory.model');
 const MasterExpense = require('../models/expense.model');
 const MasterTransfer = require('../models/transfer.model');
 const MasterHospital = require('../models/hospital.model');
+const MasterInsuranceClaim = require('../models/insuranceClaim.model');
+const MasterDoctor = require('../models/doctor.model');
+const MasterService = require('../models/service.model');
 
 // Administrator Access Middleware
 const verifyAdministratorAccess = async (req, res, next) => {
@@ -64,7 +67,10 @@ const getModels = (req) => {
         Role: MasterRole,
         Hospital: MasterHospital,
         ExpenseCategory: MasterExpenseCategory,
-        Expense: MasterExpense
+        Expense: MasterExpense,
+        InsuranceClaim: MasterInsuranceClaim,
+        Doctor: MasterDoctor,
+        Service: MasterService
     };
 };
 
@@ -1211,17 +1217,137 @@ router.get('/reports', verifyAdministratorAccess, auditLog('DATA_EXPORT', null, 
         const roleName = (req.user._roleData?.name || '').toLowerCase();
         const roleIdStr = String(req.user.role || '').toLowerCase();
         if (roleName === 'accountant' || roleIdStr === 'accountant') {
-            return res.status(403).json({ success: false, message: 'Access denied: Accountants cannot view reports' });
+            return res.status(403).json({ success: false, message: 'Access denied: Accountants cannot view admin reports' });
         }
 
         const hospitalId = req.hospitalId || req.user.hospitalId;
         const models = getModels(req);
-        const { User, Appointment, Admission, Invoice } = models;
+        const { User, Appointment, Admission, Invoice, LabReport, PharmacyOrder, Doctor, InsuranceClaim, Service } = models;
 
+        // Optional date range filter
+        const { startDate, endDate } = req.query;
+        const dateFilter = {};
+        if (startDate) dateFilter.$gte = new Date(startDate);
+        if (endDate) dateFilter.$lte = new Date(new Date(endDate).setHours(23, 59, 59, 999));
+
+        // 1. Patients Registry
         const patientReports = await User.find({ role: { $in: [null, 'patient', 'Patient'] }, hospitalId }).select('name email phone patientId dob gender bloodGroup city createdAt').lean();
-        const appointmentReports = await Appointment.find({ hospitalId }).select('doctorName serviceName appointmentDate appointmentTime status paymentStatus amount').lean();
-        const admissionReports = await Admission.find({ hospitalId }).select('patientName admissionDate dischargeDate status ward bedNumber priority paymentStatus totalAmount').lean();
-        const revenueReports = await Invoice.find({ hospitalId }).select('invoiceNumber invoiceDate patientName grandTotal amountPaid outstandingAmount paymentStatus').lean();
+
+        // 2. Appointments Report
+        const appointmentQuery = { hospitalId };
+        if (startDate || endDate) appointmentQuery.appointmentDate = dateFilter;
+        const appointmentReports = await Appointment.find(appointmentQuery).select('doctorName serviceName appointmentDate appointmentTime status paymentStatus amount').lean();
+
+        // 3. Admissions & IPD Report
+        const admissionQuery = { hospitalId };
+        if (startDate || endDate) admissionQuery.admissionDate = dateFilter;
+        const admissionReports = await Admission.find(admissionQuery).select('patientName admissionDate dischargeDate status ward bedNumber priority paymentStatus totalAmount').lean();
+
+        // 4. Laboratory Report
+        const labQuery = { hospitalId };
+        if (startDate || endDate) labQuery.createdAt = dateFilter;
+        const labReports = await LabReport.find(labQuery).select('patientId testNames testStatus reportStatus paymentStatus paymentMode amount sampleCollected sampleCollectedAt sampleType status notes createdAt').lean();
+
+        // 5. Pharmacy Report
+        const pharmaQuery = { hospitalId };
+        if (startDate || endDate) pharmaQuery.createdAt = dateFilter;
+        const pharmacyReports = await PharmacyOrder.find(pharmaQuery).select('patientId items totalAmount totalCost paymentStatus orderStatus createdAt').lean();
+
+        // 6. Doctor Master Report — NO salary/payroll/bank/commission data
+        const doctorReports = await Doctor.find({ hospitalId }).select('doctorId name departments specialization qualification medicalLicense joiningDate availability status employmentType experienceYears specialty').lean();
+
+        // 7. Billing & Invoices Report
+        const invoiceQuery = { hospitalId };
+        if (startDate || endDate) invoiceQuery.invoiceDate = dateFilter;
+        const revenueReports = await Invoice.find(invoiceQuery).select('invoiceNumber invoiceDate patientName grandTotal amountPaid outstandingAmount paymentStatus').lean();
+
+        // 8. Insurance Claims Report
+        let insuranceClaims = [];
+        try {
+            const claimQuery = { hospitalId };
+            if (startDate || endDate) claimQuery.submissionDate = dateFilter;
+            insuranceClaims = await InsuranceClaim.find(claimQuery).select('claimNumber patientName policyNumber insuranceProvider invoiceNumber claimAmount approvedAmount status treatmentDescription submissionDate actionDate').lean();
+        } catch (e) { insuranceClaims = []; }
+
+        // 9. Financial Summary (Admin read-only view — totals only, NOT accountant P&L)
+        const allInvoices = await Invoice.find({ hospitalId }).select('invoiceDate amountPaid grandTotal outstandingAmount paymentStatus items').lean();
+        const totalRevenue = allInvoices.reduce((s, i) => s + (i.amountPaid || 0), 0);
+        const totalBilled = allInvoices.reduce((s, i) => s + (i.grandTotal || 0), 0);
+        const totalOutstanding = allInvoices.reduce((s, i) => s + (i.outstandingAmount || 0), 0);
+        const paidInvoices = allInvoices.filter(i => i.paymentStatus === 'Paid').length;
+        const pendingInvoices = allInvoices.filter(i => i.paymentStatus === 'Pending' || i.paymentStatus === 'Partial').length;
+        const deptRevenue = { Consultation: 0, Lab: 0, Pharmacy: 0, Admission: 0, Other: 0 };
+        allInvoices.forEach(inv => {
+            (inv.items || []).forEach(item => {
+                if (item.itemType === 'Consultation') deptRevenue.Consultation += (item.totalAmount || 0);
+                else if (item.itemType === 'Laboratory') deptRevenue.Lab += (item.totalAmount || 0);
+                else if (item.itemType === 'Pharmacy') deptRevenue.Pharmacy += (item.totalAmount || 0);
+                else if (item.itemType === 'Admission' || item.itemType === 'Facility') deptRevenue.Admission += (item.totalAmount || 0);
+                else deptRevenue.Other += (item.totalAmount || 0);
+            });
+        });
+        // Monthly breakdown (last 6 months)
+        const now = new Date();
+        const monthlyBreakdown = [];
+        for (let i = 5; i >= 0; i--) {
+            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0, 23, 59, 59);
+            const monthLabel = d.toLocaleString('en-IN', { month: 'short', year: '2-digit' });
+            const monthRevenue = allInvoices.filter(inv => {
+                const invDate = new Date(inv.invoiceDate);
+                return invDate >= d && invDate <= monthEnd;
+            }).reduce((s, i) => s + (i.amountPaid || 0), 0);
+            monthlyBreakdown.push({ month: monthLabel, revenue: monthRevenue });
+        }
+        const financialSummary = {
+            totalRevenue, totalBilled, totalOutstanding, paidInvoices, pendingInvoices,
+            totalInvoices: allInvoices.length, departmentBreakdown: deptRevenue, monthlyBreakdown
+        };
+
+        // 10. Bed Occupancy Report
+        const currentAdmissions = await Admission.find({ hospitalId, status: 'Admitted' }).select('patientName ward bedNumber admissionDate priority').lean();
+        const discharged = await Admission.find({ hospitalId, status: 'Discharged' }).select('patientName ward bedNumber admissionDate dischargeDate').lean();
+        const totalBedCount = 50; // 40 Ward + 10 ICU
+        const icuOccupied = currentAdmissions.filter(a => a.ward === 'ICU').length;
+        const wardOccupied = currentAdmissions.filter(a => a.ward !== 'ICU').length;
+        const bedOccupancy = {
+            totalBeds: totalBedCount, icuTotal: 10, wardTotal: 40,
+            occupied: currentAdmissions.length, available: Math.max(0, totalBedCount - currentAdmissions.length),
+            occupancyRate: Math.round((currentAdmissions.length / totalBedCount) * 100),
+            icuOccupied, wardOccupied,
+            icuOccupancyRate: Math.round((icuOccupied / 10) * 100),
+            wardOccupancyRate: Math.round((wardOccupied / 40) * 100),
+            currentPatients: currentAdmissions,
+            recentDischarges: discharged.slice(-20)
+        };
+
+        // 11. Services Report
+        let servicesReport = [];
+        try {
+            const serviceQuery = {};
+            if (hospitalId) serviceQuery.hospitalId = hospitalId;
+            servicesReport = await Service.find(serviceQuery).select('title description category serviceType price gst billingType duration active department visibility').lean();
+            if (!servicesReport.length) {
+                servicesReport = await Service.find({}).select('title description category serviceType price gst billingType duration active department visibility').lean();
+            }
+        } catch (e) { servicesReport = []; }
+
+        // 12. Audit Summary Report (last 500 entries, grouped summary)
+        let auditSummary = [];
+        let auditByAction = {};
+        try {
+            const auditQuery = {};
+            if (hospitalId) auditQuery.hospitalId = hospitalId;
+            if (startDate || endDate) auditQuery.timestamp = dateFilter;
+            const auditEntries = await AuditLog.find(auditQuery).select('action userId userEmail userRole ipAddress timestamp severity status').sort({ timestamp: -1 }).limit(500).lean();
+            auditSummary = auditEntries;
+            // Group by action
+            auditEntries.forEach(e => {
+                const key = e.action || 'UNKNOWN';
+                if (!auditByAction[key]) auditByAction[key] = 0;
+                auditByAction[key]++;
+            });
+        } catch (e) { auditSummary = []; }
 
         res.json({
             success: true,
@@ -1229,13 +1355,24 @@ router.get('/reports', verifyAdministratorAccess, auditLog('DATA_EXPORT', null, 
                 patientReports,
                 appointmentReports,
                 admissionReports,
-                revenueReports
+                labReports,
+                pharmacyReports,
+                doctorReports,
+                revenueReports,
+                insuranceClaims,
+                financialSummary,
+                bedOccupancy,
+                servicesReport,
+                auditSummary,
+                auditByAction
             }
         });
     } catch (err) {
+        console.error('Reports endpoint error:', err);
         res.status(500).json({ success: false, message: err.message });
     }
 });
+
 
 // 13. Analytics Center
 router.get('/analytics', verifyAdministratorAccess, async (req, res) => {

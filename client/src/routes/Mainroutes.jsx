@@ -40,6 +40,8 @@ import AdminMedicines from '../pages/admin/AdminMedicines';
 import AdminQuestionLibrary from '../pages/admin/AdminQuestionLibrary';
 import AdminTestPackages from '../pages/admin/AdminTestPackages';
 import AdminPermissionsPage from '../pages/admin/AdminPermissionsPage';
+import InventoryMonitoring from '../pages/admin/InventoryMonitoring';
+import Reports from '../pages/admin/Reports';
 
 // Central Admin (Tier 1) Pages — /supremeadmin
 import CentralAdminLogin from '../pages/centraladmin/CentralAdminLogin';
@@ -197,6 +199,9 @@ const MainRoutes = () => {
                             <Route path="admin/question-library" element={<ProtectedRoute requiredPermissions={['admin_manage_roles']}><AdminQuestionLibrary /></ProtectedRoute>} />
                             <Route path="admin/test-packages" element={<ProtectedRoute requiredPermissions={['admin_manage_roles']}><AdminTestPackages /></ProtectedRoute>} />
                             <Route path="admin/permissions" element={<ProtectedRoute requiredPermissions={['admin_manage_roles']}><AdminPermissionsPage /></ProtectedRoute>} />
+                            <Route path="admin/inventory" element={<ProtectedRoute requiredPermissions={['inventory_view']}><InventoryMonitoring /></ProtectedRoute>} />
+                            <Route path="admin/reports" element={<ProtectedRoute requiredPermissions={['reports_view']}><Reports /></ProtectedRoute>} />
+                            <Route path="admin/report" element={<ProtectedRoute requiredPermissions={['reports_view']}><Reports /></ProtectedRoute>} />
                             
                             {/* Dashboard routes — clinic vs full hospital */}
                             <Route path="hospitaladmin" element={
