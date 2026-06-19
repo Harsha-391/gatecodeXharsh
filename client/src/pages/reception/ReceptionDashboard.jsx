@@ -8,19 +8,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import './ReceptionDashboard.css';
 
-// Standard ward → bed mapping for dropdown selection
-const FALLBACK_WARD_BED_MAP = {
-    'General Ward':    ['G-01','G-02','G-03','G-04','G-05','G-06','G-07','G-08'],
-    'ICU':             ['ICU-1','ICU-2','ICU-3','ICU-4','ICU-5','ICU-6'],
-    'NICU':            ['NICU-1','NICU-2','NICU-3','NICU-4'],
-    'CCU':             ['CCU-1','CCU-2','CCU-3','CCU-4'],
-    'Paediatric Ward': ['P-01','P-02','P-03','P-04','P-05'],
-    'Maternity Ward':  ['M-01','M-02','M-03','M-04','M-05','M-06'],
-    'Orthopaedic Ward':['O-01','O-02','O-03','O-04','O-05'],
-    'Surgical Ward':   ['S-01','S-02','S-03','S-04','S-05','S-06'],
-    'Emergency Ward':  ['ER-1','ER-2','ER-3','ER-4'],
-    'Private Room':    ['PR-101','PR-102','PR-103','PR-104','PR-105','PR-106','PR-107','PR-108'],
-};
+// No fallback ward/bed mapping. Use dynamic facilities added by admin.
 
 const timeSlots = [
     '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
@@ -142,7 +130,7 @@ const ReceptionDashboard = () => {
     const [hospitalContext, setHospitalContext] = useState(null);
 
     const WARD_BED_MAP = useMemo(() => {
-        if (!hospitalContext?.facilities || hospitalContext.facilities.length === 0) return FALLBACK_WARD_BED_MAP;
+        if (!hospitalContext?.facilities || hospitalContext.facilities.length === 0) return {};
         const map = {};
         hospitalContext.facilities.forEach(fac => {
             const count = fac.bedCount || 0;
