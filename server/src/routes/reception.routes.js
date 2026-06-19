@@ -549,7 +549,7 @@ router.post('/book-appointment', verifyToken, verifyReception, async (req, res) 
             appointmentTime: finalTime || '',
             tokenNumber,
             amount: Number(amount) || doctor.consultationFee || 0,
-            status: 'confirmed',
+            status: parentAppointmentId ? 'pending' : 'confirmed',
             paymentStatus: paymentStatus || 'Paid',
             paymentMethod: paymentMethod || 'Cash',
             notes: notes || 'Walk-in created by reception',
