@@ -25,7 +25,7 @@ const validatePassword = require('../utils/validatePassword');
 /**
  * Build user response with full role data
  */
-async function buildUserResponse(user) {
+async function buildUserResponse(user, preloadedRoles = null) {
     let roleData = null;
     let roleName = null;
 
@@ -42,7 +42,12 @@ async function buildUserResponse(user) {
             isSystemRole: true
         };
     } else if (user.role) {
-        if (mongoose.Types.ObjectId.isValid(user.role)) {
+        if (preloadedRoles) {
+            const roleIdStr = String(user.role);
+            roleData = preloadedRoles.find(r => String(r._id) === roleIdStr || r.name.toLowerCase() === roleIdStr.toLowerCase());
+        }
+
+        if (!roleData && mongoose.Types.ObjectId.isValid(user.role)) {
             roleData = await Role.findById(user.role);
         }
         if (!roleData) {
@@ -467,9 +472,16 @@ router.get('/users', verifyAdminOrSuperAdmin, async (req, res) => {
 
         const users = await User.find(query, { password: 0 }).sort({ createdAt: -1 });
 
+        // Fetch all roles to optimize database lookups and prevent N+1 queries
+        let roleQuery = {};
+        if (req.user.hospitalId) {
+            roleQuery = { $or: [{ hospitalId: req.user.hospitalId }, { hospitalId: null }] };
+        }
+        const preloadedRoles = await Role.find(roleQuery);
+
         // Build full response and filter out patients
         const usersWithRoles = await Promise.all(users.map(async (u) => {
-            return await buildUserResponse(u);
+            return await buildUserResponse(u, preloadedRoles);
         }));
 
         // Filter patients out of staff list
@@ -881,7 +893,7 @@ const KNOWN_PERMISSIONS = [
     'patient_create', 'patient_search', 'patient_view', 'patient_edit',
     'visit_intake', 'visit_diagnose', 'clinical_history_view',
     'appointment_manage', 'appointment_view_all',
-    'lab_view', 'lab_manage',
+    'lab_view', 'lab_manage', 'lab_reports_view',
     'pharmacy_view', 'pharmacy_manage',
     'finance_view', 'billing_view', 'billing_manage',
     'admin_manage_roles', 'admin_view_stats',
@@ -901,7 +913,7 @@ const KNOWN_PERMISSIONS = [
  * Only Super Admin / Central Admin can call this.
  * Permissions remain scoped to the user's hospital.
  */
-router.put('/users/:userId/permissions', verifyToken, verifySuperAdmin, auditLog('PERMISSION_CHANGE', (req) => ({ model: 'User', id: req.params.userId, label: 'Custom permissions updated' }), { severity: 'critical', dataCategory: 'Administrative' }), async (req, res) => {
+router.put('/users/:userId/permissions', verifyToken, verifyAdminOrSuperAdmin, auditLog('PERMISSION_CHANGE', (req) => ({ model: 'User', id: req.params.userId, label: 'Custom permissions updated' }), { severity: 'critical', dataCategory: 'Administrative' }), async (req, res) => {
     try {
         const { userId } = req.params;
         const { customPermissions, deniedPermissions } = req.body;
@@ -935,6 +947,12 @@ router.put('/users/:userId/permissions', verifyToken, verifySuperAdmin, auditLog
         const user = await User.findById(userId);
         if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
+        // Scoping / Tenant isolation checks
+        const isCentral = req.user.role === 'centraladmin' || req.user.role === 'superadmin';
+        if (!isCentral && String(user.hospitalId) !== String(req.user.hospitalId)) {
+            return res.status(403).json({ success: false, message: 'Cannot modify permissions for users from another hospital' });
+        }
+
         // Prevent granting custom permissions to system-level admin accounts
         if (['centraladmin', 'superadmin'].includes(user.role)) {
             return res.status(403).json({ success: false, message: 'Cannot assign custom permissions to Central Admin accounts' });
@@ -943,6 +961,9 @@ router.put('/users/:userId/permissions', verifyToken, verifySuperAdmin, auditLog
         user.customPermissions = customPermissions;
         user.deniedPermissions = deniedPermissions || [];
         await user.save();
+
+        const { syncToTenant } = require('../utils/tenantSync');
+        await syncToTenant('User', user, 'save', user.hospitalId);
 
         const updatedUser = await buildUserResponse(user);
         res.json({
@@ -955,6 +976,68 @@ router.put('/users/:userId/permissions', verifyToken, verifySuperAdmin, auditLog
     }
 });
 
+// GET /api/admin/dashboard-stats
+router.get('/dashboard-stats', verifyToken, verifyAdminOrSuperAdmin, async (req, res) => {
+    try {
+        const hospitalId = req.user.hospitalId;
+        if (!hospitalId) {
+            return res.status(400).json({ success: false, message: 'Hospital context required' });
+        }
 
+        // 1. Count users (excluding system admins and patients)
+        const systemRoles = ['centraladmin', 'superadmin', 'hospitaladmin'];
+        const totalUsers = await User.countDocuments({
+            hospitalId,
+            role: { $nin: systemRoles },
+            patientId: { $exists: false }
+        });
+
+        // 2. Count roles (scoped to hospital or global templates, excluding Patient and Administrator)
+        const totalRoles = await Role.countDocuments({
+            $or: [{ hospitalId }, { hospitalId: null }],
+            name: { $nin: ['Patient', 'patient', 'Administrator', 'administrator'] }
+        });
+
+        // 3. Count doctors (from Doctor collection)
+        const totalDoctors = await Doctor.countDocuments({ hospitalId });
+
+        // 4. Count patients (Users with role 'patient')
+        const totalPatients = await User.countDocuments({ hospitalId, role: 'patient' });
+
+        // 5. Today's Appointments & Revenue
+        const todayStart = new Date();
+        todayStart.setUTCHours(0, 0, 0, 0);
+        const tomorrowStart = new Date(todayStart);
+        tomorrowStart.setUTCDate(tomorrowStart.getUTCDate() + 1);
+
+        const Appointment = require('../models/appointment.model');
+        const todayApts = await Appointment.find({
+            hospitalId,
+            appointmentDate: { $gte: todayStart, $lt: tomorrowStart }
+        }).select('amount status paymentStatus').lean();
+
+        const todayAppointments = todayApts.length;
+        const pendingPayments = todayApts.filter(a => (a.paymentStatus || '').toLowerCase() !== 'paid').length;
+        const todayRevenue = todayApts
+            .filter(a => a.status === 'completed' || (a.paymentStatus || '').toLowerCase() === 'paid')
+            .reduce((sum, a) => sum + (Number(a.amount) || 0), 0);
+
+        res.json({
+            success: true,
+            stats: {
+                totalUsers,
+                totalRoles,
+                totalDoctors,
+                totalPatients,
+                todayAppointments,
+                pendingPayments,
+                todayRevenue
+            }
+        });
+    } catch (error) {
+        console.error('Error fetching dashboard stats:', error);
+        res.status(500).json({ success: false, message: 'Error fetching dashboard stats' });
+    }
+});
 
 module.exports = router;

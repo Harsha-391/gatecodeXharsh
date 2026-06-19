@@ -54,6 +54,24 @@ const verifyLab = async (req, res, next) => {
     next();
 };
 
+const verifyLabOrReportsView = async (req, res, next) => {
+    const roleName = req.user._roleData ? req.user._roleData.name.toLowerCase() : String(req.user.role).toLowerCase();
+    const permissions = req.user._roleData?.permissions || [];
+
+    if (!roleName.includes('lab') && 
+        !roleName.includes('admin') && 
+        !roleName.includes('accountant') &&
+        !permissions.includes('accountant_view') &&
+        !permissions.includes('accountant_manage') &&
+        !permissions.includes('lab_view') &&
+        !permissions.includes('lab_manage') &&
+        !permissions.includes('lab_reports_view') &&
+        !permissions.includes('*')) {
+        return res.status(403).json({ message: 'Access denied. Lab personnel only.' });
+    }
+    next();
+};
+
 // 1. GET LAB DASHBOARD STATS
 router.get('/stats', verifyToken, resolveTenant, verifyLab, async (req, res) => {
     try {
@@ -162,7 +180,7 @@ router.get('/stats', verifyToken, resolveTenant, verifyLab, async (req, res) => 
 });
 
 // 1b. GET MY ASSIGNED REPORTS
-router.get('/my-reports', verifyToken, resolveTenant, verifyLab, async (req, res) => {
+router.get('/my-reports', verifyToken, resolveTenant, verifyLabOrReportsView, async (req, res) => {
     try {
         const { LabReport } = getModels(req);
         const hid = req.user.hospitalId;
@@ -192,7 +210,7 @@ router.get('/my-reports', verifyToken, resolveTenant, verifyLab, async (req, res
 });
 
 // 2. GET ASSIGNED REQUESTS (Pending or All)
-router.get('/requests', verifyToken, resolveTenant, verifyLab, async (req, res) => {
+router.get('/requests', verifyToken, resolveTenant, verifyLabOrReportsView, async (req, res) => {
     try {
         const { LabReport, User } = getModels(req);
         const { status, search } = req.query;

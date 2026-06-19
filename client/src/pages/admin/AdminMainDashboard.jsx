@@ -56,27 +56,10 @@ const AdminMainDashboard = () => {
     const fetchStats = async () => {
         try {
             setLoading(true);
-            const [usersRes, rolesRes, aptRes] = await Promise.all([
-                adminAPI.getUsers().catch(() => ({ success: false, users: [] })),
-                adminAPI.getRoles().catch(() => ({ success: false, data: [] })),
-                receptionAPI.getAllAppointments().catch(() => ({ success: false, appointments: [] }))
-            ]);
-            const users = usersRes.success ? usersRes.users : [];
-            const roles = rolesRes.success ? rolesRes.data : [];
-            const todayStr = new Date().toISOString().split('T')[0];
-            const todayApts = (aptRes.success ? aptRes.appointments : []).filter(a =>
-                a.appointmentDate && String(a.appointmentDate).startsWith(todayStr)
-            );
-            setStats({
-                totalUsers: users.length,
-                totalRoles: roles.length,
-                totalDoctors: users.filter(u => (u.role || '').toLowerCase().includes('doctor')).length,
-                totalPatients: users.filter(u => (u.role || '').toLowerCase() === 'patient').length,
-                todayAppointments: todayApts.length,
-                pendingPayments: todayApts.filter(a => (a.paymentStatus || '').toLowerCase() !== 'paid').length,
-                todayRevenue: todayApts.filter(a => a.status === 'completed' || (a.paymentStatus || '').toLowerCase() === 'paid')
-                    .reduce((sum, a) => sum + (Number(a.amount) || 0), 0),
-            });
+            const res = await adminAPI.getDashboardStats();
+            if (res.success && res.stats) {
+                setStats(res.stats);
+            }
         } catch (err) {
             console.error('Error fetching stats:', err);
         } finally {

@@ -320,6 +320,10 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
                 { label: 'Test Processing', path: '/lab/processing', icon: <FiActivity /> },
                 { label: 'Lab Reports', path: '/lab/completed', icon: <FiFileText /> }
             );
+        } else if (userPermissions.includes('lab_reports_view')) {
+            extraItems.push(
+                { label: 'Lab Reports', path: '/lab/completed', icon: <FiFileText /> }
+            );
         }
 
         if (userPermissions.includes('pharmacy_view') || userPermissions.includes('pharmacy_manage')) {
@@ -510,16 +514,6 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
                     ))
                 )}
             </nav>
-
-            <div className="sidebar-footer">
-                <NavLink 
-                    to="/profile"
-                    className={({ isActive }) => `sidebar-link settings-item ${isActive ? 'active' : ''}`}
-                >
-                    <span className="sidebar-link-icon"><FiSettings /></span>
-                    <span className="sidebar-link-text">Profile Settings</span>
-                </NavLink>
-            </div>
         </aside>
     );
 };

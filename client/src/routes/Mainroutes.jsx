@@ -219,7 +219,7 @@ const MainRoutes = () => {
                             <Route path="lab/orders" element={<ProtectedRoute requiredPermissions={['lab_view', 'lab_manage']}><LabOrders /></ProtectedRoute>} />
                             <Route path="lab/sample-collection" element={<ProtectedRoute requiredPermissions={['lab_view', 'lab_manage']}><SampleCollection /></ProtectedRoute>} />
                             <Route path="lab/processing" element={<ProtectedRoute requiredPermissions={['lab_view', 'lab_manage']}><TestProcessing /></ProtectedRoute>} />
-                            <Route path="lab/completed" element={<ProtectedRoute requiredPermissions={['lab_view', 'lab_manage']}><CompletedReports /></ProtectedRoute>} />
+                            <Route path="lab/completed" element={<ProtectedRoute requiredPermissions={['lab_view', 'lab_manage', 'lab_reports_view']}><CompletedReports /></ProtectedRoute>} />
 
                             {/* Pharmacy Management Pages */}
                             <Route path="pharmacy/inventory" element={<ProtectedRoute requiredPermissions={['pharmacy_view', 'pharmacy_manage']}><PharmacyInventory /></ProtectedRoute>} />

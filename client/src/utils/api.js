@@ -67,249 +67,8 @@ export const authAPI = {
     },
 };
 
-const getRajeshSeedData = () => {
-    const seedKey = 'doctor_appointments_seed';
-    let data = localStorage.getItem(seedKey);
-    if (!data) {
-        const today = new Date();
-        const tomorrow = new Date();
-        tomorrow.setDate(today.getDate() + 1);
-
-        const todayStr = today.toISOString().split('T')[0];
-        const tomorrowStr = tomorrow.toISOString().split('T')[0];
-
-        const initialSeed = [
-            {
-                _id: 'apt_rajesh_1',
-                appointmentDate: todayStr,
-                appointmentTime: '09:30 AM',
-                status: 'completed',
-                serviceName: 'Cardiology Consult',
-                doctorName: 'Rajesh Kumar',
-                diagnosis: 'Angina Pectoris (Exertional)',
-                doctorNotes: 'Patient reports occasional retrosternal pressure/pain on fast walking, resolving within 3 minutes of rest. Referred for Treadmill Test (TMT) and lipid profile.',
-                labTests: ['Lipid Profile', 'Treadmill Test (TMT)', 'ECG (12-Lead)'],
-                pharmacy: [
-                    { medicineName: 'Aspirin 75mg', saltName: 'Aspirin', frequency: 'Once daily after lunch', duration: '30 days' },
-                    { medicineName: 'Atorvastatin 20mg', saltName: 'Atorvastatin', frequency: 'Once daily at night', duration: '30 days' },
-                    { medicineName: 'Metoprolol Succinate 25mg', saltName: 'Metoprolol', frequency: 'Once daily in the morning', duration: '30 days' }
-                ],
-                userId: {
-                    _id: 'usr_amit_singh',
-                    name: 'Amit Singh',
-                    phone: '+91 98765 43210',
-                    email: 'amit.singh@example.com',
-                    patientId: 'PT-2026-8801',
-                    fertilityProfile: {
-                        age: '45',
-                        gender: 'Male',
-                        bloodGroup: 'O+',
-                        height: '172',
-                        weight: '78',
-                        bmi: '26.4',
-                        address: '102, Shanti Kunj, Sector 21, Noida',
-                        chiefComplaint: 'Mild chest discomfort during fast walking, resolves on rest.',
-                        reasonForVisit: 'Exertional chest pressure for past 2 weeks',
-                        vitals: {
-                            weight: '78',
-                            height: '172',
-                            bmi: '26.4',
-                            bloodPressure: '130/85',
-                            pulse: '76',
-                            temperature: '98.4',
-                            spo2: '98',
-                            respiratoryRate: '16',
-                            lastRecorded: today.toISOString()
-                        }
-                    }
-                }
-            },
-            {
-                _id: 'apt_rajesh_2',
-                appointmentDate: todayStr,
-                appointmentTime: '10:15 AM',
-                status: 'pending',
-                serviceName: 'Follow-up Consultation',
-                doctorName: 'Rajesh Kumar',
-                diagnosis: 'Paroxysmal Palpitations',
-                doctorNotes: 'Patient experiencing racing heart beats during stressful office hours. ECG today is normal. Holter monitor advised.',
-                labTests: ['24-Hour Holter Monitoring', 'Thyroid Profile (T3, T4, TSH)'],
-                pharmacy: [
-                    { medicineName: 'Propranolol 10mg', saltName: 'Propranolol', frequency: 'Twice daily', duration: '15 days' }
-                ],
-                userId: {
-                    _id: 'usr_priya_sharma',
-                    name: 'Priya Sharma',
-                    phone: '+91 87654 32109',
-                    email: 'priya.sharma@example.com',
-                    patientId: 'PT-2026-4412',
-                    fertilityProfile: {
-                        age: '38',
-                        gender: 'Female',
-                        bloodGroup: 'A+',
-                        height: '158',
-                        weight: '62',
-                        bmi: '24.8',
-                        address: 'Flat 4B, Silver Oak Apartments, Gurgaon',
-                        chiefComplaint: 'Periodic palpitations and lightheadedness.',
-                        reasonForVisit: 'Racing heart rate and stress',
-                        vitals: {
-                            weight: '62',
-                            height: '158',
-                            bmi: '24.8',
-                            bloodPressure: '120/75',
-                            pulse: '82',
-                            temperature: '98.6',
-                            spo2: '99',
-                            respiratoryRate: '18',
-                            lastRecorded: today.toISOString()
-                        }
-                    }
-                }
-            },
-            {
-                _id: 'apt_rajesh_3',
-                appointmentDate: todayStr,
-                appointmentTime: '11:30 AM',
-                status: 'confirmed',
-                serviceName: 'Hypertension Management',
-                doctorName: 'Rajesh Kumar',
-                diagnosis: 'Essential Hypertension (Stage 2)',
-                doctorNotes: 'Elevated BP of 145/95 today. Non-adherent to evening dose. Advised low-salt diet and strictly taking medication.',
-                labTests: ['Serum Creatinine', 'Serum Potassium', 'Blood Urea'],
-                pharmacy: [
-                    { medicineName: 'Telmisartan 40mg + Amlodipine 5mg', saltName: 'Telmisartan / Amlodipine', frequency: 'Once daily in the morning', duration: '60 days' },
-                    { medicineName: 'Hydrochlorothiazide 12.5mg', saltName: 'Hydrochlorothiazide', frequency: 'Once daily in the morning', duration: '60 days' }
-                ],
-                userId: {
-                    _id: 'usr_vikram_malhotra',
-                    name: 'Vikram Malhotra',
-                    phone: '+91 76543 21098',
-                    email: 'vikram.m@example.com',
-                    patientId: 'PT-2026-7832',
-                    fertilityProfile: {
-                        age: '58',
-                        gender: 'Male',
-                        bloodGroup: 'B+',
-                        height: '175',
-                        weight: '84',
-                        bmi: '27.4',
-                        address: 'C-72, Sushant Lok, Phase I, Gurgaon',
-                        chiefComplaint: 'Routine follow-up for chronic hypertension.',
-                        reasonForVisit: 'Regular BP assessment',
-                        vitals: {
-                            weight: '84',
-                            height: '175',
-                            bmi: '27.4',
-                            bloodPressure: '145/95',
-                            pulse: '70',
-                            temperature: '98.1',
-                            spo2: '97',
-                            respiratoryRate: '14',
-                            lastRecorded: today.toISOString()
-                        }
-                    }
-                }
-            },
-            {
-                _id: 'apt_rajesh_4',
-                appointmentDate: todayStr,
-                appointmentTime: '02:00 PM',
-                status: 'confirmed',
-                serviceName: 'Preventive Cardiology',
-                doctorName: 'Rajesh Kumar',
-                diagnosis: 'Family History of Coronary Heart Disease',
-                doctorNotes: 'Father suffered premature MI at 45. Highly active patient, nonsmoker. Lipid subfractions ordered to stratify risk.',
-                labTests: ['hs-CRP', 'Lipid Profile (Extended)', 'Lp(a) screening'],
-                pharmacy: [
-                    { medicineName: 'Coenzyme Q10 100mg', saltName: 'Coenzyme Q10', frequency: 'Once daily', duration: '30 days' }
-                ],
-                userId: {
-                    _id: 'usr_sneha_reddy',
-                    name: 'Sneha Reddy',
-                    phone: '+91 99887 76655',
-                    email: 'sneha.r@example.com',
-                    patientId: 'PT-2026-9021',
-                    fertilityProfile: {
-                        age: '29',
-                        gender: 'Female',
-                        bloodGroup: 'O-',
-                        height: '163',
-                        weight: '55',
-                        bmi: '20.7',
-                        address: 'Penthouse B, Green Glen Layout, Bangalore',
-                        chiefComplaint: 'Family history of early-onset coronary artery disease.',
-                        reasonForVisit: 'Preventive health check',
-                        vitals: {
-                            weight: '55',
-                            height: '163',
-                            bmi: '20.7',
-                            bloodPressure: '115/70',
-                            pulse: '68',
-                            temperature: '98.2',
-                            spo2: '99',
-                            respiratoryRate: '16',
-                            lastRecorded: today.toISOString()
-                        }
-                    }
-                }
-            },
-            {
-                _id: 'apt_rajesh_5',
-                appointmentDate: tomorrowStr,
-                appointmentTime: '03:30 PM',
-                status: 'pending',
-                serviceName: 'Post-MI Follow-up',
-                doctorName: 'Rajesh Kumar',
-                diagnosis: 'Chronic Ischemic Heart Disease / Status Post PCI',
-                doctorNotes: 'Asymptomatic post-PCI 3 months ago. Adhering perfectly to dual antiplatelet therapy. Echo planned for tomorrow.',
-                labTests: ['Echocardiography (2D Echo)', 'Fasting Blood Sugar'],
-                pharmacy: [
-                    { medicineName: 'Clopidogrel 75mg', saltName: 'Clopidogrel', frequency: 'Once daily after breakfast', duration: '90 days' },
-                    { medicineName: 'Aspirin 75mg', saltName: 'Aspirin', frequency: 'Once daily after lunch', duration: '90 days' },
-                    { medicineName: 'Atorvastatin 40mg', saltName: 'Atorvastatin', frequency: 'Once daily at night', duration: '90 days' },
-                    { medicineName: 'Carvedilol 6.25mg', saltName: 'Carvedilol', frequency: 'Twice daily', duration: '90 days' }
-                ],
-                userId: {
-                    _id: 'usr_rohan_verma',
-                    name: 'Rohan Verma',
-                    phone: '+91 91234 56789',
-                    email: 'rohan.v@example.com',
-                    patientId: 'PT-2026-3023',
-                    fertilityProfile: {
-                        age: '50',
-                        gender: 'Male',
-                        bloodGroup: 'AB+',
-                        height: '170',
-                        weight: '80',
-                        bmi: '27.7',
-                        address: 'B-405, Prestige Enclave, Bangalore',
-                        chiefComplaint: 'Routine check-up 3 months post angioplasty.',
-                        reasonForVisit: 'Post-PCI follow-up',
-                        vitals: {
-                            weight: '80',
-                            height: '170',
-                            bmi: '27.7',
-                            bloodPressure: '130/80',
-                            pulse: '72',
-                            temperature: '98.5',
-                            spo2: '98',
-                            respiratoryRate: '15',
-                            lastRecorded: today.toISOString()
-                        }
-                    }
-                }
-            }
-        ];
-        localStorage.setItem(seedKey, JSON.stringify(initialSeed));
-        return initialSeed;
-    }
-    return JSON.parse(data);
-};
-
 export const doctorAPI = {
     getAppointments: async (date, tomorrow, future, all) => {
-        const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
         let dbAppointments = [];
         try {
             let url = '/api/doctor/appointments';
@@ -326,21 +85,9 @@ export const doctorAPI = {
         } catch (e) {
             console.warn("Failed to fetch real appointments:", e);
         }
-
-        if (currentUser.email === 'rajesh@crm.com') {
-            const seed = getRajeshSeedData();
-            const combined = [...dbAppointments];
-            seed.forEach(mockApt => {
-                if (!combined.some(a => a._id === mockApt._id)) {
-                    combined.push(mockApt);
-                }
-            });
-            return { success: true, appointments: combined };
-        }
         return { success: true, appointments: dbAppointments };
     },
     getAllAppointments: async () => {
-        const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
         let dbAppointments = [];
         try {
             const response = await apiClient.get('/api/doctor/all-appointments');
@@ -350,33 +97,13 @@ export const doctorAPI = {
         } catch (e) {
             console.warn("Failed to fetch all appointments:", e);
         }
-
-        if (currentUser.email === 'rajesh@crm.com') {
-            const seed = getRajeshSeedData();
-            const combined = [...dbAppointments];
-            seed.forEach(mockApt => {
-                if (!combined.some(a => a._id === mockApt._id)) {
-                    combined.push(mockApt);
-                }
-            });
-            return { success: true, appointments: combined };
-        }
         return { success: true, appointments: dbAppointments };
     },
     getAppointmentDetails: async (id) => {
-        const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
-        if (currentUser.email === 'rajesh@crm.com' && String(id).startsWith('apt_rajesh_')) {
-            const seed = getRajeshSeedData();
-            const apt = seed.find(a => a._id === id);
-            if (apt) {
-                return { success: true, appointment: apt };
-            }
-        }
         const response = await apiClient.get(`/api/doctor/appointments/${id}`);
         return response.data;
     },
     getPatients: async () => {
-        const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
         let dbPatients = [];
         try {
             const response = await apiClient.get('/api/doctor/patients');
@@ -386,47 +113,17 @@ export const doctorAPI = {
         } catch (e) {
             console.warn("Failed to fetch patients:", e);
         }
-
-        if (currentUser.email === 'rajesh@crm.com') {
-            const seed = getRajeshSeedData();
-            const patients = seed.map(a => a.userId).filter(Boolean);
-            const combined = [...dbPatients];
-            patients.forEach(mockPt => {
-                if (!combined.some(p => p._id === mockPt._id)) {
-                    combined.push(mockPt);
-                }
-            });
-            return { success: true, patients: combined };
-        }
         return { success: true, patients: dbPatients };
     },
     getPatientHistory: async (patientId) => {
-        const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
-        if (currentUser.email === 'rajesh@crm.com' && String(patientId).startsWith('usr_')) {
-            const seed = getRajeshSeedData();
-            const history = seed.filter(a => a.userId?._id === patientId);
-            return { success: true, history };
-        }
         const response = await apiClient.get(`/api/doctor/patients/${patientId}/history`);
         return response.data;
     },
     getFullPatientProfile: async (patientId) => {
-        const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
-        if (currentUser.email === 'rajesh@crm.com' && String(patientId).startsWith('usr_')) {
-            const seed = getRajeshSeedData();
-            const apt = seed.find(a => a.userId?._id === patientId);
-            if (apt) {
-                return { success: true, profile: apt.userId.fertilityProfile, labReports: [] };
-            }
-        }
         const response = await apiClient.get(`/api/doctor/patients/${patientId}/full-profile`);
         return response.data;
     },
     getClinicPatientReports: async (clinicPatientId) => {
-        const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
-        if (currentUser.email === 'rajesh@crm.com' && String(clinicPatientId).startsWith('usr_')) {
-            return { success: true, reports: [] };
-        }
         return (await apiClient.get(`/api/doctor/clinic-patients/${clinicPatientId}/reports`)).data;
     },
     startSession: async (patientId) => {
@@ -434,129 +131,10 @@ export const doctorAPI = {
         return response.data;
     },
     updatePatientProfile: async (patientId, profileData) => {
-        const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
-        if (currentUser.email === 'rajesh@crm.com' && String(patientId).startsWith('usr_')) {
-            const seed = getRajeshSeedData();
-            const idx = seed.findIndex(a => a.userId?._id === patientId);
-            if (idx !== -1) {
-                seed[idx].userId.fertilityProfile = {
-                    ...seed[idx].userId.fertilityProfile,
-                    ...profileData,
-                    vitals: {
-                        ...seed[idx].userId.fertilityProfile.vitals,
-                        ...(profileData.vitals || {})
-                    }
-                };
-                localStorage.setItem('doctor_appointments_seed', JSON.stringify(seed));
-                return { success: true };
-            }
-        }
         const response = await apiClient.put(`/api/doctor/patients/${patientId}/profile`, profileData);
         return response.data;
     },
     updateSession: async (id, data) => {
-        const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
-        if (currentUser.email === 'rajesh@crm.com' && String(id).startsWith('apt_rajesh_')) {
-            let parsedData = {};
-            if (data instanceof FormData) {
-                for (let [key, value] of data.entries()) {
-                    try {
-                        parsedData[key] = JSON.parse(value);
-                    } catch (e) {
-                        parsedData[key] = value;
-                    }
-                }
-            } else {
-                parsedData = data;
-            }
-
-            const seed = getRajeshSeedData();
-            const idx = seed.findIndex(a => a._id === id);
-            if (idx !== -1) {
-                if (parsedData.status) seed[idx].status = parsedData.status;
-                if (parsedData.diagnosis) seed[idx].diagnosis = parsedData.diagnosis;
-                if (parsedData.notes) seed[idx].doctorNotes = parsedData.notes;
-                if (parsedData.labTests) seed[idx].labTests = parsedData.labTests;
-                if (parsedData.pharmacy) seed[idx].pharmacy = parsedData.pharmacy;
-                localStorage.setItem('doctor_appointments_seed', JSON.stringify(seed));
-
-                if (parsedData.pharmacy && parsedData.pharmacy.length > 0) {
-                    const pharmacyOrdersStored = localStorage.getItem('patient_pharmacy_orders');
-                    let allPharmacyOrders = pharmacyOrdersStored ? JSON.parse(pharmacyOrdersStored) : [];
-                    
-                    const newOrderId = `PHARM-2026-${Math.floor(100 + Math.random() * 900)}`;
-                    const orderDateStr = new Date().toISOString().split('T')[0];
-
-                    const rxItems = parsedData.pharmacy.map(p => ({
-                        name: p.medicineName || p.name,
-                        medicineName: p.medicineName || p.name,
-                        quantity: 1,
-                        price: 50,
-                        purchased: true
-                    }));
-
-                    const totalAmount = rxItems.reduce((acc, item) => acc + (item.price * item.quantity), 0);
-
-                    const newOrder = {
-                        _id: `order_${Date.now()}`,
-                        orderId: newOrderId,
-                        patientName: seed[idx].userId?.name || 'Walk-in Patient',
-                        userId: seed[idx].userId?._id || 'walk_in',
-                        patientEmail: seed[idx].userId?.email || 'patient@example.com',
-                        orderDate: orderDateStr,
-                        orderStatus: 'Upcoming',
-                        status: 'pending',
-                        items: rxItems,
-                        totalAmount: totalAmount,
-                        deliveryAddress: seed[idx].userId?.fertilityProfile?.address || 'Hospital Outpatient Clinic',
-                        paymentStatus: 'Pending',
-                        doctorId: { name: `Dr. ${seed[idx].doctorName || 'Rajesh Kumar'}` }
-                    };
-
-                    allPharmacyOrders.unshift(newOrder);
-                    localStorage.setItem('patient_pharmacy_orders', JSON.stringify(allPharmacyOrders));
-                }
-
-                // --- MOCK NOTIFICATIONS ---
-                const patientName = seed[idx].userId?.name || 'Walk-in Patient';
-                const patientId = seed[idx].userId?.patientId || 'N/A';
-                
-                const notifKey = 'patient_notifications';
-                const storedNotifs = localStorage.getItem(notifKey);
-                let allNotifs = storedNotifs ? JSON.parse(storedNotifs) : [];
-
-                if (parsedData.labTests && parsedData.labTests.length > 0) {
-                    const newLabNotif = {
-                        _id: `notif_lab_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
-                        message: `New lab tests prescribed for ${patientName} (${patientId})`,
-                        status: 'Unread',
-                        createdAt: new Date().toISOString(),
-                        recipientRole: 'lab',
-                        patientId: patientId
-                    };
-                    allNotifs.unshift(newLabNotif);
-                }
-
-                if (parsedData.pharmacy && parsedData.pharmacy.length > 0) {
-                    const newPharmNotif = {
-                        _id: `notif_pharm_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
-                        message: `New pharmacy order prescribed for ${patientName} (${patientId})`,
-                        status: 'Unread',
-                        createdAt: new Date().toISOString(),
-                        recipientRole: 'pharmacy',
-                        patientId: patientId
-                    };
-                    allNotifs.unshift(newPharmNotif);
-                }
-
-                if ((parsedData.labTests && parsedData.labTests.length > 0) || (parsedData.pharmacy && parsedData.pharmacy.length > 0)) {
-                    localStorage.setItem(notifKey, JSON.stringify(allNotifs));
-                }
-
-                return { success: true };
-            }
-        }
-
         const formData = new FormData();
         Object.keys(data).forEach(key => {
             if (typeof data[key] === 'object' && key !== 'prescriptionFile') {
@@ -571,76 +149,10 @@ export const doctorAPI = {
         return response.data;
     },
     recommendAdmission: async (id, notes, priority, requestedDepartment) => {
-        const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
-        if (currentUser.email === 'rajesh@crm.com' && String(id).startsWith('apt_rajesh_')) {
-            const seed = getRajeshSeedData();
-            const idx = seed.findIndex(a => a._id === id);
-            if (idx !== -1) {
-                seed[idx].recommendAdmission = true;
-                seed[idx].recommendAdmissionNotes = notes || '';
-                seed[idx].recommendAdmissionPriority = priority || 'Normal';
-                seed[idx].recommendAdmissionDept = requestedDepartment || seed[idx].department || '';
-                seed[idx].status = 'Admitted';
-                localStorage.setItem('doctor_appointments_seed', JSON.stringify(seed));
-
-                // Add to mock notifications
-                const patientName = seed[idx].userId?.name || 'Walk-in Patient';
-                const patientId = seed[idx].userId?.patientId || 'N/A';
-                const notifKey = 'patient_notifications';
-                const storedNotifs = localStorage.getItem(notifKey);
-                let allNotifs = storedNotifs ? JSON.parse(storedNotifs) : [];
-
-                const newNotif = {
-                    _id: `notif_adm_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
-                    message: `Dr. Rajesh Kumar has recommended Patient ${patientName} (${patientId}) for admission. Notes: ${notes || 'None'}`,
-                    status: 'Unread',
-                    createdAt: new Date().toISOString(),
-                    recipientRole: 'receptionist',
-                    patientId: patientId
-                };
-                allNotifs.unshift(newNotif);
-                localStorage.setItem(notifKey, JSON.stringify(allNotifs));
-                return { success: true };
-            }
-        }
         const response = await apiClient.post(`/api/doctor/appointments/${id}/recommend-admission`, { notes, priority, requestedDepartment });
         return response.data;
     },
     cancelRecommendAdmission: async (id) => {
-        const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
-        if (currentUser.email === 'rajesh@crm.com' && String(id).startsWith('apt_rajesh_')) {
-            const seed = getRajeshSeedData();
-            const idx = seed.findIndex(a => a._id === id);
-            if (idx !== -1) {
-                seed[idx].recommendAdmission = false;
-                seed[idx].recommendAdmissionNotes = '';
-                seed[idx].recommendAdmissionPriority = 'Normal';
-                seed[idx].recommendAdmissionDept = '';
-                if (seed[idx].status === 'Admitted') {
-                    seed[idx].status = 'completed';
-                }
-                localStorage.setItem('doctor_appointments_seed', JSON.stringify(seed));
-
-                // Add to mock notifications to cancel
-                const patientName = seed[idx].userId?.name || 'Walk-in Patient';
-                const patientId = seed[idx].userId?.patientId || 'N/A';
-                const notifKey = 'patient_notifications';
-                const storedNotifs = localStorage.getItem(notifKey);
-                let allNotifs = storedNotifs ? JSON.parse(storedNotifs) : [];
-
-                const cancelNotif = {
-                    _id: `notif_adm_cancel_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
-                    message: `Dr. Rajesh Kumar has cancelled the admission request for Patient ${patientName} (${patientId}).`,
-                    status: 'Unread',
-                    createdAt: new Date().toISOString(),
-                    recipientRole: 'receptionist',
-                    patientId: patientId
-                };
-                allNotifs.unshift(cancelNotif);
-                localStorage.setItem(notifKey, JSON.stringify(allNotifs));
-                return { success: true };
-            }
-        }
         const response = await apiClient.delete(`/api/doctor/appointments/${id}/recommend-admission`);
         return response.data;
     },
@@ -799,6 +311,7 @@ export const adminAPI = {
     updateRole: async (id, data) => (await apiClient.put(`/api/admin/roles/${id}`, data)).data,
     deleteRole: async (id) => (await apiClient.delete(`/api/admin/roles/${id}`)).data,
     updateUserPermissions: async (id, customPermissions, deniedPermissions) => (await apiClient.put(`/api/admin/users/${id}/permissions`, { customPermissions, deniedPermissions })).data,
+    getDashboardStats: async () => (await apiClient.get('/api/admin/dashboard-stats')).data,
 };
 
 export const administratorAPI = {
