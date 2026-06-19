@@ -63,10 +63,15 @@ const RoleDashboard = () => {
         return <Navigate to="/reception/dashboard" replace />;
     }
 
-    // Process and self-heal navLinks for billing roles to guarantee Refunds link works
-    let navLinks = [...rawNavLinks];
+    // Billing / Cashier roles go directly to the Billing Dashboard (skip welcome screen)
     const billingRoles = ['cashier', 'billing', 'billing executive', 'billing manager', 'senior billing officer'];
     const isBillingRole = billingRoles.includes(role) || user.permissions?.includes('billing_view');
+    if (isBillingRole) {
+        return <Navigate to="/billing/dashboard" replace />;
+    }
+
+    // Process and self-heal navLinks for billing roles to guarantee Refunds link works
+    let navLinks = [...rawNavLinks];
 
     if (isBillingRole) {
         let standardBillingLinks = [];

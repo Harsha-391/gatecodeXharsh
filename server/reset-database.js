@@ -72,8 +72,7 @@ const defaultRoles = [
         name: 'Doctor',
         description: 'Medical doctor with clinical access',
         permissions: [
-            'visit_diagnose', 'patient_view', 'clinical_history_view',
-            'lab_view', 'pharmacy_view'
+            'visit_diagnose', 'patient_view', 'clinical_history_view'
         ],
         dashboardPath: '/doctor/patients',
         navLinks: [

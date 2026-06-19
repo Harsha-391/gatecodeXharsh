@@ -922,10 +922,6 @@ const AdminDoctors = () => {
                                                 <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569', marginBottom: '6px', display: 'block' }}>Experience (Years) *</label>
                                                 <input type="number" name="experienceYears" value={formData.experienceYears} onChange={handleChange} min={0} max={50} required style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '14px' }} />
                                             </div>
-                                            <div className="form-group">
-                                                <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569', marginBottom: '6px', display: 'block' }}>Consultation Fee *</label>
-                                                <input type="number" name="consultationFee" value={formData.consultationFee} onChange={handleChange} min={0} required style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '14px' }} />
-                                            </div>
                                         </div>
 
                                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px', marginTop: '14px' }}>
@@ -1304,10 +1300,7 @@ const AdminDoctors = () => {
                                                     <span style={{ color: '#64748b' }}>Experience:</span>
                                                     <strong style={{ color: '#0f172a' }}>{infoFormData.experienceYears} Years</strong>
                                                 </div>
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-                                                    <span style={{ color: '#64748b' }}>Consultation Fee:</span>
-                                                    <strong style={{ color: '#16a34a', fontWeight: '700' }}>{infoFormData.consultationFee ? `₹${infoFormData.consultationFee}` : 'Free'}</strong>
-                                                </div>
+
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
                                                     <span style={{ color: '#64748b' }}>Joining Date:</span>
                                                     <strong style={{ color: '#0f172a' }}>{infoFormData.joiningDate ? new Date(infoFormData.joiningDate).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</strong>
@@ -1481,10 +1474,6 @@ const AdminDoctors = () => {
                                             <div className="form-group">
                                                 <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569', marginBottom: '6px', display: 'block' }}>Experience (Years) *</label>
                                                 <input type="number" name="experienceYears" value={infoFormData.experienceYears} onChange={handleInfoChange} min={0} max={50} required style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '14px' }} />
-                                            </div>
-                                            <div className="form-group">
-                                                <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569', marginBottom: '6px', display: 'block' }}>Consultation Fee *</label>
-                                                <input type="number" name="consultationFee" value={infoFormData.consultationFee} onChange={handleInfoChange} min={0} required style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '14px' }} />
                                             </div>
                                         </div>
 

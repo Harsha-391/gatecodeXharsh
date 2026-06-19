@@ -30,6 +30,8 @@ mongoose.connect(dbURI)
 
         console.log(`Found ${doctorRoles.length} Doctor role(s). Removing: ${REMOVE_PERMS.join(', ')} ...`);
 
+        const { syncToTenant } = require('../utils/tenantSync');
+
         for (const role of doctorRoles) {
             const before = [...(role.permissions || [])];
             // Strip the unwanted permissions
@@ -39,6 +41,16 @@ mongoose.connect(dbURI)
                 link => !['Lab Dashboard', 'Pharmacy'].includes(link.label)
             );
             await role.save();
+            
+            if (role.hospitalId) {
+                try {
+                    await syncToTenant('Role', role, 'save', role.hospitalId);
+                    console.log(`📡 Synced role "${role.name}" to tenant for hospital: ${role.hospitalId}`);
+                } catch (syncErr) {
+                    console.warn(`⚠️ Failed to sync role to tenant: ${syncErr.message}`);
+                }
+            }
+
             const removed = before.filter(p => REMOVE_PERMS.includes(p));
             console.log(
                 `✅ Updated role "${role.name}" (hospital: ${role.hospitalId || 'global'}) — removed: [${removed.join(', ') || 'none already absent'}]`
