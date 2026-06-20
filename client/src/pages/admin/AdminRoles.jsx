@@ -3,6 +3,15 @@ import { useNavigate } from 'react-router-dom';
 import { adminAPI } from '../../utils/api';
 import './AdminRoles.css';
 
+const CATEGORY_META = {
+    "Patient Management":        { icon: '🧑‍⚕️', color: '#6366f1', bg: '#eef2ff' },
+    "Clinical & Medical":        { icon: '🩺', color: '#10b981', bg: '#ecfdf5' },
+    "Operations":                { icon: '⚙️', color: '#f59e0b', bg: '#fffbeb' },
+    "Finance & Accounting":      { icon: '💰', color: '#ef4444', bg: '#fef2f2' },
+    "Patient Billing & Cashier": { icon: '🧾', color: '#8b5cf6', bg: '#f5f3ff' },
+    "Admin":                     { icon: '🛡️', color: '#0ea5e9', bg: '#f0f9ff' },
+};
+
 const AdminRoles = () => {
     const navigate = useNavigate();
     const [roles, setRoles] = useState([]);
@@ -15,8 +24,8 @@ const AdminRoles = () => {
     const [message, setMessage] = useState({ type: '', text: '' });
     const [showSaveSuccess, setShowSaveSuccess] = useState(false);
     const [successPopupMsg, setSuccessPopupMsg] = useState('');
+    const [expandedCategories, setExpandedCategories] = useState({});
 
-    // Organized Permissions List
     const PERMISSIONS = [
         {
             category: "Patient Management", items: [
@@ -39,63 +48,102 @@ const AdminRoles = () => {
                 { key: 'appointment_view_all', label: 'View All Appointments' },
                 { key: 'lab_view', label: 'View Lab Tests' },
                 { key: 'lab_manage', label: 'Manage Lab Tests' },
+                { key: 'lab_reports_view', label: 'View Lab Reports' },
                 { key: 'pharmacy_view', label: 'View Pharmacy' },
                 { key: 'pharmacy_manage', label: 'Pharmacy & Inventory' },
-                { key: 'patient_monitor', label: 'Monitor Patients & Queues (Patient Flow)' },
+                { key: 'patient_monitor', label: 'Monitor Patients & Queues' },
                 { key: 'admission_manage', label: 'Manage Admissions & Beds' },
                 { key: 'inventory_view', label: 'View Inventory Monitoring' },
-                { key: 'resource_manage', label: 'Manage Assets & Equipment (Resource Management)' }
+                { key: 'resource_manage', label: 'Manage Assets & Equipment' },
+                { key: 'reports_view', label: 'View Operational Reports' }
             ]
         },
         {
             category: "Finance & Accounting", items: [
                 { key: 'finance_view', label: 'View Hospital Financials' },
-                { key: 'billing_view', label: 'View Patient Billing' },
-                { key: 'billing_manage', label: 'Manage Patient Billing (Cashier)' }
+                { key: 'finance_outstanding', label: 'Manage Outstanding Payments' },
+                { key: 'finance_claims', label: 'Manage Insurance Claims' },
+                { key: 'finance_expenses', label: 'Track Expenses' },
+                { key: 'finance_profit_loss', label: 'View Profit & Loss Statements' },
+                { key: 'finance_statements', label: 'View Financial Statements' },
+                { key: 'finance_reconciliation', label: 'Perform Bank Reconciliation' },
+                { key: 'finance_transactions', label: 'View Transaction Logs' },
+                { key: 'finance_audit', label: 'Access Financial Audit Center' },
+                { key: 'finance_payroll', label: 'Manage Staff Payroll' },
+                { key: 'finance_doctor_payouts', label: 'Manage Doctor Payouts' }
+            ]
+        },
+        {
+            category: "Patient Billing & Cashier", items: [
+                { key: 'billing_view', label: 'View Patient Billing Dashboard' },
+                { key: 'billing_manage', label: 'Manage Billing Records' },
+                { key: 'billing_collect_payment', label: 'Collect Payments / Cashier' },
+                { key: 'billing_generate_invoice', label: 'Generate Bills & Invoices' },
+                { key: 'billing_print_invoice', label: 'Print Invoices & Receipts' },
+                { key: 'billing_refund', label: 'Process Refunds' },
+                { key: 'billing_reports', label: 'View Billing Reports' },
+                { key: 'billing_analytics', label: 'Access Billing Analytics' },
+                { key: 'billing_insurance', label: 'Process Insurance Billing' },
+                { key: 'billing_ipd_settlement', label: 'Manage IPD Bill Settlement' },
+                { key: 'billing_receipt_reprint', label: 'Reprint Receipts' },
+                { key: 'billing_discounts', label: 'Apply Discounts & Adjustments' }
             ]
         },
         {
             category: "Admin", items: [
-                { key: 'admin_manage_roles', label: 'Manage Roles' },
-                { key: 'admin_view_stats', label: 'View Admin Stats' }
+                { key: 'admin_manage_roles', label: 'Manage Roles & Access Control' },
+                { key: 'admin_view_stats', label: 'View Admin Overview Stats' }
             ]
         }
     ];
 
-    // ─── Permission → Nav Link Auto-Mapping ───
-    // Each permission gets its own unique nav label so users can see all their
-    // available features in the navbar. De-duplicated by label (not path).
     const PERMISSION_NAV_MAP = {
-        // Patient Management
         patient_create: { label: 'Patient Registration', path: '/reception/dashboard' },
         patient_search: { label: 'Patient Search', path: '/doctor/patients' },
         patient_view: { label: 'Patient Records', path: '/doctor/patients' },
         patient_edit: { label: 'Edit Patients', path: '/doctor/patients' },
-        // Clinical & Medical
         visit_intake: { label: 'Nurse Intake', path: '/doctor/patients' },
         visit_diagnose: { label: 'Consultations', path: '/doctor/patients' },
         clinical_history_view: { label: 'Medical History', path: '/doctor/patients' },
-        // Operations
         appointment_manage: { label: 'Reception', path: '/reception/dashboard' },
         appointment_view_all: { label: 'All Appointments', path: '/reception/dashboard' },
         lab_view: { label: 'Lab Dashboard', path: '/lab/dashboard' },
         lab_manage: { label: 'Lab Tests', path: '/lab/tests' },
+        lab_reports_view: { label: 'Lab Reports', path: '/lab/completed' },
         pharmacy_view: { label: 'Pharmacy', path: '/pharmacy/inventory' },
         pharmacy_manage: { label: 'Pharmacy Orders', path: '/pharmacy/orders' },
         patient_monitor: { label: 'Patient Flow', path: '/admin/patient-flow' },
         admission_manage: { label: 'Admissions', path: '/admin/admissions' },
-        inventory_view: { label: 'Inventory Monitoring', path: '/admin/inventory' },
-        resource_manage: { label: 'Resource Management', path: '/admin/resources' },
-        // Admin
+        inventory_view: { label: 'Inventory', path: '/admin/inventory' },
+        resource_manage: { label: 'Resources', path: '/admin/resources' },
+        reports_view: { label: 'Reports', path: '/admin/reports' },
         admin_manage_roles: { label: 'Manage Users', path: '/admin/users' },
         admin_view_stats: { label: 'Admin Dashboard', path: '/admin' },
-        finance_view: { label: 'Finance & Accounting', path: '/accountant/dashboard' },
-        // Cashier 
-        billing_view: { label: 'Patient Billing', path: '/cashier/billing' },
-        billing_manage: { label: 'Patient Billing', path: '/cashier/billing' }
+        finance_view: { label: 'Finance', path: '/accountant/dashboard' },
+        finance_outstanding: { label: 'Outstanding Payments', path: '/accountant/outstanding' },
+        finance_claims: { label: 'Insurance Claims', path: '/accountant/claims' },
+        finance_expenses: { label: 'Expenses', path: '/accountant/expenses' },
+        finance_profit_loss: { label: 'Profit & Loss', path: '/accountant/profit-loss' },
+        finance_statements: { label: 'Financial Statements', path: '/accountant/statements' },
+        finance_reconciliation: { label: 'Reconciliation', path: '/accountant/reconciliation' },
+        finance_transactions: { label: 'Transactions', path: '/accountant/transactions' },
+        finance_audit: { label: 'Audit Center', path: '/accountant/audit-logs' },
+        finance_payroll: { label: 'Payroll', path: '/accountant/payroll' },
+        finance_doctor_payouts: { label: 'Doctor Payouts', path: '/accountant/doctor-payouts' },
+        billing_view: { label: 'Patient Billing', path: '/billing/patient' },
+        billing_manage: { label: 'Billing Manage', path: '/billing/patient' },
+        billing_collect_payment: { label: 'Collect Payment', path: '/billing/collect' },
+        billing_generate_invoice: { label: 'Invoices', path: '/billing/invoices' },
+        billing_print_invoice: { label: 'Print Invoice', path: '/billing/receipt-reprint' },
+        billing_refund: { label: 'Refunds', path: '/billing/refunds' },
+        billing_reports: { label: 'Revenue Reports', path: '/billing/reports' },
+        billing_analytics: { label: 'Billing Analytics', path: '/billing/analytics' },
+        billing_insurance: { label: 'Insurance Billing', path: '/billing/insurance' },
+        billing_ipd_settlement: { label: 'IPD Settlement', path: '/billing/ipd-settlement' },
+        billing_receipt_reprint: { label: 'Receipt Reprint', path: '/billing/receipt-reprint' },
+        billing_discounts: { label: 'Discounts', path: '/billing/discounts' }
     };
 
-    // Compute nav links from current permissions (one link per permission, de-duped by label)
     const getAutoNavLinks = (permissions) => {
         const seen = new Set();
         const links = [];
@@ -106,16 +154,13 @@ const AdminRoles = () => {
                 links.push({ label: mapping.label, path: mapping.path });
             }
         });
-        // Also add Roles link if admin_manage_roles is present
         if (permissions.includes('admin_manage_roles') && !seen.has('Manage Roles')) {
             links.push({ label: 'Manage Roles', path: '/admin/roles' });
         }
         return links;
     };
 
-    useEffect(() => {
-        fetchRoles();
-    }, []);
+    useEffect(() => { fetchRoles(); }, []);
 
     const fetchRoles = async () => {
         try {
@@ -136,7 +181,21 @@ const AdminRoles = () => {
         });
     };
 
-    // --- MANUAL NAV LINKS ---
+    const toggleCategory = (category) => {
+        setExpandedCategories(prev => ({ ...prev, [category]: !prev[category] }));
+    };
+
+    const toggleAllInCategory = (category, items) => {
+        const keys = items.map(i => i.key);
+        const allChecked = keys.every(k => formData.permissions.includes(k));
+        setFormData(prev => ({
+            ...prev,
+            permissions: allChecked
+                ? prev.permissions.filter(p => !keys.includes(p))
+                : [...new Set([...prev.permissions, ...keys])]
+        }));
+    };
+
     const addNavLink = () => {
         setFormData(prev => ({ ...prev, navLinks: [...prev.navLinks, { label: '', path: '' }] }));
     };
@@ -153,11 +212,9 @@ const AdminRoles = () => {
     };
 
     const resetForm = () => {
-        setFormData({
-            name: '', description: '', permissions: [],
-            dashboardPath: '/', navLinks: [{ label: '', path: '' }]
-        });
+        setFormData({ name: '', description: '', permissions: [], dashboardPath: '/', navLinks: [{ label: '', path: '' }] });
         setEditingRoleId(null);
+        setMessage({ type: '', text: '' });
     };
 
     const handleEdit = (role) => {
@@ -177,35 +234,24 @@ const AdminRoles = () => {
         e.preventDefault();
         setLoading(true);
         setMessage({ type: '', text: '' });
-
         const manualLinks = formData.navLinks.filter(l => l.label.trim() && l.path.trim());
         const autoLinks = getAutoNavLinks(formData.permissions);
-
-        // Merge manual and auto links
         const combinedLinks = [...manualLinks];
         autoLinks.forEach(auto => {
             if (!combinedLinks.find(c => c.path === auto.path || c.label === auto.label)) {
                 combinedLinks.push(auto);
             }
         });
-
-        const cleanedData = {
-            ...formData,
-            navLinks: combinedLinks
-        };
-
+        const cleanedData = { ...formData, navLinks: combinedLinks };
         try {
             if (editingRoleId) {
                 await adminAPI.updateRole(editingRoleId, cleanedData);
-                setMessage({ type: 'success', text: 'Role updated successfully!' });
                 setSuccessPopupMsg('Role has been updated successfully.');
-                setShowSaveSuccess(true);
             } else {
                 await adminAPI.createRole(cleanedData);
-                setMessage({ type: 'success', text: 'Role created successfully!' });
                 setSuccessPopupMsg('Role has been created successfully.');
-                setShowSaveSuccess(true);
             }
+            setShowSaveSuccess(true);
             resetForm();
             fetchRoles();
         } catch (err) {
@@ -220,338 +266,335 @@ const AdminRoles = () => {
         try {
             await adminAPI.deleteRole(id);
             fetchRoles();
-            setMessage({ type: 'success', text: 'Role deleted successfully!' });
         } catch (err) {
             setMessage({ type: 'error', text: err.response?.data?.message || 'Failed to delete role' });
         }
     };
 
+    const totalSelected = formData.permissions.length;
+    const totalPerms = PERMISSIONS.reduce((acc, c) => acc + c.items.length, 0);
+
     return (
-        <div className="roles-page-container">
-            <header className="roles-header">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', marginBottom: '8px' }}>
-                    <button
-                        onClick={() => {
+        <div className="ar-page">
+            {/* ── Hero Header ── */}
+            <div className="ar-hero">
+                <div className="ar-hero-bg" />
+                <div className="ar-hero-content">
+                    <div className="ar-hero-top">
+                        <button className="ar-back-btn" onClick={() => {
+                            const user = JSON.parse(localStorage.getItem('user') || '{}');
+                            const role = (user.role || '').toLowerCase();
+                            navigate(role === 'superadmin' || role === 'centraladmin' ? '/supremeadmin' : '/admin');
+                        }}>
+                            <span>←</span> Back to Dashboard
+                        </button>
+                        {(() => {
                             const user = JSON.parse(localStorage.getItem('user') || '{}');
                             const role = (user.role || '').toLowerCase();
                             if (role === 'superadmin' || role === 'centraladmin') {
-                                navigate('/supremeadmin');
-                            } else {
-                                navigate('/admin');
-                            }
-                        }}
-                        style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '4px' }}
-                    >
-                        ← Back to Dashboard
-                    </button>
-                    {(() => {
-                        const user = JSON.parse(localStorage.getItem('user') || '{}');
-                        const role = (user.role || '').toLowerCase();
-                        if (role === 'superadmin' || role === 'centraladmin') {
-                            return (
-                                <button
-                                    onClick={() => navigate('/supremeadmin', { state: { openTab: 'permissions' } })}
-                                    style={{
-                                        background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
-                                        color: 'white',
-                                        border: 'none',
-                                        borderRadius: '10px',
-                                        padding: '8px 16px',
-                                        fontSize: '13px',
-                                        fontWeight: 700,
-                                        cursor: 'pointer',
-                                        boxShadow: '0 4px 10px rgba(99, 102, 241, 0.2)',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '6px',
-                                        transition: 'all 0.2s'
-                                    }}
-                                    onMouseEnter={(e) => {
-                                        e.currentTarget.style.opacity = '0.9';
-                                        e.currentTarget.style.transform = 'translateY(-1px)';
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        e.currentTarget.style.opacity = '1';
-                                        e.currentTarget.style.transform = 'none';
-                                    }}
-                                >
-                                    🔐 Go to Dynamic Permissions
-                                </button>
-                            );
-                        }
-                        return null;
-                    })()}
-                </div>
-                <h1>Role & Permission Manager</h1>
-                <p>Define custom access levels for your hospital staff.</p>
-            </header>
-
-            <div className="roles-grid">
-                {/* --- LEFT COLUMN: CREATE/EDIT FORM --- */}
-                <div className="role-card create-card">
-                    <div className="card-header">
-                        <h2>{editingRoleId ? 'Edit Role' : 'Create New Role'}</h2>
-                        {editingRoleId && (
-                            <button onClick={resetForm} className="btn-cancel" style={{ marginLeft: 'auto' }}>
-                                Cancel Edit
-                            </button>
-                        )}
-                    </div>
-
-                    {message.text && (
-                        <div className={`status-message ${message.type}`}>
-                            {message.type === 'success' ? '✔' : '⚠'} {message.text}
-                        </div>
-                    )}
-
-                    <form onSubmit={handleSubmit}>
-                        <div className="form-group">
-                            <label>Role Name</label>
-                            <input
-                                type="text"
-                                value={formData.name}
-                                onChange={e => setFormData({ ...formData, name: e.target.value })}
-                                placeholder="e.g. Senior Nurse"
-                                required
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label>Description</label>
-                            <input
-                                type="text"
-                                value={formData.description}
-                                onChange={e => setFormData({ ...formData, description: e.target.value })}
-                                placeholder="What is this role for?"
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label>Default Dashboard Path</label>
-                            <input
-                                type="text"
-                                value={formData.dashboardPath}
-                                onChange={e => setFormData({ ...formData, dashboardPath: e.target.value })}
-                                placeholder="e.g. /reception/dashboard"
-                                required
-                            />
-                        </div>
-
-                        <div className="form-group">
-                            <label>Navigation Links</label>
-                            <small style={{ color: '#888', fontSize: '12px', display: 'block', marginBottom: '10px' }}>
-                                The tabs user will see in their sidebar menu.
-                            </small>
-                            {formData.navLinks.map((link, index) => (
-                                <div key={index} className="nav-link-row">
-                                    <input
-                                        type="text"
-                                        placeholder="Label (e.g. Patients)"
-                                        value={link.label}
-                                        onChange={e => updateNavLink(index, 'label', e.target.value)}
-                                        className="nav-input"
-                                    />
-                                    <input
-                                        type="text"
-                                        placeholder="Path (e.g. /patients)"
-                                        value={link.path}
-                                        onChange={e => updateNavLink(index, 'path', e.target.value)}
-                                        className="nav-input"
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => removeNavLink(index)}
-                                        className="btn-remove-nav"
-                                        title="Remove Link"
-                                    >✖</button>
-                                </div>
-                            ))}
-                            <button type="button" onClick={addNavLink} className="btn-add-nav">+ Add Link</button>
-                        </div>
-
-                        <div className="permissions-section">
-                            <label className="section-label">Assign Permissions</label>
-                            <div className="permissions-list">
-                                {PERMISSIONS.map((category) => (
-                                    <div key={category.category} className="perm-category">
-                                        <h4 className="category-title">{category.category}</h4>
-                                        {category.items.map(p => (
-                                            <label key={p.key} className="perm-item">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={formData.permissions.includes(p.key)}
-                                                    onChange={() => handlePermissionToggle(p.key)}
-                                                />
-                                                <span className="perm-text">{p.label}</span>
-                                            </label>
-                                        ))}
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-
-                        <button type="submit" disabled={loading} className="btn-create">
-                            {loading ? 'Saving...' : editingRoleId ? 'Update Role' : 'Create Role'}
-                        </button>
-                    </form>
-                </div>
-
-                {/* --- RIGHT COLUMN: EXISTING ROLES --- */}
-                <div className="role-card list-card">
-                    <div className="card-header">
-                        <h2>Active Roles</h2>
-                        <span className="role-count">{roles.length} roles found</span>
-                    </div>
-
-                    <div className="roles-list">
-                        {roles.length === 0 && <div className="empty-state">No roles defined yet. Create one!</div>}
-
-                        {roles.map(role => (
-                            <div key={role._id} className="role-item">
-                                <div className="role-info">
-                                    <div className="role-title-row">
-                                        <h3>{role.name}</h3>
-                                        <span className="perm-badge">{role.permissions?.length || 0} perms</span>
-                                        {role.userCount > 0 && (
-                                            <span className="perm-badge" style={{ background: '#1890ff20', color: '#1890ff' }}>
-                                                {role.userCount} user{role.userCount !== 1 ? 's' : ''}
-                                            </span>
-                                        )}
-                                        {role.isSystemRole && (
-                                            <span className="perm-badge" style={{ background: '#faad1420', color: '#faad14' }}>
-                                                System
-                                            </span>
-                                        )}
-                                    </div>
-                                    <p className="role-desc">{role.description || "No description provided."}</p>
-                                    {role.dashboardPath && (
-                                        <p className="role-desc" style={{ fontSize: '11px', color: '#888' }}>
-                                            Dashboard: {role.dashboardPath}
-                                        </p>
-                                    )}
-
-                                    <div className="role-tags">
-                                        {(role.permissions || []).slice(0, 3).map(p => (
-                                            <span key={p} className="tag">{p.replace(/_/g, ' ')}</span>
-                                        ))}
-                                        {(role.permissions || []).length > 3 && <span className="tag more">+{role.permissions.length - 3} more</span>}
-                                    </div>
-                                </div>
-                                <div style={{ display: 'flex', gap: '6px' }}>
-                                    <button onClick={() => handleEdit(role)} className="btn-icon-delete" title="Edit Role"
-                                        style={{ background: '#1890ff20', color: '#1890ff' }}>
-                                        ✏️
+                                return (
+                                    <button className="ar-dyn-btn" onClick={() => navigate('/supremeadmin', { state: { openTab: 'permissions' } })}>
+                                        🔐 Dynamic Permissions
                                     </button>
-                                    {!role.isSystemRole && (
-                                        <button onClick={() => handleDelete(role._id)} className="btn-icon-delete" title="Delete Role">
-                                            🗑
-                                        </button>
-                                    )}
-                                </div>
-                            </div>
-                        ))}
+                                );
+                            }
+                            return null;
+                        })()}
+                    </div>
+                    <div className="ar-hero-title-block">
+                        <div className="ar-hero-icon">🛡️</div>
+                        <div>
+                            <h1 className="ar-hero-h1">Role & Permission Manager</h1>
+                            <p className="ar-hero-sub">Define granular access levels for every member of your hospital staff.</p>
+                        </div>
+                    </div>
+                    <div className="ar-hero-stats">
+                        <div className="ar-stat-chip">
+                            <span className="ar-stat-num">{roles.length}</span>
+                            <span className="ar-stat-label">Active Roles</span>
+                        </div>
+                        <div className="ar-stat-chip">
+                            <span className="ar-stat-num">{totalPerms}</span>
+                            <span className="ar-stat-label">Permissions Available</span>
+                        </div>
+                        <div className="ar-stat-chip">
+                            <span className="ar-stat-num">{roles.reduce((s, r) => s + (r.userCount || 0), 0)}</span>
+                            <span className="ar-stat-label">Total Staff</span>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            {/* Save Success Popup Modal */}
-            {showSaveSuccess && (
-                <div style={{
-                    position: 'fixed',
-                    inset: 0,
-                    backgroundColor: 'rgba(15, 23, 42, 0.65)',
-                    backdropFilter: 'blur(8px)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    zIndex: 9999,
-                    animation: 'fadeIn 0.25s ease-out'
-                }}>
-                    <style>{`
-                        @keyframes fadeIn {
-                            from { opacity: 0; }
-                            to { opacity: 1; }
-                        }
-                        @keyframes scaleUp {
-                            from { transform: scale(0.92); opacity: 0; }
-                            to { transform: scale(1); opacity: 1; }
-                        }
-                        @keyframes pulseSuccess {
-                            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
-                            70% { transform: scale(1.04); box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
-                            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
-                        }
-                    `}</style>
-                    <div style={{
-                        background: 'white',
-                        borderRadius: '24px',
-                        padding: '36px 32px',
-                        width: '90%',
-                        maxWidth: '400px',
-                        textAlign: 'center',
-                        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-                        border: '1px solid rgba(226, 232, 240, 0.8)',
-                        animation: 'scaleUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)'
-                    }}>
-                        <div style={{
-                            width: '72px',
-                            height: '72px',
-                            borderRadius: '50%',
-                            background: '#dcfce7',
-                            color: '#15803d',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontSize: '36px',
-                            margin: '0 auto 20px',
-                            boxShadow: '0 0 0 8px #f0fdf4',
-                            animation: 'pulseSuccess 2s infinite'
-                        }}>
-                            ✓
+            {/* ── Main Grid ── */}
+            <div className="ar-grid">
+
+                {/* ─── LEFT: Create / Edit Form ─── */}
+                <div className="ar-form-card">
+                    <div className="ar-form-card-header">
+                        <div className="ar-form-card-title">
+                            <span className="ar-form-card-icon">{editingRoleId ? '✏️' : '✨'}</span>
+                            <h2>{editingRoleId ? 'Edit Role' : 'Create New Role'}</h2>
                         </div>
-                        
-                        <h3 style={{
-                            margin: '0 0 8px',
-                            fontSize: '20px',
-                            fontWeight: 850,
-                            color: '#1e293b'
-                        }}>
-                            Changes Saved!
-                        </h3>
-                        
-                        <p style={{
-                            margin: '0 0 24px',
-                            fontSize: '14px',
-                            color: '#64748b',
-                            lineHeight: 1.5
-                        }}>
-                            {successPopupMsg}
-                        </p>
-                        
-                        <button 
-                            onClick={() => setShowSaveSuccess(false)}
-                            style={{
-                                width: '100%',
-                                padding: '12px 24px',
-                                borderRadius: '12px',
-                                border: 'none',
-                                background: 'linear-gradient(135deg, #10b981, #059669)',
-                                color: 'white',
-                                fontWeight: 700,
-                                fontSize: '14px',
-                                cursor: 'pointer',
-                                boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
-                                transition: 'all 0.2s'
-                            }}
-                            onMouseEnter={(e) => {
-                                e.currentTarget.style.opacity = '0.9';
-                                e.currentTarget.style.transform = 'translateY(-1px)';
-                            }}
-                            onMouseLeave={(e) => {
-                                e.currentTarget.style.opacity = '1';
-                                e.currentTarget.style.transform = 'none';
-                            }}
-                        >
-                            OK
+                        {editingRoleId && (
+                            <button onClick={resetForm} className="ar-cancel-btn">✕ Cancel</button>
+                        )}
+                    </div>
+
+                    {message.text && (
+                        <div className={`ar-alert ar-alert-${message.type}`}>
+                            {message.type === 'success' ? '✅' : '⚠️'} {message.text}
+                        </div>
+                    )}
+
+                    <form onSubmit={handleSubmit} className="ar-form">
+                        {/* Role Name */}
+                        <div className="ar-field">
+                            <label className="ar-label">
+                                <span className="ar-label-icon">🏷️</span> Role Name
+                            </label>
+                            <input
+                                type="text"
+                                className="ar-input"
+                                value={formData.name}
+                                onChange={e => setFormData({ ...formData, name: e.target.value })}
+                                placeholder="e.g. Senior Nurse, Ward Manager"
+                                required
+                            />
+                        </div>
+
+                        {/* Description */}
+                        <div className="ar-field">
+                            <label className="ar-label">
+                                <span className="ar-label-icon">📝</span> Description
+                            </label>
+                            <input
+                                type="text"
+                                className="ar-input"
+                                value={formData.description}
+                                onChange={e => setFormData({ ...formData, description: e.target.value })}
+                                placeholder="What is this role responsible for?"
+                            />
+                        </div>
+
+                        {/* Dashboard Path */}
+                        <div className="ar-field">
+                            <label className="ar-label">
+                                <span className="ar-label-icon">🗂️</span> Default Dashboard Path
+                            </label>
+                            <input
+                                type="text"
+                                className="ar-input ar-input-mono"
+                                value={formData.dashboardPath}
+                                onChange={e => setFormData({ ...formData, dashboardPath: e.target.value })}
+                                placeholder="/reception/dashboard"
+                                required
+                            />
+                        </div>
+
+                        {/* Navigation Links */}
+                        <div className="ar-field">
+                            <label className="ar-label">
+                                <span className="ar-label-icon">🔗</span> Navigation Links
+                                <span className="ar-label-hint">Sidebar tabs visible to this role</span>
+                            </label>
+                            <div className="ar-navlinks-wrap">
+                                {formData.navLinks.map((link, index) => (
+                                    <div key={index} className="ar-navlink-row">
+                                        <input
+                                            type="text"
+                                            placeholder="Label"
+                                            value={link.label}
+                                            onChange={e => updateNavLink(index, 'label', e.target.value)}
+                                            className="ar-input ar-navlink-input"
+                                        />
+                                        <input
+                                            type="text"
+                                            placeholder="/path"
+                                            value={link.path}
+                                            onChange={e => updateNavLink(index, 'path', e.target.value)}
+                                            className="ar-input ar-navlink-input ar-input-mono"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => removeNavLink(index)}
+                                            className="ar-navlink-remove"
+                                            title="Remove"
+                                        >✕</button>
+                                    </div>
+                                ))}
+                                <button type="button" onClick={addNavLink} className="ar-add-link-btn">
+                                    + Add Navigation Link
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Permissions */}
+                        <div className="ar-perms-section">
+                            <div className="ar-perms-header">
+                                <div>
+                                    <span className="ar-perms-title">⚡ Assign Permissions</span>
+                                    <span className="ar-perms-count">{totalSelected} / {totalPerms} selected</span>
+                                </div>
+                                <div className="ar-perms-progress-bar">
+                                    <div className="ar-perms-progress-fill" style={{ width: `${(totalSelected / totalPerms) * 100}%` }} />
+                                </div>
+                            </div>
+
+                            <div className="ar-perms-list">
+                                {PERMISSIONS.map((cat) => {
+                                    const meta = CATEGORY_META[cat.category] || { icon: '•', color: '#6366f1', bg: '#eef2ff' };
+                                    const checkedCount = cat.items.filter(i => formData.permissions.includes(i.key)).length;
+                                    const allChecked = checkedCount === cat.items.length;
+                                    const isOpen = expandedCategories[cat.category] !== false; // default open
+                                    return (
+                                        <div key={cat.category} className="ar-perm-group">
+                                            <div
+                                                className="ar-perm-group-header"
+                                                style={{ borderLeftColor: meta.color }}
+                                                onClick={() => toggleCategory(cat.category)}
+                                            >
+                                                <div className="ar-perm-group-left">
+                                                    <span className="ar-perm-group-icon" style={{ background: meta.bg }}>{meta.icon}</span>
+                                                    <span className="ar-perm-group-name">{cat.category}</span>
+                                                    <span className="ar-perm-group-badge" style={{ background: meta.bg, color: meta.color }}>
+                                                        {checkedCount}/{cat.items.length}
+                                                    </span>
+                                                </div>
+                                                <div className="ar-perm-group-right" onClick={e => e.stopPropagation()}>
+                                                    <button
+                                                        type="button"
+                                                        className="ar-toggle-all-btn"
+                                                        style={{ color: meta.color, borderColor: meta.color }}
+                                                        onClick={() => toggleAllInCategory(cat.category, cat.items)}
+                                                    >
+                                                        {allChecked ? 'Deselect All' : 'Select All'}
+                                                    </button>
+                                                    <span className="ar-chevron" style={{ transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▾</span>
+                                                </div>
+                                            </div>
+                                            {isOpen && (
+                                                <div className="ar-perm-items">
+                                                    {cat.items.map(p => {
+                                                        const checked = formData.permissions.includes(p.key);
+                                                        return (
+                                                            <label
+                                                                key={p.key}
+                                                                className={`ar-perm-item ${checked ? 'ar-perm-item--checked' : ''}`}
+                                                                style={checked ? { borderColor: meta.color, background: meta.bg } : {}}
+                                                            >
+                                                                <div
+                                                                    className={`ar-checkbox ${checked ? 'ar-checkbox--on' : ''}`}
+                                                                    style={checked ? { background: meta.color, borderColor: meta.color } : {}}
+                                                                >
+                                                                    {checked && <span>✓</span>}
+                                                                </div>
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={checked}
+                                                                    onChange={() => handlePermissionToggle(p.key)}
+                                                                    style={{ display: 'none' }}
+                                                                />
+                                                                <span className="ar-perm-label">{p.label}</span>
+                                                                <code className="ar-perm-key">{p.key}</code>
+                                                            </label>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        <button type="submit" disabled={loading} className="ar-submit-btn">
+                            {loading ? (
+                                <><span className="ar-spinner" /> Saving...</>
+                            ) : (
+                                <>{editingRoleId ? '💾 Update Role' : '✨ Create Role'}</>
+                            )}
                         </button>
+                    </form>
+                </div>
+
+                {/* ─── RIGHT: Active Roles List ─── */}
+                <div className="ar-list-card">
+                    <div className="ar-list-header">
+                        <div>
+                            <h2 className="ar-list-title">Active Roles</h2>
+                            <p className="ar-list-sub">Click ✏️ to edit any role's permissions</p>
+                        </div>
+                        <span className="ar-roles-badge">{roles.length} roles</span>
+                    </div>
+
+                    <div className="ar-roles-list">
+                        {roles.length === 0 && (
+                            <div className="ar-empty">
+                                <div className="ar-empty-icon">🔐</div>
+                                <p>No roles defined yet.</p>
+                                <span>Create your first role using the form.</span>
+                            </div>
+                        )}
+                        {roles.map(role => {
+                            const permCount = role.permissions?.length || 0;
+                            const firstLetter = role.name?.charAt(0).toUpperCase();
+                            const colors = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#0ea5e9'];
+                            const colorIndex = role.name?.charCodeAt(0) % colors.length;
+                            const roleColor = colors[colorIndex] || '#6366f1';
+                            return (
+                                <div key={role._id} className="ar-role-item">
+                                    <div className="ar-role-avatar" style={{ background: roleColor }}>
+                                        {firstLetter}
+                                    </div>
+                                    <div className="ar-role-body">
+                                        <div className="ar-role-top">
+                                            <h3 className="ar-role-name">{role.name}</h3>
+                                            <div className="ar-role-badges">
+                                                <span className="ar-badge ar-badge-perm">{permCount} perms</span>
+                                                {role.userCount > 0 && (
+                                                    <span className="ar-badge ar-badge-users">{role.userCount} user{role.userCount !== 1 ? 's' : ''}</span>
+                                                )}
+                                                {role.isSystemRole && (
+                                                    <span className="ar-badge ar-badge-system">System</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <p className="ar-role-desc">{role.description || 'No description provided.'}</p>
+                                        {role.dashboardPath && (
+                                            <div className="ar-role-path">
+                                                <span>📍</span> <code>{role.dashboardPath}</code>
+                                            </div>
+                                        )}
+                                        <div className="ar-role-tags">
+                                            {(role.permissions || []).slice(0, 4).map(p => (
+                                                <span key={p} className="ar-tag">{p.replace(/_/g, ' ')}</span>
+                                            ))}
+                                            {(role.permissions || []).length > 4 && (
+                                                <span className="ar-tag ar-tag-more">+{role.permissions.length - 4} more</span>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="ar-role-actions">
+                                        <button onClick={() => handleEdit(role)} className="ar-btn-edit" title="Edit Role">✏️</button>
+                                        {!role.isSystemRole && (
+                                            <button onClick={() => handleDelete(role._id)} className="ar-btn-delete" title="Delete Role">🗑</button>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            </div>
+
+            {/* ── Success Modal ── */}
+            {showSaveSuccess && (
+                <div className="ar-modal-overlay" onClick={() => setShowSaveSuccess(false)}>
+                    <div className="ar-modal" onClick={e => e.stopPropagation()}>
+                        <div className="ar-modal-icon">✓</div>
+                        <h3>Changes Saved!</h3>
+                        <p>{successPopupMsg}</p>
+                        <button onClick={() => setShowSaveSuccess(false)} className="ar-modal-ok">OK, Got it!</button>
                     </div>
                 </div>
             )}
