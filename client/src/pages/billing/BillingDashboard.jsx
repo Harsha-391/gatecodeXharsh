@@ -13,9 +13,10 @@ import './BillingDashboard.css';
 
 const getAdmAmt = (a) => {
     if (!a) return 0;
-    if (a.totalAmount > 0) return a.totalAmount;
-    const days = Math.max(1, Math.floor((new Date() - new Date(a.admissionDate)) / (1000 * 60 * 60 * 24)));
-    return (a.dailyWardCharge || 0) * days;
+    const days = Math.max(1, Math.ceil(Math.abs(new Date().setHours(0,0,0,0) - new Date(a.admissionDate).setHours(0,0,0,0)) / (1000 * 60 * 60 * 24)) + 1);
+    const bedAmt = (a.dailyWardCharge || 0) * days;
+    const facilitiesAmt = Number(a.totalAmount || 0);
+    return bedAmt + facilitiesAmt;
 };
 
 const fmt = (n) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 0 }).format(n || 0);

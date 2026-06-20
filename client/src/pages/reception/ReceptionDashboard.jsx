@@ -149,6 +149,15 @@ const ReceptionDashboard = () => {
         const localDate = new Date(d.getTime() - (offset * 60 * 1000));
         return localDate.toISOString().split('T')[0];
     };
+    const getAdmissionTotal = (adm) => {
+        if (!adm) return 0;
+        const wardName = (adm.ward || '').toLowerCase();
+        const facilityPrice = hospitalContext?.facilities?.find(f => f.name.toLowerCase() === wardName)?.pricePerDay || adm.dailyWardCharge || 0;
+        const days = Math.max(1, Math.ceil(Math.abs(new Date().setHours(0,0,0,0) - new Date(adm.admissionDate).setHours(0,0,0,0)) / (1000 * 60 * 60 * 24)) + 1);
+        const bedAmt = Number(facilityPrice) * days;
+        const facilitiesAmt = Number(adm.totalAmount || 0);
+        return bedAmt + facilitiesAmt;
+    };
     const parseLocalDate = (dateStr) => {
         if (!dateStr) return new Date();
         const cleanDate = typeof dateStr === 'string' ? dateStr.split('T')[0] : '';
@@ -758,11 +767,15 @@ const ReceptionDashboard = () => {
     };
 
     const handleCollectAdmissionPayment = async () => {
-        const { admission } = collectPaymentModal;
+        const { admission, method } = collectPaymentModal;
         if (!admission) return;
         setCollectingPayment(true);
         try {
-            await admissionAPI.markAdmissionPaid(admission._id);
+            const computedAmt = getAdmissionTotal(admission);
+            await admissionAPI.markAdmissionPaid(admission._id, {
+                amount: computedAmt,
+                paymentMethod: method || 'Cash'
+            });
             setCollectPaymentModal({ open: false, admission: null, method: 'Cash' });
             await fetchAdmissions();
             // Open discharge modal right after payment
@@ -1927,7 +1940,7 @@ const ReceptionDashboard = () => {
 
         const activeCount = admissions.filter(a => a.status === 'Admitted' || a.status === 'Pending Allocation').length;
         const pendingPayment = admissions.filter(a => a.paymentStatus === 'Pending' && (a.status === 'Admitted' || a.status === 'Pending Allocation')).length;
-        const totalRevenue = admissions.reduce((sum, a) => sum + (a.totalAmount || 0), 0);
+        const totalRevenue = admissions.reduce((sum, a) => sum + (a.paymentStatus === 'Paid' ? getAdmissionTotal(a) : 0), 0);
 
         return (
             <div className="reception-dashboard" style={{ maxWidth: '1300px', margin: '0 auto' }}>
@@ -2012,7 +2025,7 @@ const ReceptionDashboard = () => {
                             .map(adm => {
                                 const admDate = new Date(adm.admissionDate);
                                 const today = new Date();
-                                const daysAdmitted = Math.max(0, Math.floor((today - admDate) / (1000 * 60 * 60 * 24)));
+                                const daysAdmitted = Math.max(1, Math.ceil(Math.abs(new Date().setHours(0,0,0,0) - new Date(adm.admissionDate).setHours(0,0,0,0)) / (1000 * 60 * 60 * 24)) + 1);
                                 const isActive = adm.status === 'Admitted';
                                 const isPendingAllocation = adm.status === 'Pending Allocation';
                                 const isManageable = isActive || isPendingAllocation;
@@ -2132,15 +2145,9 @@ const ReceptionDashboard = () => {
                                                 <span style={{ fontSize: '0.8rem', color: '#64748b' }}>
                                                     📅 <strong>{admDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</strong>
                                                 </span>
-                                                {Number(adm.totalAmount) > 0 ? (
-                                                    <span style={{ fontSize: '0.82rem', color: isPaid ? '#166534' : '#92400e', fontWeight: 700 }}>
-                                                        💰 ₹{Number(adm.totalAmount).toLocaleString('en-IN')} {isPaid ? '✓' : '(Due)'}
-                                                    </span>
-                                                ) : (
-                                                    <span style={{ fontSize: '0.82rem', color: '#1e293b', fontWeight: 700 }}>
-                                                        💰 ₹{Number((hospitalContext?.facilities?.find(f => f.name.toLowerCase() === (adm.ward || '').toLowerCase())?.pricePerDay || adm.dailyWardCharge || 0) * Math.max(1, Math.floor((new Date() - new Date(adm.admissionDate)) / (1000 * 60 * 60 * 24)))).toLocaleString('en-IN')} {isPaid ? '✓' : '(Due)'}
-                                                    </span>
-                                                )}
+                                                <span style={{ fontSize: '0.82rem', color: isPaid ? '#166534' : '#92400e', fontWeight: 700 }}>
+                                                    💰 ₹{Number(getAdmissionTotal(adm)).toLocaleString('en-IN')} {isPaid ? '✓' : '(Due)'}
+                                                </span>
                                             </div>
 
                                             {/* Facility Charges */}
@@ -2310,7 +2317,7 @@ const ReceptionDashboard = () => {
                                         style={{ flex: 1, padding: '10px 12px', border: '1.5px solid #e2e8f0', borderRadius: '8px', fontSize: '0.9rem', boxSizing: 'border-box' }}
                                     />
                                     {editAdmissionForm.admissionDate && (() => {
-                                        const d = Math.max(0, Math.floor((new Date() - new Date(editAdmissionForm.admissionDate)) / (1000 * 60 * 60 * 24)));
+                                        const d = Math.max(1, Math.ceil(Math.abs(new Date().setHours(0,0,0,0) - new Date(editAdmissionForm.admissionDate).setHours(0,0,0,0)) / (1000 * 60 * 60 * 24)) + 1);
                                         return (
                                             <div style={{
                                                 minWidth: '72px', padding: '10px 12px', borderRadius: '8px', textAlign: 'center',
@@ -2374,7 +2381,7 @@ const ReceptionDashboard = () => {
                                         🛏️ {collectPaymentModal.admission?.ward || 'Ward'} — Bed {collectPaymentModal.admission?.bedNumber || '—'}
                                     </span>
                                     <span style={{ fontSize: '1.2rem', fontWeight: 900, color: '#b45309' }}>
-                                        ₹{Number(collectPaymentModal.admission?.totalAmount || 0).toLocaleString('en-IN')}
+                                        ₹{Number(getAdmissionTotal(collectPaymentModal.admission)).toLocaleString('en-IN')}
                                     </span>
                                 </div>
                                 {collectPaymentModal.admission?.selectedFacilities?.length > 0 && (
@@ -2441,7 +2448,7 @@ const ReceptionDashboard = () => {
                                         ['Patient', dischargeModal.admission?.patientId?.name || [dischargeModal.admission?.patientId?.firstName, dischargeModal.admission?.patientId?.lastName].filter(Boolean).join(' ') || '—'],
                                         ['Ward / Bed', `${dischargeModal.admission?.ward || '—'} / ${dischargeModal.admission?.bedNumber || '—'}`],
                                         ['Admitted', new Date(dischargeModal.admission?.admissionDate).toLocaleDateString('en-IN')],
-                                        ['Total Bill', `₹${Number(dischargeModal.admission?.totalAmount > 0 ? dischargeModal.admission.totalAmount : ((hospitalContext?.facilities?.find(f => f.name.toLowerCase() === (dischargeModal.admission?.ward || '').toLowerCase())?.pricePerDay || dischargeModal.admission?.dailyWardCharge || 0) * Math.max(1, Math.floor((new Date() - new Date(dischargeModal.admission?.admissionDate)) / (1000 * 60 * 60 * 24))))).toLocaleString('en-IN')}`],
+                                        ['Total Bill', `₹${Number(getAdmissionTotal(dischargeModal.admission)).toLocaleString('en-IN')}`],
                                     ].map(([l, v], i) => (
                                         <div key={i} style={{ fontSize: '0.82rem' }}>
                                             <span style={{ color: '#94a3b8', fontWeight: 600 }}>{l}: </span>

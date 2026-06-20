@@ -365,15 +365,57 @@ router.put('/:id/discharge', verifyAdmissionAccess, async (req, res) => {
 // PUT /api/admissions/:id/pay — Mark admission as paid
 router.put('/:id/pay', verifyAdmissionAccess, async (req, res) => {
     try {
+        const { amount, paymentMethod } = req.body;
         const Admission = getAdmission(req);
+        
+        const currentAdmission = await Admission.findById(req.params.id);
+        if (!currentAdmission) return res.status(404).json({ success: false, message: 'Admission not found' });
+        
         const admission = await Admission.findByIdAndUpdate(
             req.params.id,
             { paymentStatus: 'Paid' },
             { new: true }
         );
-        if (!admission) return res.status(404).json({ success: false, message: 'Admission not found' });
+
+        // Record CollectionTransaction if paid amount > 0
+        const finalAmount = Number(amount) || 0;
+        if (finalAmount > 0) {
+            const User = require('../models/user.model');
+            const patientUser = await User.findById(currentAdmission.patientId).select('name phone patientId mrn').lean();
+            
+            const transactionData = {
+                hospitalId: currentAdmission.hospitalId,
+                patientId: currentAdmission.patientId,
+                patientName: patientUser?.name || currentAdmission.patientName || 'Unknown Patient',
+                patientPhone: patientUser?.phone || currentAdmission.patientPhone || '',
+                patientIdStr: patientUser?.patientId || patientUser?.mrn || 'WALK-IN',
+                amount: finalAmount,
+                paymentMethod: paymentMethod || 'Cash',
+                collectedByUserId: req.user._id || req.user.userId,
+                collectedByName: req.user.name || 'Staff',
+                counterName: req.user.counterName && req.user.counterName !== 'Counter 1' ? req.user.counterName : (req.user.name || 'Counter 1'),
+                collectionType: 'IPD Admission Advance',
+                collectionTimestamp: new Date()
+            };
+
+            const MasterCollectionTransaction = require('../models/collectionTransaction.model');
+            const masterTx = new MasterCollectionTransaction(transactionData);
+            await masterTx.save();
+
+            if (req.tenantDb) {
+                const { getTenantModels } = require('../db/tenantModels');
+                const TenantCollectionTransaction = getTenantModels(req.tenantDb).CollectionTransaction;
+                const tenantTx = new TenantCollectionTransaction({
+                    ...transactionData,
+                    _id: masterTx._id
+                });
+                await tenantTx.save();
+            }
+        }
+
         res.json({ success: true, message: 'Admission marked as paid', admission });
     } catch (err) {
+        console.error('Admission payment error:', err);
         res.status(500).json({ success: false, message: 'An internal error occurred' });
     }
 });

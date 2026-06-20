@@ -753,7 +753,7 @@ export const admissionAPI = {
     getPatientAdmissions: async (patientId) => (await apiClient.get(`/api/admissions/patient/${patientId}`)).data,
     updateAdmission: async (id, data) => (await apiClient.put(`/api/admissions/${id}`, data)).data,
     dischargePatient: async (id, data = {}) => (await apiClient.put(`/api/admissions/${id}/discharge`, data)).data,
-    markAdmissionPaid: async (id) => (await apiClient.put(`/api/admissions/${id}/pay`, {})).data,
+    markAdmissionPaid: async (id, data = {}) => (await apiClient.put(`/api/admissions/${id}/pay`, data)).data,
 };
 
 // Clinic self-service API (for clinic admin dashboard)
