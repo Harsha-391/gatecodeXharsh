@@ -572,7 +572,8 @@ router.post('/users', verifyAdminOrSuperAdmin, auditLog('USER_CREATE', null, { s
             hospitalId: assignedHospitalId,
             services: roleName === 'doctor' ? services : [],
             departments: departments || [],
-            avatar: avatar || null
+            avatar: avatar || null,
+            counterName: ['reception', 'receptionist'].includes(roleName) ? name : 'Counter 1'
         });
 
         await user.save();
@@ -697,6 +698,10 @@ router.put('/users/:userId', verifyAdminOrSuperAdmin, auditLog('USER_UPDATE', (r
             newRoleName = roleDoc ? roleDoc.name.toLowerCase() : null;
         } else if (user.role === 'hospitaladmin') {
             newRoleName = 'hospitaladmin';
+        }
+
+        if (['reception', 'receptionist'].includes(String(newRoleName || '').toLowerCase())) {
+            user.counterName = user.name;
         }
 
         await user.save();
@@ -906,7 +911,8 @@ const KNOWN_PERMISSIONS = [
     'admission_manage', 'resource_manage', 'reports_view',
     'analytics_view', 'operations_manage', 'inventory_view',
     'billing_insurance', 'billing_ipd_settlement', 'billing_receipt_reprint', 'billing_discounts',
-    'finance_outstanding', 'finance_claims', 'finance_expenses', 'finance_profit_loss',
+    'billing_collect_payment', 'billing_generate_invoice', 'billing_print_invoice', 'billing_refund', 'billing_reports', 'billing_analytics',
+    'finance_outstanding', 'finance_claims', 'finance_reception_collections', 'finance_expenses', 'finance_profit_loss',
     'finance_statements', 'finance_reconciliation', 'finance_transactions', 'finance_audit',
     'finance_payroll', 'finance_doctor_payouts'
 ];

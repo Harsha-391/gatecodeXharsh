@@ -700,7 +700,27 @@ export const financeAPI = {
     getDoctorPayoutRecords: async (params) => (await apiClient.get('/api/finance/doctor-payouts/records', { params })).data,
     calculateDoctorPayouts: async (data) => (await apiClient.post('/api/finance/doctor-payouts/records/calculate', data)).data,
     approveDoctorPayout: async (id) => (await apiClient.post(`/api/finance/doctor-payouts/records/approve/${id}`)).data,
-    payDoctorPayout: async (id, data) => (await apiClient.post(`/api/finance/doctor-payouts/records/pay/${id}`, data)).data
+    payDoctorPayout: async (id, data) => (await apiClient.post(`/api/finance/doctor-payouts/records/pay/${id}`, data)).data,
+    getReceptionCollections: async (startDate, endDate) => {
+        let url = '/api/finance/reception-collections';
+        const params = new URLSearchParams();
+        if (startDate) params.append('startDate', startDate);
+        if (endDate) params.append('endDate', endDate);
+        const qs = params.toString();
+        if (qs) url += `?${qs}`;
+        return (await apiClient.get(url)).data;
+    },
+    getReceptionTransactions: async (params = {}) => {
+        const queryParams = new URLSearchParams();
+        if (params.startDate) queryParams.append('startDate', params.startDate);
+        if (params.endDate) queryParams.append('endDate', params.endDate);
+        if (params.receptionistId) queryParams.append('receptionistId', params.receptionistId);
+        if (params.paymentMethod) queryParams.append('paymentMethod', params.paymentMethod);
+        const qs = queryParams.toString();
+        return (await apiClient.get(`/api/finance/reception-collections/transactions${qs ? '?' + qs : ''}`)).data;
+    },
+    getReceptionReconciliation: async (date) => (await apiClient.get(`/api/finance/reception-collections/reconciliation?targetDate=${date}`)).data,
+    submitReceptionReconciliation: async (data) => (await apiClient.post('/api/finance/reception-collections/reconcile', data)).data,
 };
 
 export const billingAPI = {

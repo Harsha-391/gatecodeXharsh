@@ -7,7 +7,7 @@ import {
     FiHome, FiUsers, FiCalendar, FiActivity, FiPackage,
     FiSettings, FiLogOut, FiPieChart, FiClipboard,
     FiFileText, FiPlusSquare, FiDatabase, FiGrid, FiShield,
-    FiChevronDown, FiChevronRight, FiAlertCircle, FiUser, FiX, FiCheckCircle
+    FiChevronDown, FiChevronRight, FiAlertCircle, FiUser, FiX, FiCheckCircle, FiTrendingUp
 } from 'react-icons/fi';
 import './DashboardLayout.css';
 
@@ -112,7 +112,7 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
             baseMenu = [
                 { label: 'Reception Dashboard', path: '/reception/dashboard', icon: <FiHome /> },
                 { label: 'Appointments/Booking', path: '/appointment', icon: <FiPlusSquare /> },
-                { label: 'My Daily Collection', path: '/reception/dashboard?view=collection', icon: <FiPieChart /> },
+                { label: 'My Daily Collection', path: '/finance/reception-collections', icon: <FiTrendingUp /> },
                 { label: 'Patient Billing', path: '/billing/patient', icon: <FiUsers /> },
                 { label: 'Invoices', path: '/billing/invoices', icon: <FiFileText /> },
                 { label: 'Refunds', path: '/billing/refunds', icon: <FiLogOut /> }
@@ -144,9 +144,9 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
                         { label: 'Patient Billing', path: '/billing/patient', icon: <FiUsers /> },
                         { label: 'Pending Payments', path: '/billing/pending', icon: <FiClipboard /> },
                         { label: 'Invoices', path: '/billing/invoices', icon: <FiFileText /> },
-                        { label: 'Payment Collection', path: '/billing/collect', icon: <FiPlusSquare /> },
                         { label: 'Payment History', path: '/billing/history', icon: <FiDatabase /> },
                         { label: 'Refunds', path: '/billing/refunds', icon: <FiLogOut /> },
+                        { label: 'Reception Collections', path: '/finance/reception-collections', icon: <FiTrendingUp /> }
                     ]
                 },
                 {
@@ -222,7 +222,8 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
                     category: 'Insights',
                     items: [
                         { label: 'Reports', path: '/admin/reports', icon: <FiFileText /> },
-                        { label: 'Audit Logs', path: '/admin/audit-logs', icon: <FiClipboard /> }
+                        { label: 'Audit Logs', path: '/admin/audit-logs', icon: <FiClipboard /> },
+                        { label: 'Reception Collections', path: '/finance/reception-collections', icon: <FiTrendingUp /> }
                     ]
                 }
             ];
@@ -240,7 +241,8 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
                         { label: 'Revenue Reports', path: '/billing/reports', icon: <FiGrid /> },
                         { label: 'Billing Analytics', path: '/billing/analytics', icon: <FiPieChart /> },
                         { label: 'Outstanding Payments', path: '/accountant/outstanding', icon: <FiFileText /> },
-                        { label: 'Insurance Claims', path: '/accountant/claims', icon: <FiClipboard /> }
+                        { label: 'Insurance Claims', path: '/accountant/claims', icon: <FiClipboard /> },
+                        { label: 'Reception Collections', path: '/finance/reception-collections', icon: <FiTrendingUp /> }
                     ]
                 },
                 {
@@ -303,10 +305,10 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
                     { label: 'Patient Billing', path: '/billing/patient', icon: <FiUsers /> },
                     { label: 'Pending Payments', path: '/billing/pending', icon: <FiClipboard /> },
                     { label: 'Invoices', path: '/billing/invoices', icon: <FiFileText /> },
-                    { label: 'Payment Collection', path: '/billing/collect', icon: <FiPlusSquare /> },
                     { label: 'Payment History', path: '/billing/history', icon: <FiDatabase /> },
                     { label: 'Refunds', path: '/billing/refunds', icon: <FiLogOut /> },
                     { label: 'Invoice Templates', path: '/billing/templates', icon: <FiClipboard /> },
+                    { label: 'Reception Collections', path: '/finance/reception-collections', icon: <FiTrendingUp /> },
                     { label: 'Settings', path: '/billing/settings', icon: <FiSettings /> }
                 );
             }

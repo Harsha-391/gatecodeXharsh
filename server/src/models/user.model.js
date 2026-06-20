@@ -71,6 +71,7 @@ const userSchema = new mongoose.Schema({
     // Increment to invalidate all outstanding tokens for this user (revoke-all-sessions)
     tokenVersion: { type: Number, default: 0 },
     isActive: { type: Boolean, default: true },
+    counterName: { type: String, default: 'Counter 1' },
 }, { timestamps: true });
 
 userSchema.index({ hospitalId: 1 });

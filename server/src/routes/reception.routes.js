@@ -18,7 +18,8 @@ const getModels = (req) => {
     return { 
         Appointment: MasterAppointment, 
         User: MasterUser,
-        ClinicalVisit: require('../models/clinicalVisit.model')
+        ClinicalVisit: require('../models/clinicalVisit.model'),
+        CollectionTransaction: require('../models/collectionTransaction.model')
     };
 };
 
@@ -701,6 +702,43 @@ router.post('/book-appointment', verifyToken, verifyReception, async (req, res) 
             await newTenantAppointment.save();
         }
 
+        // Record CollectionTransaction if paid amount > 0
+        const finalAmount = parentAppointmentId ? 0 : (Number(amount) || doctor.consultationFee || 0);
+        const finalPaymentStatus = parentAppointmentId ? 'Paid' : (paymentStatus || 'Paid');
+        if (finalAmount > 0 && ['paid', 'Paid'].includes(finalPaymentStatus)) {
+            const isFollowUp = (notes && String(notes).toLowerCase().includes('follow')) || !!parentAppointmentId;
+            const collectionType = isFollowUp ? 'Follow-up Consultation' : 'OPD Registration';
+
+            const transactionData = {
+                hospitalId,
+                patientId: patient._id,
+                patientName: patient.name,
+                patientPhone: patient.phone || '',
+                patientIdStr: patient.patientId || patient.mrn || 'WALK-IN',
+                appointmentId: newMasterAppointment._id,
+                amount: finalAmount,
+                paymentMethod: paymentMethod || 'Cash',
+                collectedByUserId: req.user._id,
+                collectedByName: req.user.name || 'Staff',
+                counterName: req.user.counterName && req.user.counterName !== 'Counter 1' ? req.user.counterName : (req.user.name || 'Counter 1'),
+                collectionType,
+                collectionTimestamp: new Date()
+            };
+
+            const MasterCollectionTransaction = require('../models/collectionTransaction.model');
+            const masterTx = new MasterCollectionTransaction(transactionData);
+            await masterTx.save();
+
+            if (req.tenantDb) {
+                const TenantCollectionTransaction = getTenantModels(req.tenantDb).CollectionTransaction;
+                const tenantTx = new TenantCollectionTransaction({
+                    ...transactionData,
+                    _id: masterTx._id
+                });
+                await tenantTx.save();
+            }
+        }
+
         if (parentAppointmentId) {
             await MasterAppointment.findByIdAndUpdate(parentAppointmentId, { $set: { followUpScheduled: true } });
             if (req.tenantDb) {
@@ -753,6 +791,53 @@ router.patch('/appointments/:id/confirm-payment', verifyToken, verifyReception, 
         appt.paymentMethod = paymentMethod || appt.paymentMethod || 'Cash';
         if (amount !== undefined) appt.amount = amount;
         await appt.save();
+
+        if (req.tenantDb) {
+            const MasterAppointment = require('../models/appointment.model');
+            await MasterAppointment.findByIdAndUpdate(appt._id, {
+                $set: {
+                    paymentStatus: 'Paid',
+                    paymentMethod: appt.paymentMethod,
+                    amount: appt.amount
+                }
+            });
+        }
+
+        // Record CollectionTransaction if paid amount > 0
+        if (appt.amount > 0) {
+            const isFollowUp = (appt.notes && String(appt.notes).toLowerCase().includes('follow')) || (appt.serviceName && String(appt.serviceName).toLowerCase().includes('follow'));
+            const collectionType = isFollowUp ? 'Follow-up Consultation' : 'OPD Registration';
+
+            const transactionData = {
+                hospitalId: appt.hospitalId || req.user.hospitalId,
+                patientId: appt.userId,
+                patientName: appt.patientName,
+                patientPhone: appt.patientPhone || '',
+                patientIdStr: appt.patientId || 'WALK-IN',
+                appointmentId: appt._id,
+                amount: appt.amount,
+                paymentMethod: appt.paymentMethod,
+                collectedByUserId: req.user._id,
+                collectedByName: req.user.name || 'Staff',
+                counterName: req.user.counterName && req.user.counterName !== 'Counter 1' ? req.user.counterName : (req.user.name || 'Counter 1'),
+                collectionType,
+                collectionTimestamp: new Date()
+            };
+
+            const MasterCollectionTransaction = require('../models/collectionTransaction.model');
+            const masterTx = new MasterCollectionTransaction(transactionData);
+            await masterTx.save();
+
+            if (req.tenantDb) {
+                const TenantCollectionTransaction = getTenantModels(req.tenantDb).CollectionTransaction;
+                const tenantTx = new TenantCollectionTransaction({
+                    ...transactionData,
+                    _id: masterTx._id
+                });
+                await tenantTx.save();
+            }
+        }
+
         res.json({ success: true, appointment: appt });
     } catch (error) {
         res.status(500).json({ success: false, message: 'An internal error occurred' });

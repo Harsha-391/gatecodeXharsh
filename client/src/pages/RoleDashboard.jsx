@@ -92,7 +92,6 @@ const RoleDashboard = () => {
                 { label: 'Patient Billing', path: '/billing/patient' },
                 { label: 'Pending Payments', path: '/billing/pending' },
                 { label: 'Invoices', path: '/billing/invoices' },
-                { label: 'Payment Collection', path: '/billing/collect' },
                 { label: 'Payment History', path: '/billing/history' },
                 { label: 'Refunds', path: '/billing/refunds' },
                 { label: 'Invoice Templates', path: '/billing/templates' },

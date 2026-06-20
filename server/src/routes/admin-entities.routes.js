@@ -748,7 +748,8 @@ router.post('/receptions', verifyAdminOrSuperAdmin, async (req, res) => {
       phone: phone || '',
       role: 'reception',
       services: services || [],
-      hospitalId: getHospitalId(req)
+      hospitalId: getHospitalId(req),
+      counterName: name
     });
 
     await user.save();
@@ -822,7 +823,10 @@ router.put('/receptions/:id', verifyAdminOrSuperAdmin, async (req, res) => {
 
     const user = await User.findById(reception.userId);
     if (user) {
-      if (name) user.name = name;
+      if (name) {
+        user.name = name;
+        user.counterName = name;
+      }
       if (email) user.email = email.toLowerCase();
       if (phone !== undefined) user.phone = phone;
       if (services !== undefined) user.services = services;

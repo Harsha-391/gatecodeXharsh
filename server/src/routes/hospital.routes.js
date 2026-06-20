@@ -189,9 +189,9 @@ const defaultRoles = [
         permissions: [
             'finance_view', 'billing_view', 'billing_manage',
             'patient_view', 'patient_search',
-            'finance_outstanding', 'finance_claims', 'finance_expenses', 'finance_profit_loss',
+            'finance_outstanding', 'finance_claims', 'finance_reception_collections', 'finance_expenses', 'finance_profit_loss',
             'finance_statements', 'finance_reconciliation', 'finance_transactions', 'finance_audit',
-            'finance_payroll', 'finance_doctor_payouts'
+            'finance_payroll', 'finance_doctor_payouts', 'billing_reports', 'billing_analytics'
         ],
         dashboardPath: '/accountant/dashboard',
         navLinks: [
@@ -215,7 +215,6 @@ const defaultRoles = [
             { label: 'Patient Billing', path: '/billing/patient' },
             { label: 'Pending Payments', path: '/billing/pending' },
             { label: 'Invoices', path: '/billing/invoices' },
-            { label: 'Payment Collection', path: '/billing/collect' },
             { label: 'Payment History', path: '/billing/history' },
             { label: 'Refunds', path: '/billing/refunds' },
             { label: 'Revenue Reports', path: '/billing/reports' },

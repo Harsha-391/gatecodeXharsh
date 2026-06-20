@@ -43,6 +43,7 @@ function getTenantModels(tenantDb) {
         PayrollRecord: model('PayrollRecord', require('../models/payrollRecord.model').schema),
         DoctorPayout: model('DoctorPayout', require('../models/doctorPayout.model').schema),
         DiscountRequest: model('DiscountRequest', require('../models/discountRequest.model').schema),
+        CollectionTransaction: model('CollectionTransaction', require('../models/collectionTransaction.model').schema),
     };
 }
 

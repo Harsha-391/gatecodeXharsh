@@ -11,7 +11,28 @@ const verifyFinanceAccess = async (req, res, next) => {
         await verifyToken(req, res, async () => {
             const role = typeof req.user.role === 'string' ? req.user.role.toLowerCase() : (req.user._roleData?.name || '').toLowerCase();
             const perms = req.user._roleData?.permissions || [];
-            if (['accountant', 'centraladmin', 'superadmin', 'hospitaladmin'].includes(role) || perms.includes('finance_view') || perms.includes('*')) {
+            
+            const isReceptionRoute = req.path.startsWith('/reception-collections');
+            const isReceptionTxsRoute = req.path === '/reception-collections/transactions';
+            
+            let hasAccess = false;
+            
+            if (isReceptionRoute) {
+                if (isReceptionTxsRoute) {
+                    // Everyone involved in billing/front-desk/reception can view transaction logs
+                    hasAccess = ['accountant', 'centraladmin', 'superadmin', 'hospitaladmin', 'admin', 'billing', 'cashier', 'receptionist', 'reception'].includes(role) || perms.includes('finance_reception_collections');
+                } else {
+                    // Summary and reconciliation access (receptionists excluded)
+                    hasAccess = ['accountant', 'centraladmin', 'superadmin', 'hospitaladmin', 'admin', 'billing', 'cashier'].includes(role) || perms.includes('finance_reception_collections');
+                }
+            } else {
+                // General finance endpoints
+                hasAccess = ['accountant', 'centraladmin', 'superadmin', 'hospitaladmin'].includes(role) || 
+                            perms.includes('finance_view') || 
+                            perms.includes('*');
+            }
+            
+            if (hasAccess) {
                 await resolveTenant(req, res, next);
             } else {
                 return res.status(403).json({ success: false, message: 'Finance access required' });
@@ -47,7 +68,8 @@ const getModels = (tenantDb) => {
         DeletedRecord: require('../models/deletedRecord.model'),
         UserActivityLog: require('../models/userActivityLog.model'),
         PayrollRecord: require('../models/payrollRecord.model'),
-        DoctorPayout: require('../models/doctorPayout.model')
+        DoctorPayout: require('../models/doctorPayout.model'),
+        CollectionTransaction: require('../models/collectionTransaction.model')
     };
 };
 
@@ -158,7 +180,7 @@ router.get('/kpis', verifyFinanceAccess, async (req, res) => {
     try {
         const hospitalId = req.user.hospitalId;
         const hFilter = hospitalId ? { hospitalId } : {};
-        const { Invoice, Expense, Refund, InsuranceClaim, Reconciliation } = getModels(req.tenantDb);
+        const { Invoice, Expense, Refund, InsuranceClaim, Reconciliation, CollectionTransaction } = getModels(req.tenantDb);
 
         const today = new Date();
         const startOfToday = new Date(today.setHours(0, 0, 0, 0));
@@ -167,8 +189,9 @@ router.get('/kpis', verifyFinanceAccess, async (req, res) => {
         const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
         const endOfMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0, 23, 59, 59, 999);
 
-        // Fetch all invoices to compute revenue metrics
+        // Fetch all invoices to compute outstanding metrics
         const invoices = await Invoice.find({ ...hFilter, paymentStatus: { $ne: 'Cancelled' } }).lean();
+        const transactions = await CollectionTransaction.find(hFilter).lean();
 
         let todayRevenue = 0;
         let monthlyRevenue = 0;
@@ -176,15 +199,16 @@ router.get('/kpis', verifyFinanceAccess, async (req, res) => {
 
         invoices.forEach(inv => {
             outstandingPayments += (inv.outstandingAmount || 0);
-            (inv.payments || []).forEach(p => {
-                const pDate = new Date(p.date);
-                if (pDate >= startOfToday && pDate <= endOfToday) {
-                    todayRevenue += p.amount;
-                }
-                if (pDate >= startOfMonth && pDate <= endOfMonth) {
-                    monthlyRevenue += p.amount;
-                }
-            });
+        });
+
+        transactions.forEach(t => {
+            const payDate = new Date(t.collectionTimestamp || t.createdAt);
+            if (payDate >= startOfToday && payDate <= endOfToday) {
+                todayRevenue += t.amount || 0;
+            }
+            if (payDate >= startOfMonth && payDate <= endOfMonth) {
+                monthlyRevenue += t.amount || 0;
+            }
         });
 
         // Pending Insurance Claims
@@ -243,9 +267,10 @@ router.get('/revenue-analytics', verifyFinanceAccess, async (req, res) => {
     try {
         const hospitalId = req.user.hospitalId;
         const hFilter = hospitalId ? { hospitalId } : {};
-        const { Invoice } = getModels(req.tenantDb);
+        const { Invoice, CollectionTransaction, Appointment } = getModels(req.tenantDb);
 
-        const invoices = await Invoice.find({ ...hFilter, paymentStatus: { $ne: 'Cancelled' } }).lean();
+        const transactions = await CollectionTransaction.find(hFilter).lean();
+        const appointments = await Appointment.find({ paymentStatus: { $in: ['paid', 'Paid', 'PAID'] }, ...hFilter }).lean();
 
         // 1. Monthly trend (last 6 calendar months)
         const monthlyTrend = {};
@@ -269,35 +294,39 @@ router.get('/revenue-analytics', verifyFinanceAccess, async (req, res) => {
         const departmentRevenue = { Consultation: 0, Laboratory: 0, Pharmacy: 0, Admission: 0, Service: 0, Other: 0 };
         const doctorRevenue = {};
 
-        invoices.forEach(inv => {
-            // Settle totals based on paid items
-            (inv.items || []).forEach(item => {
-                const isPaid = item.paymentStatus === 'Paid' || inv.paymentStatus === 'Paid' || inv.paymentStatus === 'Partially Paid';
-                if (isPaid) {
-                    const type = item.itemType === 'Facility' ? 'Admission' : (item.itemType || 'Other');
-                    if (departmentRevenue[type] !== undefined) {
-                        departmentRevenue[type] += item.totalAmount;
-                    } else {
-                        departmentRevenue.Other += item.totalAmount;
-                    }
+        // Aggregate department revenue & timelines from CollectionTransaction
+        transactions.forEach(t => {
+            let dept = 'Other';
+            if (t.collectionType === 'OPD Registration' || t.collectionType === 'Follow-up Consultation') {
+                dept = 'Consultation';
+            } else if (t.collectionType === 'Lab Payment') {
+                dept = 'Laboratory';
+            } else if (t.collectionType === 'Pharmacy Payment') {
+                dept = 'Pharmacy';
+            } else if (t.collectionType === 'IPD Admission Advance') {
+                dept = 'Admission';
+            }
 
-                    // Doctor Revenue approximation (for consultations/admissions with doctor details in item name)
-                    if (item.itemType === 'Consultation') {
-                        const docName = item.name.replace(/Consultation\s*(-|with)?/gi, '').trim() || 'General OPD';
-                        doctorRevenue[docName] = (doctorRevenue[docName] || 0) + item.totalAmount;
-                    }
-                }
-            });
+            const amt = t.amount || 0;
+            if (departmentRevenue[dept] !== undefined) {
+                departmentRevenue[dept] += amt;
+            } else {
+                departmentRevenue.Other += amt;
+            }
 
             // Timelines
-            (inv.payments || []).forEach(p => {
-                const pDate = new Date(p.date);
-                const mKey = `${pDate.getFullYear()}-${String(pDate.getMonth() + 1).padStart(2, '0')}`;
-                const dKey = pDate.toISOString().split('T')[0];
+            const pDate = new Date(t.collectionTimestamp || t.createdAt);
+            const mKey = `${pDate.getFullYear()}-${String(pDate.getMonth() + 1).padStart(2, '0')}`;
+            const dKey = pDate.toISOString().split('T')[0];
 
-                if (monthlyTrend[mKey]) monthlyTrend[mKey].amount += p.amount;
-                if (dailyTrend[dKey]) dailyTrend[dKey].amount += p.amount;
-            });
+            if (monthlyTrend[mKey]) monthlyTrend[mKey].amount += amt;
+            if (dailyTrend[dKey]) dailyTrend[dKey].amount += amt;
+        });
+
+        // Doctor Revenue from paid appointments
+        appointments.forEach(appt => {
+            const docName = appt.doctorName || 'General OPD';
+            doctorRevenue[docName] = (doctorRevenue[docName] || 0) + (appt.amount || 0);
         });
 
         res.json({
@@ -2048,6 +2077,345 @@ router.post('/audit-logs/activity', verifyFinanceAccess, async (req, res) => {
 
         await log.save();
         res.status(201).json({ success: true, log });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// ─────────────────────────────────────────────────────────
+// RECEPTION COLLECTIONS ENDPOINTS
+// ─────────────────────────────────────────────────────────
+
+// 1. Get Reception Collections Summary (KPIs & Counter-Wise Totals)
+router.get('/reception-collections', verifyFinanceAccess, async (req, res) => {
+    try {
+        const hospitalId = req.user.hospitalId;
+        const hFilter = hospitalId ? { hospitalId } : {};
+        const { startDate, endDate } = req.query;
+
+        let start = new Date();
+        start.setHours(0, 0, 0, 0);
+        let end = new Date();
+        end.setHours(23, 59, 59, 999);
+
+        if (startDate) {
+            start = new Date(startDate);
+            start.setHours(0, 0, 0, 0);
+        }
+        if (endDate) {
+            end = new Date(endDate);
+            end.setHours(23, 59, 59, 999);
+        }
+
+        const { CollectionTransaction } = getModels(req.tenantDb);
+
+        // Security check: Receptionist can only view their own transactions
+        const role = typeof req.user.role === 'string' ? req.user.role.toLowerCase() : (req.user._roleData?.name || '').toLowerCase();
+        let userFilter = {};
+        if (['reception', 'receptionist'].includes(role)) {
+            userFilter = { collectedByUserId: req.user._id };
+        }
+
+        const txs = await CollectionTransaction.find({
+            ...hFilter,
+            ...userFilter,
+            collectionTimestamp: { $gte: start, $lte: end }
+        }).lean();
+
+        // Get all receptionists registered in this hospital to populate the filter dropdown and map names dynamically
+        const Role = require('../models/role.model');
+        const { User } = getModels(req.tenantDb);
+        const receptionRoles = await Role.find({
+            name: { $in: [/^receptionist$/i, /^reception$/i, /^frontdesk$/i] }
+        }).select('_id').lean();
+        const receptionRoleIds = receptionRoles.map(r => r._id);
+        
+        const allReceptionists = await User.find({
+            ...hFilter,
+            $or: [
+                { role: { $in: receptionRoleIds } },
+                { role: { $in: ['receptionist', 'reception', 'frontdesk'] } }
+            ]
+        }).select('_id name counterName').sort({ name: 1 }).lean();
+
+        const receptionistMap = {};
+        allReceptionists.forEach(r => {
+            receptionistMap[String(r._id)] = {
+                name: r.name,
+                counterName: r.counterName
+            };
+        });
+
+        // 1. Calculate KPIs
+        let totalCollection = 0;
+        let cashCollection = 0;
+        let upiCollection = 0;
+        let cardCollection = 0;
+        let bankCollection = 0;
+        const activeCountersSet = new Set();
+
+        txs.forEach(t => {
+            totalCollection += t.amount || 0;
+            if (t.paymentMethod === 'Cash') cashCollection += t.amount || 0;
+            else if (t.paymentMethod === 'UPI') upiCollection += t.amount || 0;
+            else if (t.paymentMethod === 'Card') cardCollection += t.amount || 0;
+            else if (t.paymentMethod === 'Bank Transfer') bankCollection += t.amount || 0;
+
+            const currentProfile = receptionistMap[String(t.collectedByUserId)];
+            const cName = currentProfile ? (currentProfile.counterName || currentProfile.name) : t.counterName;
+            if (cName) activeCountersSet.add(cName);
+        });
+
+        // 2. Group by Receptionist and Counter
+        const groups = {};
+        txs.forEach(t => {
+            const currentProfile = receptionistMap[String(t.collectedByUserId)] || {
+                name: t.collectedByName,
+                counterName: t.counterName
+            };
+            const rName = currentProfile.name;
+            const cName = currentProfile.counterName || rName || 'Counter 1';
+
+            const key = `${t.collectedByUserId}_${cName}`;
+            if (!groups[key]) {
+                groups[key] = {
+                    receptionistId: t.collectedByUserId,
+                    receptionistName: rName,
+                    counterName: cName,
+                    transactionsCount: 0,
+                    cash: 0,
+                    upi: 0,
+                    card: 0,
+                    bankTransfer: 0,
+                    total: 0
+                };
+            }
+
+            const g = groups[key];
+            g.transactionsCount += 1;
+            g.total += t.amount || 0;
+            if (t.paymentMethod === 'Cash') g.cash += t.amount || 0;
+            else if (t.paymentMethod === 'UPI') g.upi += t.amount || 0;
+            else if (t.paymentMethod === 'Card') g.card += t.amount || 0;
+            else if (t.paymentMethod === 'Bank Transfer') g.bankTransfer += t.amount || 0;
+        });
+
+        res.json({
+            success: true,
+            kpis: {
+                totalCollection,
+                cashCollection,
+                upiCollection,
+                cardCollection,
+                bankCollection,
+                activeCounters: activeCountersSet.size
+            },
+            counterWiseSummary: Object.values(groups),
+            receptionists: allReceptionists
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// 2. Drill Down Transaction List
+router.get('/reception-collections/transactions', verifyFinanceAccess, async (req, res) => {
+    try {
+        const hospitalId = req.user.hospitalId;
+        const hFilter = hospitalId ? { hospitalId } : {};
+        const { startDate, endDate, receptionistId, paymentMethod } = req.query;
+
+        let start = new Date();
+        start.setHours(0, 0, 0, 0);
+        let end = new Date();
+        end.setHours(23, 59, 59, 999);
+
+        if (startDate) {
+            start = new Date(startDate);
+            start.setHours(0, 0, 0, 0);
+        }
+        if (endDate) {
+            end = new Date(endDate);
+            end.setHours(23, 59, 59, 999);
+        }
+
+        const { CollectionTransaction } = getModels(req.tenantDb);
+
+        // Security check
+        const role = typeof req.user.role === 'string' ? req.user.role.toLowerCase() : (req.user._roleData?.name || '').toLowerCase();
+        let userFilter = {};
+        if (['reception', 'receptionist'].includes(role)) {
+            userFilter = { collectedByUserId: req.user._id };
+        } else if (receptionistId) {
+            userFilter = { collectedByUserId: receptionistId };
+        }
+
+        const query = {
+            ...hFilter,
+            ...userFilter,
+            collectionTimestamp: { $gte: start, $lte: end }
+        };
+
+        if (paymentMethod) {
+            query.paymentMethod = paymentMethod;
+        }
+
+        const transactions = await CollectionTransaction.find(query).sort({ collectionTimestamp: -1 }).lean();
+
+        // Dynamically resolve receptionist names and counter names from User collection
+        const Role = require('../models/role.model');
+        const { User } = getModels(req.tenantDb);
+        const receptionRoles = await Role.find({
+            name: { $in: [/^receptionist$/i, /^reception$/i, /^frontdesk$/i] }
+        }).select('_id').lean();
+        const receptionRoleIds = receptionRoles.map(r => r._id);
+        
+        const allReceptionists = await User.find({
+            ...hFilter,
+            $or: [
+                { role: { $in: receptionRoleIds } },
+                { role: { $in: ['receptionist', 'reception', 'frontdesk'] } }
+            ]
+        }).select('_id name counterName').lean();
+
+        const receptionistMap = {};
+        allReceptionists.forEach(r => {
+            receptionistMap[String(r._id)] = {
+                name: r.name,
+                counterName: r.counterName
+            };
+        });
+
+        const mappedTransactions = transactions.map(t => {
+            const currentProfile = receptionistMap[String(t.collectedByUserId)];
+            if (currentProfile) {
+                return {
+                    ...t,
+                    collectedByName: currentProfile.name,
+                    counterName: currentProfile.counterName || currentProfile.name || 'Counter 1'
+                };
+            }
+            return t;
+        });
+
+        res.json({ success: true, transactions: mappedTransactions });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// 3. Get Reconciliation record
+router.get('/reception-collections/reconciliation', verifyFinanceAccess, async (req, res) => {
+    try {
+        const hospitalId = req.user.hospitalId;
+        const hFilter = hospitalId ? { hospitalId } : {};
+        const { targetDate } = req.query;
+        const target = targetDate ? new Date(targetDate) : new Date();
+
+        const startOfTarget = new Date(target.setHours(0, 0, 0, 0));
+        const endOfTarget = new Date(target.setHours(23, 59, 59, 999));
+
+        const { CollectionTransaction, Reconciliation } = getModels(req.tenantDb);
+
+        const record = await Reconciliation.findOne({
+            ...hFilter,
+            date: { $gte: startOfTarget, $lte: endOfTarget }
+        }).lean();
+
+        // Calculate expected from CollectionTransactions
+        const txs = await CollectionTransaction.find({
+            ...hFilter,
+            collectionTimestamp: { $gte: startOfTarget, $lte: endOfTarget }
+        }).lean();
+
+        let cashExpected = 0;
+        let upiExpected = 0;
+        let cardExpected = 0;
+        let bankExpected = 0;
+
+        txs.forEach(t => {
+            if (t.paymentMethod === 'Cash') cashExpected += t.amount || 0;
+            else if (t.paymentMethod === 'UPI') upiExpected += t.amount || 0;
+            else if (t.paymentMethod === 'Card') cardExpected += t.amount || 0;
+            else if (t.paymentMethod === 'Bank Transfer') bankExpected += t.amount || 0;
+        });
+
+        res.json({
+            success: true,
+            date: startOfTarget,
+            expected: {
+                cash: cashExpected,
+                upi: upiExpected,
+                card: cardExpected,
+                bank: bankExpected,
+                total: cashExpected + upiExpected + cardExpected + bankExpected
+            },
+            record
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// 4. Save/Submit Reconciliation
+router.post('/reception-collections/reconcile', verifyFinanceAccess, async (req, res) => {
+    try {
+        const hospitalId = req.user.hospitalId;
+        const { date, cashActual, upiActual, cardActual, bankActual, notes } = req.body;
+
+        if (!date) return res.status(400).json({ success: false, message: 'Date is required' });
+
+        const target = new Date(date);
+        const startOfTarget = new Date(target.setHours(0, 0, 0, 0));
+        const endOfTarget = new Date(target.setHours(23, 59, 59, 999));
+
+        const hFilter = hospitalId ? { hospitalId } : {};
+        const { CollectionTransaction, Reconciliation } = getModels(req.tenantDb);
+
+        // Expected from CollectionTransactions
+        const txs = await CollectionTransaction.find({
+            ...hFilter,
+            collectionTimestamp: { $gte: startOfTarget, $lte: endOfTarget }
+        }).lean();
+
+        let cashExpected = 0;
+        let upiExpected = 0;
+        let cardExpected = 0;
+        let bankExpected = 0;
+
+        txs.forEach(t => {
+            if (t.paymentMethod === 'Cash') cashExpected += t.amount || 0;
+            else if (t.paymentMethod === 'UPI') upiExpected += t.amount || 0;
+            else if (t.paymentMethod === 'Card') cardExpected += t.amount || 0;
+            else if (t.paymentMethod === 'Bank Transfer') bankExpected += t.amount || 0;
+        });
+
+        const cA = Number(cashActual || 0);
+        const uA = Number(upiActual || 0);
+        const cD = Number(cardActual || 0);
+        const bA = Number(bankActual || 0);
+
+        const status = (cashExpected === cA && upiExpected === uA && cardExpected === cD && bankExpected === bA)
+            ? 'Balanced' : 'Discrepancy';
+
+        const record = await Reconciliation.findOneAndUpdate(
+            { hospitalId, date: startOfTarget },
+            {
+                $set: {
+                    cashExpected, cashActual: cA,
+                    upiExpected, upiActual: uA,
+                    cardExpected, cardActual: cD,
+                    bankExpected, bankActual: bA,
+                    status,
+                    notes: notes || '',
+                    reconciledBy: req.user._id,
+                    reconciledByName: req.user.name || 'Accountant'
+                }
+            },
+            { upsert: true, new: true }
+        );
+
+        res.json({ success: true, record });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }

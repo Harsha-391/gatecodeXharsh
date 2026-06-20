@@ -65,6 +65,7 @@ const getModels = (req) => {
         LabTest: MasterLabTest,
         InsuranceClaim: MasterInsuranceClaim,
         DiscountRequest: MasterDiscountRequest,
+        CollectionTransaction: require('../models/collectionTransaction.model'),
     };
 };
 
@@ -467,6 +468,50 @@ router.post('/invoice/:id/payment', verifyBillingAccess, auditLog('CONFIRM_PAYME
 
         await invoice.save();
 
+        // Retrieve patient details for CollectionTransaction log
+        const patientUser = await User.findById(invoice.patientId);
+        
+        let collectionType = 'Miscellaneous Collection';
+        const itemTypes = (invoice.items || []).map(i => i.itemType);
+        if (itemTypes.includes('Consultation')) {
+            collectionType = 'OPD Registration';
+        } else if (itemTypes.includes('Laboratory')) {
+            collectionType = 'Lab Payment';
+        } else if (itemTypes.includes('Pharmacy')) {
+            collectionType = 'Pharmacy Payment';
+        } else if (itemTypes.includes('Admission') || itemTypes.includes('Facility')) {
+            collectionType = 'IPD Admission Advance';
+        }
+
+        const transactionData = {
+            hospitalId: invoice.hospitalId,
+            patientId: invoice.patientId,
+            patientName: invoice.patientName,
+            patientPhone: patientUser?.phone || '',
+            patientIdStr: patientUser?.patientId || patientUser?.mrn || 'WALK-IN',
+            invoiceNumber: invoice.invoiceNumber,
+            amount: payVal,
+            paymentMethod: method,
+            collectedByUserId: req.user._id,
+            collectedByName: req.user.name || 'Staff',
+            counterName: req.user.counterName && req.user.counterName !== 'Counter 1' ? req.user.counterName : (req.user.name || 'Counter 1'),
+            collectionType,
+            collectionTimestamp: new Date()
+        };
+
+        const MasterCollectionTransaction = require('../models/collectionTransaction.model');
+        const masterTx = new MasterCollectionTransaction(transactionData);
+        await masterTx.save();
+
+        if (req.tenantDb) {
+            const TenantCollectionTransaction = getTenantModels(req.tenantDb).CollectionTransaction;
+            const tenantTx = new TenantCollectionTransaction({
+                ...transactionData,
+                _id: masterTx._id
+            });
+            await tenantTx.save();
+        }
+
         // Write Activity Log
         await new BillingActivityLog({
             hospitalId: invoice.hospitalId,
@@ -757,6 +802,114 @@ router.put('/pay', verifyBillingAccess, auditLog('CONFIRM_PAYMENT', (req) => ({
                 { _id: { $in: admissionIds } }, { $set: { paymentStatus: 'Paid' } }),
         ].filter(Boolean));
 
+        // Track collection transactions for bulk settlements
+        const MasterCollectionTransaction = require('../models/collectionTransaction.model');
+
+        if (appointmentIds.length > 0) {
+            const appts = await Appointment.find({ _id: { $in: appointmentIds } }).lean();
+            for (const appt of appts) {
+                if (appt.amount > 0) {
+                    const isFollowUp = (appt.notes && String(appt.notes).toLowerCase().includes('follow')) || (appt.serviceName && String(appt.serviceName).toLowerCase().includes('follow'));
+                    const collectionType = isFollowUp ? 'Follow-up Consultation' : 'OPD Registration';
+
+                    const txData = {
+                        hospitalId: appt.hospitalId || req.user.hospitalId,
+                        patientId: appt.userId,
+                        patientName: appt.patientName,
+                        patientPhone: appt.patientPhone || '',
+                        patientIdStr: appt.patientId || 'WALK-IN',
+                        appointmentId: appt._id,
+                        amount: appt.amount,
+                        paymentMethod: paymentMode,
+                        collectedByUserId: req.user._id,
+                        collectedByName: req.user.name || 'Staff',
+                        counterName: req.user.counterName && req.user.counterName !== 'Counter 1' ? req.user.counterName : (req.user.name || 'Counter 1'),
+                        collectionType,
+                        collectionTimestamp: new Date()
+                    };
+                    const masterTx = new MasterCollectionTransaction(txData);
+                    await masterTx.save();
+
+                    if (req.tenantDb) {
+                        const TenantCollectionTransaction = getTenantModels(req.tenantDb).CollectionTransaction;
+                        const tenantTx = new TenantCollectionTransaction({
+                            ...txData,
+                            _id: masterTx._id
+                        });
+                        await tenantTx.save();
+                    }
+                }
+            }
+        }
+
+        if (labReportIds.length > 0) {
+            const labs = await LabReport.find({ _id: { $in: labReportIds } }).lean();
+            for (const lab of labs) {
+                const amt = lab.amount || lab.price || 0;
+                if (amt > 0) {
+                    const txData = {
+                        hospitalId: lab.hospitalId || req.user.hospitalId,
+                        patientId: lab.userId,
+                        patientName: lab.patientName || 'Patient',
+                        patientPhone: lab.patientPhone || '',
+                        patientIdStr: lab.patientId || 'WALK-IN',
+                        amount: amt,
+                        paymentMethod: paymentMode,
+                        collectedByUserId: req.user._id,
+                        collectedByName: req.user.name || 'Staff',
+                        counterName: req.user.counterName && req.user.counterName !== 'Counter 1' ? req.user.counterName : (req.user.name || 'Counter 1'),
+                        collectionType: 'Lab Payment',
+                        collectionTimestamp: new Date()
+                    };
+                    const masterTx = new MasterCollectionTransaction(txData);
+                    await masterTx.save();
+
+                    if (req.tenantDb) {
+                        const TenantCollectionTransaction = getTenantModels(req.tenantDb).CollectionTransaction;
+                        const tenantTx = new TenantCollectionTransaction({
+                            ...txData,
+                            _id: masterTx._id
+                        });
+                        await tenantTx.save();
+                    }
+                }
+            }
+        }
+
+        if (pharmacyOrderIds.length > 0) {
+            const orders = await PharmacyOrder.find({ _id: { $in: pharmacyOrderIds } }).lean();
+            for (const order of orders) {
+                const amt = order.totalAmount || 0;
+                if (amt > 0) {
+                    const txData = {
+                        hospitalId: order.hospitalId || req.user.hospitalId,
+                        patientId: order.userId,
+                        patientName: order.patientName || 'Patient',
+                        patientPhone: order.patientPhone || '',
+                        patientIdStr: order.patientId || 'WALK-IN',
+                        amount: amt,
+                        paymentMethod: paymentMode,
+                        collectedByUserId: req.user._id,
+                        collectedByName: req.user.name || 'Staff',
+                        counterName: req.user.counterName && req.user.counterName !== 'Counter 1' ? req.user.counterName : (req.user.name || 'Counter 1'),
+                        collectionType: 'Pharmacy Payment',
+                        collectionTimestamp: new Date()
+                    };
+                    const masterTx = new MasterCollectionTransaction(txData);
+                    await masterTx.save();
+
+                    if (req.tenantDb) {
+                        const TenantCollectionTransaction = getTenantModels(req.tenantDb).CollectionTransaction;
+                        const tenantTx = new TenantCollectionTransaction({
+                            ...txData,
+                            _id: masterTx._id
+                        });
+                        await tenantTx.save();
+                    }
+                }
+            }
+        }
+
         const io = req.app.get('io');
         if (io) {
             io.emit('payment_received', { amount: 0, hospitalId: req.user.hospitalId });
@@ -798,10 +951,11 @@ router.post('/facility-charge', verifyBillingAccess, async (req, res) => {
 // 12. Revenue Analytics & Reports
 router.get('/analytics', verifyBillingAccess, async (req, res) => {
     try {
-        const { Invoice } = getModels(req);
+        const { Invoice, CollectionTransaction } = getModels(req);
         const hFilter = req.user.hospitalId ? { hospitalId: req.user.hospitalId } : {};
 
         const invoices = await Invoice.find({ ...hFilter, paymentStatus: { $ne: 'Cancelled' } }).lean();
+        const transactions = await CollectionTransaction.find(hFilter).lean();
 
         let todayRevenue = 0;
         let monthlyRevenue = 0;
@@ -832,32 +986,29 @@ router.get('/analytics', verifyBillingAccess, async (req, res) => {
             } else if (inv.paymentStatus === 'Pending') {
                 pendingPayments += inv.outstandingAmount;
             }
+        });
 
-            // Sift through invoice items for source revenue
-            inv.items.forEach(item => {
-                const isPaid = item.paymentStatus === 'Paid' || inv.paymentStatus === 'Paid' || inv.paymentStatus === 'Partially Paid';
-                if (isPaid) {
-                    if (item.itemType === 'Laboratory') labRevenue += item.totalAmount;
-                    else if (item.itemType === 'Pharmacy') pharmacyRevenue += item.totalAmount;
-                    else if (item.itemType === 'Admission') admissionRevenue += item.totalAmount;
-                }
-            });
+        transactions.forEach(t => {
+            const payDate = new Date(t.collectionTimestamp);
+            if (payDate.toDateString() === todayStr) {
+                todayRevenue += t.amount || 0;
+            }
+            if (payDate.getMonth() === currentMonth && payDate.getFullYear() === currentYear) {
+                monthlyRevenue += t.amount || 0;
+            }
 
-            // payments breakdown
-            inv.payments.forEach(p => {
-                const payDate = new Date(p.date);
-                if (payDate.toDateString() === todayStr) {
-                    todayRevenue += p.amount;
-                }
-                if (payDate.getMonth() === currentMonth && payDate.getFullYear() === currentYear) {
-                    monthlyRevenue += p.amount;
-                }
+            if (t.collectionType === 'Lab Payment') {
+                labRevenue += t.amount || 0;
+            } else if (t.collectionType === 'Pharmacy Payment') {
+                pharmacyRevenue += t.amount || 0;
+            } else if (t.collectionType === 'IPD Admission Advance') {
+                admissionRevenue += t.amount || 0;
+            }
 
-                if (p.method === 'Cash') cashCollections += p.amount;
-                else if (p.method === 'UPI') upiCollections += p.amount;
-                else if (p.method === 'Card') cardCollections += p.amount;
-                else if (p.method === 'Bank Transfer') bankCollections += p.amount;
-            });
+            if (t.paymentMethod === 'Cash') cashCollections += t.amount || 0;
+            else if (t.paymentMethod === 'UPI') upiCollections += t.amount || 0;
+            else if (t.paymentMethod === 'Card') cardCollections += t.amount || 0;
+            else if (t.paymentMethod === 'Bank Transfer') bankCollections += t.amount || 0;
         });
 
         res.json({
