@@ -224,7 +224,7 @@ const ClinicDashboard = () => {
     const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
 
     useEffect(() => {
-        if (currentUser?.role !== 'hospitaladmin') navigate('/login');
+        if (currentUser?.role?.toLowerCase() !== 'hospitaladmin') navigate('/login');
     }, []);
 
     const goToReception = (patient) => {

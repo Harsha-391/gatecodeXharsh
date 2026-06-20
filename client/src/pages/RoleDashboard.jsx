@@ -52,6 +52,9 @@ const RoleDashboard = () => {
     if (role === 'admin' || role === 'hospitaladmin') {
         return <Navigate to="/admin" replace />;
     }
+    if (role === 'centraladmin' || role === 'superadmin') {
+        return <Navigate to="/supremeadmin" replace />;
+    }
     if (role === 'accountant') {
         return <Navigate to="/accountant/dashboard" replace />;
     }

@@ -26,10 +26,10 @@ const SuperAdmin = () => {
     });
     const [creating, setCreating] = useState(false);
 
-    // Check auth
     useEffect(() => {
         const user = JSON.parse(localStorage.getItem('user') || '{}');
-        if (user.role !== 'superadmin' && user.role !== 'centraladmin') {
+        const role = user.role?.toLowerCase();
+        if (role !== 'superadmin' && role !== 'centraladmin') {
             navigate('/supremeadmin/login');
         }
     }, [navigate]);

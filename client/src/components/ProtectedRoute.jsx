@@ -14,10 +14,10 @@ const ProtectedRoute = ({ children, requiredPermissions = [], allowedRoles = [] 
   if (token && user) {
     // Use effectivePermissions (role + customPermissions merged) for the most accurate check
     const userPermissions = user.effectivePermissions || user.permissions || [];
-    const userRole = user.role || '';
+    const userRole = (user.role || '').toLowerCase();
 
     // Admin-level roles — always allowed for admin routes
-    if (userPermissions.includes('*') || userRole === 'superadmin' || userRole === 'centraladmin' || userRole === 'hospitaladmin' || userRole.toLowerCase() === 'admin') {
+    if (userPermissions.includes('*') || userRole === 'superadmin' || userRole === 'centraladmin' || userRole === 'hospitaladmin' || userRole === 'admin') {
       return children;
     }
 

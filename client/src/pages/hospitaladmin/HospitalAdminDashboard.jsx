@@ -68,9 +68,8 @@ const HospitalAdminDashboard = () => {
     const [savingLabTest, setSavingLabTest] = useState(false);
     const [labTestForm, setLabTestForm] = useState({ name: '', code: '', description: '', price: '', category: 'General' });
 
-    // Auth check
     useEffect(() => {
-        const role = currentUser?.role;
+        const role = currentUser?.role?.toLowerCase();
         if (role !== 'hospitaladmin') {
             navigate('/hospitaladmin/login');
         }

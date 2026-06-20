@@ -1,13 +1,14 @@
-import React from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import React, { useEffect, useRef } from 'react';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 
 // Components
 import Navbar from '../components/Navbar';
 import DashboardLayout from '../components/layouts/DashboardLayout';
 import ProtectedRoute from '../components/ProtectedRoute';
 import RoleDashboard from '../pages/RoleDashboard';
-import { useAuth } from '../store/hooks';
+import { useAuth, useAppDispatch } from '../store/hooks';
 import { getSubdomain } from '../utils/subdomain';
+import { logout } from '../store/slices/authSlice';
 
 // User Pages
 import Services from '../pages/user/Services';
@@ -71,6 +72,7 @@ import CompletedReports from '../pages/lab/CompletedReports';
 import LabOrders from '../pages/lab/LabOrders';
 import SampleCollection from '../pages/lab/SampleCollection';
 import TestProcessing from '../pages/lab/TestProcessing';
+import CompletedReportsDetails from '../pages/lab/CompletedReports';
 
 // Pharmacy Management Pages
 import PharmacyInventory from '../pages/pharmacy/PharmacyInventory';
@@ -111,7 +113,27 @@ import PatientFlow from '../pages/admin/PatientFlow';
 const RESERVED_SUBDOMAINS = ['admin', 'www', 'api'];
 
 const SmartLogin = () => {
+    const { isAuthenticated } = useAuth();
+    const dispatch = useAppDispatch();
     const subdomain = getSubdomain();
+    const wasAuthenticatedRef = useRef(isAuthenticated);
+
+    useEffect(() => {
+        if (wasAuthenticatedRef.current && isAuthenticated) {
+            dispatch(logout());
+            wasAuthenticatedRef.current = false;
+        }
+    }, [isAuthenticated, dispatch]);
+
+    if (wasAuthenticatedRef.current && isAuthenticated) {
+        return (
+            <div className="hospital-login-loading">
+                <div className="hospital-login-spinner"></div>
+                <p>Logging out...</p>
+            </div>
+        );
+    }
+
     if (subdomain && !RESERVED_SUBDOMAINS.includes(subdomain)) return <HospitalLogin />;
     return <CentralAdminLogin />;
 };
@@ -143,7 +165,18 @@ const SubdomainRoleGuard = ({ children }) => {
 
         // Central admin must operate from admin.* subdomain only
         if (isCentralRole && !isAdminSubdomain) {
-            return <Navigate to="/login" replace />;
+            const hostname = window.location.hostname;
+            const port = window.location.port ? `:${window.location.port}` : '';
+            const parts = hostname.split('.');
+            let targetHost = hostname;
+            if (parts.length >= 2) {
+                parts[0] = 'admin';
+                targetHost = parts.join('.');
+            } else {
+                targetHost = `admin.${hostname}`;
+            }
+            window.location.href = `${window.location.protocol}//${targetHost}${port}/supremeadmin`;
+            return null;
         }
 
         // Hospital staff / hospital admin must NOT operate from admin.* subdomain
@@ -157,12 +190,14 @@ const SubdomainRoleGuard = ({ children }) => {
 
 const MainRoutes = () => {
     const { isAuthenticated } = useAuth();
+    const location = useLocation();
+    const isLoginPath = location.pathname.toLowerCase() === '/login';
     
     return (
         <>
-            {!isAuthenticated && <Navbar />}
+            {(!isAuthenticated || isLoginPath) && <Navbar />}
 
-            {isAuthenticated ? (
+            {isAuthenticated && !isLoginPath ? (
                 <DashboardLayout>
                   <SubdomainRoleGuard>
                     <Routes>
@@ -277,7 +312,7 @@ const MainRoutes = () => {
                         <Route path="/supremeadmin" element={<ProtectedRoute allowedRoles={['centraladmin', 'superadmin']}><CentralAdminDashboard /></ProtectedRoute>} />
                         <Route path="/supremeadmin/revenue" element={<ProtectedRoute allowedRoles={['centraladmin', 'superadmin']}><SystemRevenueDashboard /></ProtectedRoute>} />
                         <Route path="/profile" element={<ProtectedRoute requiredPermissions={[]}><AdminProfile /></ProtectedRoute>} />
-
+                        <Route path="/login" element={<SmartLogin />} />
 
                         <Route path="*" element={<Navigate to="/my-dashboard" />} />
                     </Routes>

@@ -5,7 +5,7 @@ import './App.css'
 import socket from './utils/socket'
 import { useAuth, useAppDispatch } from './store/hooks'
 import { useBranding } from './context/BrandingContext'
-import { updateUser } from './store/slices/authSlice'
+import { updateUser, logout } from './store/slices/authSlice'
 import { authAPI } from './utils/api'
 
 const App = () => {
@@ -22,9 +22,14 @@ const App = () => {
           const res = await authAPI.getProfile();
           if (res.success && res.user) {
             dispatch(updateUser(res.user));
+          } else {
+            dispatch(logout());
           }
         } catch (err) {
           console.error('Failed to sync profile permissions on mount:', err);
+          if (err.response?.status === 401 || err.message?.includes('401') || err.response?.data?.message?.includes('unauthorized')) {
+            dispatch(logout());
+          }
         }
       };
       fetchProfile();
