@@ -82,7 +82,8 @@ async function buildUserResponse(user, preloadedRoles = null) {
         dashboardPath: roleData ? roleData.dashboardPath : '/',
         navLinks: roleData ? roleData.navLinks : [],
         avatar: user.avatar || null,
-        departments: user.departments || []
+        departments: user.departments || [],
+        isActive: user.isActive !== false
     };
 }
 
@@ -847,6 +848,9 @@ router.put('/users/:userId/status', verifyAdminOrSuperAdmin, auditLog('USER_UPDA
 
         user.isActive = isActive;
         await user.save();
+
+        const { syncToTenant } = require('../utils/tenantSync');
+        await syncToTenant('User', user, 'save', user.hospitalId);
 
         res.json({ success: true, message: `User account is now ${isActive ? 'Active' : 'Disabled'}` });
     } catch (error) {
