@@ -3,7 +3,12 @@ const mongoose = require('mongoose');
 
 async function testFilter() {
     try {
-        await mongoose.connect(process.env.MONGODB_URL || 'mongodb+srv://crm:ilK0TxSZI3UJLijE@cluster0.bzkyl0e.mongodb.net/IVF_CRM_TEST');
+        const mongoUrl = process.env.MONGODB_URL;
+        if (!mongoUrl) {
+            console.error('❌ MONGODB_URL is not defined in environment variables.');
+            process.exit(1);
+        }
+        await mongoose.connect(mongoUrl);
         const Hospital = require('./src/models/hospital.model');
         const Appointment = require('./src/models/appointment.model');
         const Doctor = require('./src/models/doctor.model');

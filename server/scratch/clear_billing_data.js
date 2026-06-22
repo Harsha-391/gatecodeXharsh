@@ -3,7 +3,7 @@ require('dotenv').config();
 
 async function run() {
     try {
-        const mongoUrl = process.env.MONGODB_URL || 'mongodb+srv://omrishisharma:1234@cluster0.fkmafvw.mongodb.net/HSM';
+        const mongoUrl = process.env.MONGODB_URL || process.env.MONGODB_URL;
         console.log('Connecting to', mongoUrl);
         await mongoose.connect(mongoUrl);
         console.log('Connected to Master DB.');

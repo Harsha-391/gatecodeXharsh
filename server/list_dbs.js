@@ -1,5 +1,6 @@
+require('dotenv').config();
 const mongoose = require('mongoose');
-mongoose.connect('mongodb+srv://omrishisharma:1234@cluster0.fkmafvw.mongodb.net/?retryWrites=true&w=majority')
+mongoose.connect(process.env.MONGODB_URL)
     .then(async () => {
         const admin = new mongoose.mongo.Admin(mongoose.connection.db);
         const dbs = await admin.listDatabases();

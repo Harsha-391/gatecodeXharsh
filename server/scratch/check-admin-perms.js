@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const Role = require('../src/models/role.model');
 
 async function run() {
-    const mongoUrl = process.env.MONGODB_URL || 'mongodb+srv://omrishisharma:1234@cluster0.fkmafvw.mongodb.net/HSM';
+    const mongoUrl = process.env.MONGODB_URL || process.env.MONGODB_URL;
     await mongoose.connect(mongoUrl);
 
     const adminRoles = await Role.find({ name: /^Admin$/i });

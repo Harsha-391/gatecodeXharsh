@@ -1,8 +1,9 @@
+require('dotenv').config();
 const mongoose = require('mongoose');
 
 async function run() {
     try {
-        const mongoUrl = 'mongodb+srv://omrishisharma:1234@cluster0.fkmafvw.mongodb.net/';
+        const mongoUrl = process.env.MONGODB_URL;
         const conn = await mongoose.createConnection(mongoUrl + 'HSM').asPromise();
         console.log('Connected to master DB successfully');
 

@@ -10,7 +10,7 @@ const Role = require('../src/models/role.model');
 const REMOVE_PERMS = ['patient_create', 'appointment_manage', 'appointment_view_all', 'visit_diagnose'];
 
 async function run() {
-    const mongoUrl = process.env.MONGODB_URL || 'mongodb+srv://omrishisharma:1234@cluster0.fkmafvw.mongodb.net/HSM';
+    const mongoUrl = process.env.MONGODB_URL || process.env.MONGODB_URL;
     console.log('Connecting to MongoDB...');
     await mongoose.connect(mongoUrl);
     console.log('Connected!\n');

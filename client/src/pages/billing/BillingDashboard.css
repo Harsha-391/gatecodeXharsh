@@ -824,6 +824,11 @@ tr:hover td {
     color: #047857;
 }
 
+.badge-refund.status-rejected {
+    background: #fef2f2;
+    color: #dc2626;
+}
+
 .btn-cancel {
     padding: 8px 14px;
     background: #fef2f2;

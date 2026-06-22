@@ -169,7 +169,7 @@ async function seedDefaultRolesForHospital(hospitalId) {
 
 async function run() {
     try {
-        const DB_URI = process.env.MONGODB_URL || 'mongodb+srv://omrishisharma:1234@cluster0.fkmafvw.mongodb.net/HSM';
+        const DB_URI = process.env.MONGODB_URL || process.env.MONGODB_URL;
         console.log('Connecting to Master MongoDB...');
         await mongoose.connect(DB_URI);
         console.log('Connected to Master DB successfully!');

@@ -335,22 +335,26 @@
 }
 
 /* ---- KPI GRID ---- */
-.hospital-kpi-grid {
+.hospitaladmin-page .hospital-kpi-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 16px;
     margin-bottom: 20px;
 }
 
-.kpi-card {
+.hospitaladmin-page .kpi-card {
     border-radius: 16px;
     padding: 22px 24px;
-    color: white;
+    color: white !important;
     position: relative;
     overflow: hidden;
+    display: block !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: none;
 }
 
-.kpi-card::before {
+.hospitaladmin-page .kpi-card::before {
     content: '';
     position: absolute;
     top: -30px;
@@ -361,64 +365,71 @@
     background: rgba(255, 255, 255, 0.08);
 }
 
-.kpi-blue {
-    background: linear-gradient(135deg, #3b82f6, #6366f1);
+.hospitaladmin-page .kpi-blue {
+    background: linear-gradient(135deg, #3b82f6, #6366f1) !important;
 }
 
-.kpi-green {
-    background: linear-gradient(135deg, #10b981, #059669);
+.hospitaladmin-page .kpi-green {
+    background: linear-gradient(135deg, #10b981, #059669) !important;
 }
 
-.kpi-purple {
-    background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+.hospitaladmin-page .kpi-purple {
+    background: linear-gradient(135deg, #8b5cf6, #7c3aed) !important;
 }
 
-.kpi-orange {
-    background: linear-gradient(135deg, #f97316, #ea580c);
+.hospitaladmin-page .kpi-orange {
+    background: linear-gradient(135deg, #f97316, #ea580c) !important;
 }
 
-.kpi-teal {
-    background: linear-gradient(135deg, #14b8a6, #0d9488);
+.hospitaladmin-page .kpi-teal {
+    background: linear-gradient(135deg, #14b8a6, #0d9488) !important;
 }
 
-.kpi-pink {
-    background: linear-gradient(135deg, #ec4899, #db2777);
+.hospitaladmin-page .kpi-pink {
+    background: linear-gradient(135deg, #ec4899, #db2777) !important;
 }
 
-.kpi-icon {
+.hospitaladmin-page .kpi-icon {
     font-size: 28px;
     margin-bottom: 8px;
+    background: transparent !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+    display: block !important;
 }
 
-.kpi-value {
+.hospitaladmin-page .kpi-value {
     font-size: 32px;
     font-weight: 800;
     line-height: 1;
     margin-bottom: 4px;
+    color: white !important;
 }
 
-.kpi-label {
+.hospitaladmin-page .kpi-label {
     font-size: 13px;
     font-weight: 700;
     opacity: 0.9;
     margin-bottom: 4px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
+    color: white !important;
 }
 
-.kpi-sub {
+.hospitaladmin-page .kpi-sub {
     font-size: 12px;
     opacity: 0.75;
+    color: rgba(255, 255, 255, 0.8) !important;
 }
 
 @media (max-width: 900px) {
-    .hospital-kpi-grid {
+    .hospitaladmin-page .hospital-kpi-grid {
         grid-template-columns: repeat(2, 1fr);
     }
 }
 
 @media (max-width: 600px) {
-    .hospital-kpi-grid {
+    .hospitaladmin-page .hospital-kpi-grid {
         grid-template-columns: 1fr;
     }
 

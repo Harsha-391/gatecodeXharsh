@@ -6,7 +6,7 @@ const { getTenantModels } = require('../src/db/tenantModels');
 
 async function runAudit() {
     console.log('🔍 STARTING DATABASE PERFORMANCE AUDIT WITH AUTO-INDEX SEEDING...');
-    const mongoUrl = process.env.MONGODB_URL || 'mongodb+srv://omrishisharma:1234@cluster0.fkmafvw.mongodb.net/HSM';
+    const mongoUrl = process.env.MONGODB_URL || process.env.MONGODB_URL;
     
     try {
         await mongoose.connect(mongoUrl);

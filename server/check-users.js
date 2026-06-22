@@ -1,3 +1,4 @@
+require('dotenv').config();
 const mongoose = require('mongoose');
 const User = require('./src/models/user.model');
 const Hospital = require('./src/models/hospital.model');
@@ -5,7 +6,7 @@ const Role = require('./src/models/role.model');
 
 async function checkUsers() {
   try {
-    await mongoose.connect('mongodb+srv://omrishisharma:1234@cluster0.fkmafvw.mongodb.net/HSM');
+    await mongoose.connect(process.env.MONGODB_URL);
     console.log('Connected to MongoDB');
 
     const hospitals = await Hospital.find({});

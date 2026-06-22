@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { billingAPI, receptionAPI } from '../../utils/api';
+import { billingAPI, receptionAPI, patientAPI } from '../../utils/api';
 import { useAuth } from '../../store/hooks';
 import {
     FiTag, FiPlus, FiSearch, FiRefreshCw, FiCheck, FiX,
@@ -81,8 +81,8 @@ const DiscountsAdjustments = () => {
         setPatientSearch(val);
         if (val.length < 2) { setPatientResults([]); return; }
         try {
-            const res = await receptionAPI.searchPatients(val);
-            if (res.success) setPatientResults(res.patients || []);
+            const res = await patientAPI.search(val);
+            if (res.success) setPatientResults(res.data || []);
         } catch (e) { setPatientResults([]); }
     };
 

@@ -93,6 +93,7 @@ import TransactionLogs from '../pages/accountant/TransactionLogs';
 import FinancialAuditCenter from '../pages/accountant/FinancialAuditCenter';
 import PayrollManagement from '../pages/accountant/PayrollManagement';
 import DoctorPayouts from '../pages/accountant/DoctorPayouts';
+import DiscountApprovals from '../pages/accountant/DiscountApprovals';
 import ReceptionCollections from '../pages/finance/ReceptionCollections';
 
 // Billing Pages
@@ -277,6 +278,7 @@ const MainRoutes = () => {
                             <Route path="accountant/audit-logs/:section" element={<ProtectedRoute requiredPermissions={['finance_view', 'finance_audit']} allowedRoles={['accountant', 'centraladmin', 'superadmin', 'hospitaladmin']}><FinancialAuditCenter /></ProtectedRoute>} />
                             <Route path="accountant/payroll" element={<ProtectedRoute requiredPermissions={['finance_view', 'finance_payroll']} allowedRoles={['accountant', 'centraladmin', 'superadmin', 'hospitaladmin']}><PayrollManagement /></ProtectedRoute>} />
                             <Route path="accountant/doctor-payouts" element={<ProtectedRoute requiredPermissions={['finance_view', 'finance_doctor_payouts']} allowedRoles={['accountant', 'centraladmin', 'superadmin', 'hospitaladmin']}><DoctorPayouts /></ProtectedRoute>} />
+                            <Route path="accountant/discount-approvals" element={<ProtectedRoute requiredPermissions={['finance_view']} allowedRoles={['accountant', 'centraladmin', 'superadmin', 'hospitaladmin']}><DiscountApprovals /></ProtectedRoute>} />
                             <Route path="finance/reception-collections" element={<ProtectedRoute requiredPermissions={['finance_reception_collections']} allowedRoles={['receptionist', 'reception', 'accountant', 'centraladmin', 'superadmin', 'hospitaladmin', 'billing', 'cashier']}><ReceptionCollections /></ProtectedRoute>} />
 
                             {/* Centralized Patient Billing & Cashier Workspace */}

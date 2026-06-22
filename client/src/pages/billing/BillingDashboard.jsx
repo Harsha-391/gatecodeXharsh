@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { billingAPI, admissionAPI, receptionAPI } from '../../utils/api';
+import { billingAPI, admissionAPI, receptionAPI, patientAPI } from '../../utils/api';
 import { useAuth } from '../../store/hooks';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -530,6 +530,20 @@ const BillingDashboard = ({ tab }) => {
             }
         } catch (err) {
             alert(err.response?.data?.message || 'Refund approval failed.');
+        }
+    };
+
+    const handleRejectRefund = async (refundId) => {
+        const notes = prompt('Enter refund rejection reason:');
+        if (notes === null) return;
+        try {
+            const res = await billingAPI.rejectRefund(refundId, notes);
+            if (res.success) {
+                setSuccess('Refund request rejected successfully.');
+                fetchRefunds();
+            }
+        } catch (err) {
+            alert(err.response?.data?.message || 'Refund rejection failed.');
         }
     };
 
@@ -1974,10 +1988,16 @@ const BillingDashboard = ({ tab }) => {
                                                 <td>{fmtDate(ref.createdAt)}</td>
                                                 <td>
                                                     {ref.status === 'Refund Pending' && !isReceptionist && (
-                                                        <button className="btn-collect" onClick={() => handleApproveRefund(ref._id)}>Approve & Settle</button>
+                                                        <div className="invoice-actions-wrap">
+                                                            <button className="btn-collect" onClick={() => handleApproveRefund(ref._id)}>Approve & Settle</button>
+                                                            <button className="btn-cancel" onClick={() => handleRejectRefund(ref._id)}>Reject</button>
+                                                        </div>
                                                     )}
                                                     {ref.status === 'Refunded' && (
                                                         <span style={{ color: '#16a34a', fontSize: '12px' }}>Processed ✓</span>
+                                                    )}
+                                                    {ref.status === 'Rejected' && (
+                                                        <span style={{ color: '#dc2626', fontSize: '12px' }}>Rejected ✗</span>
                                                     )}
                                                 </td>
                                             </tr>
@@ -2213,8 +2233,8 @@ const BillingDashboard = ({ tab }) => {
                                             setModalSearchQuery(val);
                                             if (val.length > 2) {
                                                 try {
-                                                    const res = await receptionAPI.searchPatients(val);
-                                                    if (res.success) setModalSearchResults(res.patients || []);
+                                                    const res = await patientAPI.search(val);
+                                                    if (res.success) setModalSearchResults(res.data || []);
                                                 } catch (err) {
                                                     console.error('Error searching patients:', err);
                                                 }

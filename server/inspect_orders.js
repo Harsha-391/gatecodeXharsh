@@ -1,5 +1,6 @@
+require('dotenv').config();
 const mongoose = require('mongoose');
-mongoose.connect('mongodb+srv://omrishisharma:1234@cluster0.fkmafvw.mongodb.net/HSM')
+mongoose.connect(process.env.MONGODB_URL)
     .then(async () => {
         const PharmacyOrder = require('./src/models/pharmacyOrder.model');
         const orders = await PharmacyOrder.find().sort({ createdAt: -1 }).limit(2).lean();

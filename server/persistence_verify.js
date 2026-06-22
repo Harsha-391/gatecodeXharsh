@@ -9,7 +9,11 @@ const MasterNotification = require('./src/models/notification.model');
 const Hospital = require('./src/models/hospital.model');
 const MasterUser = require('./src/models/user.model');
 
-const MONGO_URI = 'mongodb+srv://omrishisharma:1234@cluster0.fkmafvw.mongodb.net/HSM';
+const MONGO_URI = process.env.MONGODB_URL;
+if (!MONGO_URI) {
+    console.error('❌ MONGODB_URL is not defined in environment variables.');
+    process.exit(1);
+}
 
 async function runVerification() {
     try {

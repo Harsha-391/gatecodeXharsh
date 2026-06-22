@@ -64,14 +64,14 @@
 }
 
 /* KPI Cards */
-.kpi-grid {
+.reception-collections-page .kpi-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
     gap: 20px;
     margin-bottom: 32px;
 }
 
-.kpi-card {
+.reception-collections-page .kpi-card {
     background: white;
     border: 1px solid #e2e8f0;
     border-radius: 16px;
@@ -83,12 +83,12 @@
     transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.kpi-card:hover {
+.reception-collections-page .kpi-card:hover {
     transform: translateY(-2px);
     box-shadow: 0 12px 20px -8px rgba(0, 0, 0, 0.08);
 }
 
-.kpi-icon {
+.reception-collections-page .kpi-icon {
     font-size: 1.5rem;
     padding: 12px;
     border-radius: 12px;
@@ -98,32 +98,32 @@
     justify-content: center;
 }
 
-.kpi-card.total .kpi-icon {
+.reception-collections-page .kpi-card.total .kpi-icon {
     background: #e0f2fe;
     color: #0284c7;
 }
 
-.kpi-card.cash .kpi-icon {
+.reception-collections-page .kpi-card.cash .kpi-icon {
     background: #dcfce7;
     color: #16a34a;
 }
 
-.kpi-card.upi .kpi-icon {
+.reception-collections-page .kpi-card.upi .kpi-icon {
     background: #f3e8ff;
     color: #7c3aed;
 }
 
-.kpi-card.card .kpi-icon {
+.reception-collections-page .kpi-card.card .kpi-icon {
     background: #fffbeb;
     color: #d97706;
 }
 
-.kpi-card.bank .kpi-icon {
+.reception-collections-page .kpi-card.bank .kpi-icon {
     background: #eff6ff;
     color: #2563eb;
 }
 
-.kpi-details h3 {
+.reception-collections-page .kpi-details h3 {
     font-size: 0.8rem;
     font-weight: 700;
     color: #64748b;
@@ -132,7 +132,7 @@
     letter-spacing: 0.5px;
 }
 
-.kpi-details .value {
+.reception-collections-page .kpi-details .value {
     font-size: 1.5rem;
     font-weight: 850;
     color: #0f172a;

@@ -764,6 +764,86 @@ router.put('/refunds/:id/approve', verifyBillingAccess, auditLog('UPDATE_BILL', 
     }
 });
 
+// 8.5. Reject Refund Request
+router.put('/refunds/:id/reject', verifyBillingAccess, auditLog('UPDATE_BILL', (req, body) => ({
+    model: 'Refund',
+    id: req.params.id,
+    label: body.refund ? `Refund of ₹${body.refund.amount} rejected for ${body.refund.patientName}` : 'Refund rejection',
+}), { dataCategory: 'Financial', severity: 'warning' }), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { notes } = req.body;
+
+        const userRole = String(req.user.role || '').toLowerCase();
+        const roleData = req.user._roleData;
+        const nameOfRole = String(roleData?.name || '').toLowerCase();
+
+        if (
+            ['reception', 'receptionist'].includes(userRole) ||
+            ['reception', 'receptionist'].includes(nameOfRole)
+        ) {
+            return res.status(403).json({ success: false, message: 'Forbidden: Receptionists are not allowed to reject refunds.' });
+        }
+
+        const { Refund, BillingActivityLog } = getModels(req);
+        const refund = await Refund.findById(id);
+        if (!refund) return res.status(404).json({ success: false, message: 'Refund request not found.' });
+
+        refund.status = 'Rejected';
+        refund.approvedBy = req.user._id;
+        refund.approvedByName = req.user.name || 'Staff';
+        refund.actionDate = new Date();
+        refund.history.push({
+            status: 'Rejected',
+            performedBy: req.user._id,
+            performedByName: req.user.name || 'Staff',
+            notes: notes || 'Refund request rejected.'
+        });
+
+        await refund.save();
+
+        // Update the copy in the Master DB (HSM) if present
+        try {
+            const masterRefund = await MasterRefund.findById(id);
+            if (masterRefund) {
+                masterRefund.status = 'Rejected';
+                masterRefund.approvedBy = req.user._id;
+                masterRefund.approvedByName = req.user.name || 'Staff';
+                masterRefund.actionDate = refund.actionDate;
+                masterRefund.history.push({
+                    status: 'Rejected',
+                    performedBy: req.user._id,
+                    performedByName: req.user.name || 'Staff',
+                    notes: notes || 'Refund request rejected.'
+                });
+                await masterRefund.save();
+            }
+        } catch (masterErr) {
+            console.error('Failed to update refund copy in master DB:', masterErr.message);
+        }
+
+        await new BillingActivityLog({
+            hospitalId: refund.hospitalId,
+            performedBy: req.user._id,
+            performedByName: req.user.name || 'Staff',
+            action: 'Refund Rejected',
+            patientId: refund.patientId,
+            patientName: refund.patientName,
+            details: `Refund rejected of ₹${refund.amount} for ${refund.refundType}. Reason/Notes: ${notes || ''}`
+        }).save();
+
+        const io = req.app.get('io');
+        if (io) {
+            io.emit('refund_rejected', { refundId: refund._id, patientId: refund.patientId, amount: refund.amount, hospitalId: refund.hospitalId });
+        }
+
+        res.json({ success: true, refund });
+    } catch (error) {
+        console.error('Reject refund error:', error);
+        res.status(500).json({ success: false, message: 'An internal error occurred' });
+    }
+});
+
 // 9. Get Audit Logs
 router.get('/activity-logs', verifyBillingAccess, async (req, res) => {
     try {

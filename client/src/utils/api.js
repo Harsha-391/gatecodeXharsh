@@ -734,6 +734,7 @@ export const billingAPI = {
     getRefunds: async () => (await apiClient.get('/api/billing/refunds')).data,
     requestRefund: async (data) => (await apiClient.post('/api/billing/refunds', data)).data,
     approveRefund: async (id, notes = '') => (await apiClient.put(`/api/billing/refunds/${id}/approve`, { notes })).data,
+    rejectRefund: async (id, notes = '') => (await apiClient.put(`/api/billing/refunds/${id}/reject`, { notes })).data,
     getActivityLogs: async () => (await apiClient.get('/api/billing/activity-logs')).data,
     getBillingAnalytics: async () => (await apiClient.get('/api/billing/analytics')).data,
     // Insurance Claims

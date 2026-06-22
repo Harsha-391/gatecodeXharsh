@@ -1,5 +1,6 @@
+require('dotenv').config();
 const mongoose = require('mongoose');
-const MONGO_URI = 'mongodb+srv://omrishisharma:1234@cluster0.fkmafvw.mongodb.net/HSM';
+const MONGO_URI = process.env.MONGODB_URL;
 
 const mergeTestNames = (names) => {
     if (!Array.isArray(names)) return [];

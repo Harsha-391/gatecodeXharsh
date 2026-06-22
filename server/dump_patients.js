@@ -2,7 +2,7 @@ require('dotenv').config();
 const mongoose = require('mongoose');
 
 async function main() {
-  const mongoUrl = process.env.MONGODB_URL || 'mongodb+srv://omrishisharma:1234@cluster0.fkmafvw.mongodb.net/HSM';
+  const mongoUrl = process.env.MONGODB_URL || process.env.MONGODB_URL;
   console.log('Connecting to database...');
   await mongoose.connect(mongoUrl);
   console.log('Connected to Master DB.');

@@ -17,7 +17,7 @@ async function getTenantDbNames() {
 // Programmatic Backup
 async function runBackup() {
     console.log('📦 RUNNING PROGRAMMATIC BACKUP...');
-    const mongoUrl = process.env.MONGODB_URL || 'mongodb+srv://omrishisharma:1234@cluster0.fkmafvw.mongodb.net/HSM';
+    const mongoUrl = process.env.MONGODB_URL || process.env.MONGODB_URL;
     
     // Connect to Master DB
     if (mongoose.connection.readyState === 0) {
@@ -106,7 +106,7 @@ async function runRestore(backupPath) {
     const backupJson = zlib.gunzipSync(compressed).toString();
     const backupData = JSON.parse(backupJson);
 
-    const mongoUrl = process.env.MONGODB_URL || 'mongodb+srv://omrishisharma:1234@cluster0.fkmafvw.mongodb.net/HSM';
+    const mongoUrl = process.env.MONGODB_URL || process.env.MONGODB_URL;
     if (mongoose.connection.readyState === 0) {
         await mongoose.connect(mongoUrl);
     }
@@ -159,7 +159,7 @@ async function runRestore(backupPath) {
 // Disaster Recovery Simulation
 async function runDisasterRecoverySimulation() {
     console.log('\n🔥 STARTING DISASTER RECOVERY SIMULATION...');
-    const mongoUrl = process.env.MONGODB_URL || 'mongodb+srv://omrishisharma:1234@cluster0.fkmafvw.mongodb.net/HSM';
+    const mongoUrl = process.env.MONGODB_URL || process.env.MONGODB_URL;
     
     try {
         await mongoose.connect(mongoUrl);

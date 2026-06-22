@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const User = require('../src/models/user.model');
 
 async function main() {
-    await mongoose.connect('mongodb+srv://omrishisharma:1234@cluster0.fkmafvw.mongodb.net/HSM');
+    await mongoose.connect(process.env.MONGODB_URL);
     const source = await User.findOne({ email: 'reception@crm.com' });
     if (source) {
         await User.updateOne({ email: 'admitadmin@crm.com' }, { $set: { password: source.password } });

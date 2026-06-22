@@ -240,7 +240,8 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
                         { label: 'Billing Analytics', path: '/billing/analytics', icon: <FiPieChart /> },
                         { label: 'Outstanding Payments', path: '/accountant/outstanding', icon: <FiFileText /> },
                         { label: 'Insurance Claims', path: '/accountant/claims', icon: <FiClipboard /> },
-                        { label: 'Reception Collections', path: '/finance/reception-collections', icon: <FiTrendingUp /> }
+                        { label: 'Reception Collections', path: '/finance/reception-collections', icon: <FiTrendingUp /> },
+                        { label: 'Discount Approvals', path: '/accountant/discount-approvals', icon: <FiCheckCircle /> },
                     ]
                 },
                 {

@@ -9,7 +9,7 @@ const refundSchema = new mongoose.Schema({
     itemId: { type: mongoose.Schema.Types.ObjectId },
     amount: { type: Number, required: true },
     reason: { type: String, required: true },
-    status: { type: String, enum: ['Refund Pending', 'Refund Approved', 'Refunded'], default: 'Refund Pending' },
+    status: { type: String, enum: ['Refund Pending', 'Refund Approved', 'Refunded', 'Rejected'], default: 'Refund Pending' },
     requestedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     requestedByName: { type: String, required: true },
     approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },

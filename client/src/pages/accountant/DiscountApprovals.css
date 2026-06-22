@@ -1,0 +1,758 @@
+/* DiscountApprovals.css — Accountant Discount Approvals Page */
+
+.discount-approvals-page {
+    padding: 32px;
+    background: #f8fafc;
+    min-height: 100vh;
+    font-family: 'Outfit', 'Inter', sans-serif;
+    box-sizing: border-box;
+}
+
+/* ─── Page Header ─────────────────────────────────────────── */
+.da-page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 32px;
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #1a2744 100%);
+    padding: 26px 32px;
+    border-radius: 18px;
+    color: white;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+    position: relative;
+    overflow: hidden;
+}
+
+.da-page-header::before {
+    content: '';
+    position: absolute;
+    top: -40px;
+    right: -40px;
+    width: 200px;
+    height: 200px;
+    background: radial-gradient(circle, rgba(99, 102, 241, 0.2) 0%, transparent 70%);
+    border-radius: 50%;
+}
+
+.da-page-header-text h1 {
+    font-size: 1.8rem;
+    font-weight: 800;
+    margin: 0 0 6px;
+    background: linear-gradient(90deg, #a78bfa, #818cf8);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.da-page-header-text p {
+    margin: 0;
+    color: #94a3b8;
+    font-size: 0.95rem;
+}
+
+.da-refresh-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: white;
+    padding: 10px 20px;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    backdrop-filter: blur(4px);
+}
+
+.da-refresh-btn:hover {
+    background: rgba(255, 255, 255, 0.15);
+    transform: translateY(-1px);
+}
+
+/* ─── Toast Alerts ────────────────────────────────────────── */
+.da-success-alert,
+.da-error-alert {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 20px;
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 0.92rem;
+    margin-bottom: 24px;
+    animation: slideDown 0.3s ease;
+}
+
+.da-success-alert {
+    background: #ecfdf5;
+    border: 1px solid #a7f3d0;
+    color: #065f46;
+}
+
+.da-error-alert {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #991b1b;
+}
+
+@keyframes slideDown {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── Stats Grid ──────────────────────────────────────────── */
+.da-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 18px;
+    margin-bottom: 28px;
+}
+
+.da-stat-card {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 20px 22px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
+    transition: all 0.25s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.da-stat-card::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    border-radius: 16px 16px 0 0;
+}
+
+.da-stat-card.total::after   { background: linear-gradient(90deg, #6366f1, #8b5cf6); }
+.da-stat-card.pending::after { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+.da-stat-card.approved::after { background: linear-gradient(90deg, #10b981, #34d399); }
+.da-stat-card.rejected::after { background: linear-gradient(90deg, #ef4444, #f87171); }
+.da-stat-card.applied::after  { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+
+.da-stat-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.06);
+}
+
+.da-stat-label {
+    font-size: 0.76rem;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    font-weight: 700;
+    color: #64748b;
+    margin-bottom: 10px;
+}
+
+.da-stat-value {
+    font-size: 2rem;
+    font-weight: 800;
+    color: #0f172a;
+    line-height: 1;
+    margin-bottom: 4px;
+}
+
+.da-stat-card.pending .da-stat-value  { color: #d97706; }
+.da-stat-card.approved .da-stat-value { color: #059669; }
+.da-stat-card.rejected .da-stat-value { color: #dc2626; }
+.da-stat-card.applied .da-stat-value  { color: #2563eb; }
+
+.da-stat-sub {
+    font-size: 0.77rem;
+    color: #94a3b8;
+}
+
+/* ─── Filter Bar ──────────────────────────────────────────── */
+.da-filter-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+}
+
+.da-filter-tabs {
+    display: flex;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 4px;
+    gap: 4px;
+}
+
+.da-tab-btn {
+    background: none;
+    border: none;
+    padding: 7px 16px;
+    border-radius: 7px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #64748b;
+    cursor: pointer;
+    transition: all 0.18s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.da-tab-btn.active {
+    background: #6366f1;
+    color: white;
+    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+}
+
+.da-tab-btn:hover:not(.active) {
+    background: #f1f5f9;
+    color: #0f172a;
+}
+
+.da-tab-count {
+    background: rgba(255, 255, 255, 0.25);
+    border-radius: 999px;
+    padding: 1px 7px;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.da-tab-btn:not(.active) .da-tab-count {
+    background: #e2e8f0;
+    color: #475569;
+}
+
+.da-search-input {
+    flex: 1;
+    min-width: 200px;
+    padding: 9px 14px;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    font-family: inherit;
+    font-size: 0.9rem;
+    color: #0f172a;
+    outline: none;
+    background: white;
+    transition: border 0.2s, box-shadow 0.2s;
+}
+
+.da-search-input:focus {
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.da-search-input::placeholder { color: #94a3b8; }
+
+/* ─── Table ───────────────────────────────────────────────── */
+.da-table-card {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
+}
+
+.da-table-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 18px 24px;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.da-table-header h3 {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #0f172a;
+    margin: 0;
+}
+
+.da-results-count {
+    font-size: 0.82rem;
+    color: #64748b;
+    background: #f8fafc;
+    padding: 4px 12px;
+    border-radius: 999px;
+    border: 1px solid #e2e8f0;
+}
+
+.da-table-scroll {
+    overflow-x: auto;
+}
+
+.da-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 1000px;
+}
+
+.da-table thead {
+    background: #f8fafc;
+}
+
+.da-table th {
+    padding: 12px 16px;
+    text-align: left;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #64748b;
+    border-bottom: 1px solid #e2e8f0;
+    white-space: nowrap;
+}
+
+.da-table td {
+    padding: 14px 16px;
+    font-size: 0.87rem;
+    color: #1e293b;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: middle;
+}
+
+.da-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.da-table tbody tr:hover {
+    background: #f8fafc;
+}
+
+.da-cell-main {
+    font-weight: 700;
+    color: #0f172a;
+    display: block;
+    margin-bottom: 2px;
+}
+
+.da-cell-sub {
+    font-size: 0.76rem;
+    color: #64748b;
+}
+
+.da-type-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 0.74rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+}
+
+.da-type-badge.discount  { background: #ede9fe; color: #7c3aed; }
+.da-type-badge.waiver    { background: #fef3c7; color: #b45309; }
+.da-type-badge.adjustment{ background: #dbeafe; color: #1d4ed8; }
+.da-type-badge.write-off { background: #fce7f3; color: #9d174d; }
+
+.da-amount-value {
+    font-size: 1rem;
+    font-weight: 800;
+    color: #0f172a;
+}
+
+.da-amount-pct {
+    font-size: 0.76rem;
+    color: #64748b;
+}
+
+/* ─── Status Badges ───────────────────────────────────────── */
+.da-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+}
+
+.da-status-badge.pending  { background: #fef3c7; color: #d97706; }
+.da-status-badge.approved { background: #dcfce7; color: #15803d; }
+.da-status-badge.rejected { background: #fef2f2; color: #b91c1c; }
+.da-status-badge.applied  { background: #dbeafe; color: #1d4ed8; }
+
+.da-status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.da-status-badge.pending .da-status-dot  { background: #d97706; }
+.da-status-badge.approved .da-status-dot { background: #15803d; }
+.da-status-badge.rejected .da-status-dot { background: #b91c1c; }
+.da-status-badge.applied .da-status-dot  { background: #1d4ed8; }
+
+/* ─── Action Buttons ──────────────────────────────────────── */
+.da-actions-wrap {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.da-approve-btn {
+    background: linear-gradient(135deg, #059669, #10b981);
+    color: white;
+    border: none;
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    box-shadow: 0 2px 6px rgba(5, 150, 105, 0.25);
+}
+
+.da-approve-btn:hover {
+    background: linear-gradient(135deg, #047857, #059669);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(5, 150, 105, 0.35);
+}
+
+.da-reject-btn {
+    background: linear-gradient(135deg, #dc2626, #ef4444);
+    color: white;
+    border: none;
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    box-shadow: 0 2px 6px rgba(220, 38, 38, 0.25);
+}
+
+.da-reject-btn:hover {
+    background: linear-gradient(135deg, #b91c1c, #dc2626);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(220, 38, 38, 0.35);
+}
+
+.da-view-btn {
+    background: #f1f5f9;
+    color: #475569;
+    border: 1px solid #cbd5e1;
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.18s;
+}
+
+.da-view-btn:hover {
+    background: #e2e8f0;
+    color: #0f172a;
+}
+
+.da-settled-text {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #64748b;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* ─── Empty State ─────────────────────────────────────────── */
+.da-empty-state {
+    text-align: center;
+    padding: 64px 32px;
+    color: #94a3b8;
+}
+
+.da-empty-icon {
+    font-size: 3rem;
+    display: block;
+    margin-bottom: 16px;
+}
+
+.da-empty-state h3 {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #475569;
+    margin: 0 0 8px;
+}
+
+.da-empty-state p {
+    font-size: 0.87rem;
+    color: #94a3b8;
+    margin: 0;
+}
+
+/* ─── Loading ─────────────────────────────────────────────── */
+.da-loading {
+    text-align: center;
+    padding: 64px 32px;
+    color: #6366f1;
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+
+.da-spinner {
+    width: 36px;
+    height: 36px;
+    border: 3px solid #e0e7ff;
+    border-top-color: #6366f1;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    margin: 0 auto 16px;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ─── Action Modal ────────────────────────────────────────── */
+.da-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.65);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.da-modal {
+    background: white;
+    border-radius: 18px;
+    width: 480px;
+    max-width: 94vw;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 24px 48px rgba(0, 0, 0, 0.14);
+    animation: slideUp 0.25s ease;
+}
+
+@keyframes slideUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.da-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 22px 24px 16px;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.da-modal-header h2 {
+    font-size: 1.2rem;
+    font-weight: 800;
+    color: #0f172a;
+    margin: 0;
+}
+
+.da-modal-close {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    width: 32px;
+    height: 32px;
+    font-size: 1.1rem;
+    color: #64748b;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.18s;
+}
+
+.da-modal-close:hover {
+    background: #e2e8f0;
+    color: #0f172a;
+}
+
+.da-modal-body {
+    padding: 20px 24px;
+}
+
+/* Request info card inside modal */
+.da-request-info-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 16px 18px;
+    margin-bottom: 20px;
+}
+
+.da-info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    font-size: 0.86rem;
+}
+
+.da-info-row:last-child { margin-bottom: 0; }
+
+.da-info-label {
+    color: #64748b;
+    font-weight: 600;
+}
+
+.da-info-value {
+    color: #0f172a;
+    font-weight: 700;
+    text-align: right;
+}
+
+.da-info-value.amount {
+    font-size: 1.1rem;
+    color: #6366f1;
+}
+
+.da-modal-action-type {
+    font-size: 0.9rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.da-modal-action-type.approve {
+    background: #ecfdf5;
+    color: #065f46;
+    border: 1px solid #a7f3d0;
+}
+
+.da-modal-action-type.reject {
+    background: #fef2f2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
+}
+
+.da-form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 16px;
+}
+
+.da-form-group label {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #475569;
+}
+
+.da-form-group textarea,
+.da-form-group input {
+    padding: 10px 14px;
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    font-family: inherit;
+    font-size: 0.9rem;
+    color: #0f172a;
+    resize: vertical;
+    outline: none;
+    transition: border 0.2s;
+}
+
+.da-form-group textarea:focus,
+.da-form-group input:focus {
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.da-form-group textarea { min-height: 80px; }
+
+.da-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 16px 24px 22px;
+    border-top: 1px solid #f1f5f9;
+}
+
+.da-cancel-btn {
+    background: white;
+    border: 1px solid #e2e8f0;
+    color: #475569;
+    padding: 10px 20px;
+    border-radius: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.18s;
+}
+
+.da-cancel-btn:hover { background: #f8fafc; }
+
+.da-submit-approve-btn {
+    background: linear-gradient(135deg, #059669, #10b981);
+    color: white;
+    border: none;
+    padding: 10px 22px;
+    border-radius: 10px;
+    font-weight: 700;
+    cursor: pointer;
+    font-size: 0.9rem;
+    box-shadow: 0 4px 12px rgba(5, 150, 105, 0.2);
+    transition: all 0.18s;
+}
+
+.da-submit-approve-btn:hover:not(:disabled) {
+    background: linear-gradient(135deg, #047857, #059669);
+    transform: translateY(-1px);
+}
+
+.da-submit-reject-btn {
+    background: linear-gradient(135deg, #dc2626, #ef4444);
+    color: white;
+    border: none;
+    padding: 10px 22px;
+    border-radius: 10px;
+    font-weight: 700;
+    cursor: pointer;
+    font-size: 0.9rem;
+    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.2);
+    transition: all 0.18s;
+}
+
+.da-submit-reject-btn:hover:not(:disabled) {
+    background: linear-gradient(135deg, #b91c1c, #dc2626);
+    transform: translateY(-1px);
+}
+
+.da-submit-approve-btn:disabled,
+.da-submit-reject-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* ─── Responsive ──────────────────────────────────────────── */
+@media (max-width: 768px) {
+    .discount-approvals-page { padding: 16px; }
+    .da-page-header { flex-direction: column; align-items: flex-start; gap: 16px; }
+    .da-filter-bar { flex-direction: column; align-items: stretch; }
+    .da-filter-tabs { flex-wrap: wrap; }
+    .da-stats-grid { grid-template-columns: repeat(2, 1fr); }
+}

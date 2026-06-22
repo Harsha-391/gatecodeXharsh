@@ -9,7 +9,7 @@ const { JWT_SECRET } = require('../src/config/jwt');
 
 async function runAuditIntegrityTest() {
     console.log('📝 STARTING AUDIT LOG INTEGRITY AUDIT...');
-    const mongoUrl = process.env.MONGODB_URL || 'mongodb+srv://omrishisharma:1234@cluster0.fkmafvw.mongodb.net/HSM';
+    const mongoUrl = process.env.MONGODB_URL || process.env.MONGODB_URL;
     
     try {
         await mongoose.connect(mongoUrl);

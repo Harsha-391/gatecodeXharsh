@@ -10,7 +10,11 @@ const Doctor = require('./src/models/doctor.model');
 async function testReportReschedule() {
     try {
         console.log('Connecting to Master MongoDB...');
-        const mongoUrl = process.env.MONGODB_URL || 'mongodb+srv://omrishisharma:1234@cluster0.fkmafvw.mongodb.net/HSM';
+        const mongoUrl = process.env.MONGODB_URL;
+        if (!mongoUrl) {
+            console.error('❌ MONGODB_URL is not defined in environment variables.');
+            process.exit(1);
+        }
         await mongoose.connect(mongoUrl);
         console.log('Connected to Master DB successfully!');
 
