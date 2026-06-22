@@ -1750,28 +1750,71 @@ const BillingDashboard = ({ tab }) => {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {invoices.filter(inv => {
-                                            const q = invoiceSearch.toLowerCase();
-                                            return inv.invoiceNumber.toLowerCase().includes(q) ||
-                                                inv.patientName.toLowerCase().includes(q);
-                                        }).map(inv => (
-                                            <tr key={inv._id}>
-                                                <td>{inv.invoiceNumber}</td>
-                                                <td>{inv.patientName}</td>
-                                                <td>{fmtDate(inv.invoiceDate)}</td>
-                                                <td>{fmt(inv.grandTotal)}</td>
-                                                <td>{fmt(inv.outstandingAmount)}</td>
-                                                <td><span className={`badge-${inv.paymentStatus.toLowerCase().replace(' ', '-')}`}>{inv.paymentStatus}</span></td>
-                                                <td>
-                                                    <div style={{ display: 'flex', gap: '8px' }}>
-                                                        <button className="btn-print" onClick={() => exportInvoicePDF(inv)}><FiPrinter /> Export</button>
-                                                        {inv.paymentStatus !== 'Paid' && inv.paymentStatus !== 'Cancelled' && (
-                                                            <button className="btn-cancel" style={{ background: '#f87171' }} onClick={() => handleCancelInvoice(inv._id)}>Cancel</button>
+                                        {(() => {
+                                            const filtered = invoices.filter(inv => {
+                                                const q = invoiceSearch.toLowerCase();
+                                                const patientMRN = inv.patientId?.patientId || inv.patientId?.mrn || '';
+                                                return inv.invoiceNumber.toLowerCase().includes(q) ||
+                                                    inv.patientName.toLowerCase().includes(q) ||
+                                                    patientMRN.toLowerCase().includes(q);
+                                            });
+
+                                            if (filtered.length === 0) {
+                                                return (
+                                                    <tr>
+                                                        <td colSpan="7" style={{ textAlign: 'center', padding: '40px 20px' }}>
+                                                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+                                                                <span style={{ fontSize: '16px', fontWeight: '500', color: '#64748b' }}>No Invoices Found</span>
+                                                                <p style={{ margin: 0, fontSize: '14px', color: '#94a3b8', maxWidth: '400px' }}>
+                                                                    If you are trying to search a patient to generate their invoice, please go to the <strong>Patient Billing</strong> section.
+                                                                </p>
+                                                                <button 
+                                                                    onClick={() => navigate('/billing/patient')}
+                                                                    style={{
+                                                                        padding: '8px 16px',
+                                                                        backgroundColor: '#4f46e5',
+                                                                        color: 'white',
+                                                                        border: 'none',
+                                                                        borderRadius: '6px',
+                                                                        cursor: 'pointer',
+                                                                        fontWeight: '500',
+                                                                        transition: 'background-color 0.2s'
+                                                                    }}
+                                                                    onMouseOver={(e) => e.target.style.backgroundColor = '#4338ca'}
+                                                                    onMouseOut={(e) => e.target.style.backgroundColor = '#4f46e5'}
+                                                                >
+                                                                    Go to Patient Billing
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            }
+
+                                            return filtered.map(inv => (
+                                                <tr key={inv._id}>
+                                                    <td>{inv.invoiceNumber}</td>
+                                                    <td>
+                                                        <span style={{ fontWeight: '500' }}>{inv.patientName}</span>
+                                                        {inv.patientId?.patientId && (
+                                                            <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>{inv.patientId.patientId}</div>
                                                         )}
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))}
+                                                    </td>
+                                                    <td>{fmtDate(inv.invoiceDate)}</td>
+                                                    <td>{fmt(inv.grandTotal)}</td>
+                                                    <td>{fmt(inv.outstandingAmount)}</td>
+                                                    <td><span className={`badge-${inv.paymentStatus.toLowerCase().replace(' ', '-')}`}>{inv.paymentStatus}</span></td>
+                                                    <td>
+                                                        <div style={{ display: 'flex', gap: '8px' }}>
+                                                            <button className="btn-print" onClick={() => exportInvoicePDF(inv)}><FiPrinter /> Export</button>
+                                                            {inv.paymentStatus !== 'Paid' && inv.paymentStatus !== 'Cancelled' && (
+                                                                <button className="btn-cancel" style={{ background: '#f87171' }} onClick={() => handleCancelInvoice(inv._id)}>Cancel</button>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ));
+                                        })()}
                                     </tbody>
                                 </table>
                             </div>

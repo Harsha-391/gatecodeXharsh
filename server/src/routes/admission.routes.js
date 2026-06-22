@@ -371,14 +371,31 @@ router.put('/:id/pay', verifyAdmissionAccess, async (req, res) => {
         const currentAdmission = await Admission.findById(req.params.id);
         if (!currentAdmission) return res.status(404).json({ success: false, message: 'Admission not found' });
         
+        const finalAmount = Number(amount) || 0;
+        const newAmountPaid = (currentAdmission.amountPaid || 0) + finalAmount;
+
+        const getBackendAdmAmt = (a) => {
+            if (!a) return 0;
+            const end = a.dischargeDate ? new Date(a.dischargeDate) : new Date();
+            const days = Math.max(1, Math.ceil(Math.abs(end.setHours(0,0,0,0) - new Date(a.admissionDate).setHours(0,0,0,0)) / (1000 * 60 * 60 * 24)) + 1);
+            const bedAmt = (a.dailyWardCharge || 0) * days;
+            const facilitiesAmt = Number(a.totalAmount || 0);
+            return bedAmt + facilitiesAmt;
+        };
+
+        const totalCost = getBackendAdmAmt(currentAdmission);
+        const paymentStatus = newAmountPaid >= totalCost ? 'Paid' : 'Pending';
+
         const admission = await Admission.findByIdAndUpdate(
             req.params.id,
-            { paymentStatus: 'Paid' },
+            { 
+                amountPaid: newAmountPaid,
+                paymentStatus
+            },
             { new: true }
         );
 
         // Record CollectionTransaction if paid amount > 0
-        const finalAmount = Number(amount) || 0;
         if (finalAmount > 0) {
             const User = require('../models/user.model');
             const patientUser = await User.findById(currentAdmission.patientId).select('name phone patientId mrn').lean();

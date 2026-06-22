@@ -37,6 +37,7 @@ const badge = (val, map = {}) => {
 };
 
 const Reports = () => {
+    const today = new Date().toLocaleDateString('en-CA');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [activeTab, setActiveTab] = useState('patients');
@@ -371,9 +372,29 @@ const Reports = () => {
                 <div className="rep-header-actions">
                     <div className="rep-date-range">
                         <FiCalendar style={{color:'#94a3b8'}} />
-                        <input type="date" value={startDate} onChange={e=>{setStartDate(e.target.value);resetPage();}} placeholder="From" />
+                        <input 
+                            type="date" 
+                            value={startDate} 
+                            max={today}
+                            onChange={e=>{
+                                const val = e.target.value;
+                                setStartDate(val > today ? today : val);
+                                resetPage();
+                            }} 
+                            placeholder="From" 
+                        />
                         <span style={{color:'#64748b'}}>to</span>
-                        <input type="date" value={endDate} onChange={e=>{setEndDate(e.target.value);resetPage();}} placeholder="To" />
+                        <input 
+                            type="date" 
+                            value={endDate} 
+                            max={today}
+                            onChange={e=>{
+                                const val = e.target.value;
+                                setEndDate(val > today ? today : val);
+                                resetPage();
+                            }} 
+                            placeholder="To" 
+                        />
                         {(startDate||endDate) && <button className="btn-clear-dates" onClick={()=>{setStartDate('');setEndDate('');resetPage();}}>✕ Clear</button>}
                     </div>
                     <button onClick={fetchData} className="btn-refresh-rep" disabled={loading}>

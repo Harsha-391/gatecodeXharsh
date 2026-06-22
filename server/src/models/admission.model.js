@@ -23,6 +23,7 @@ const admissionSchema = new mongoose.Schema({
         totalAmount: { type: Number, required: true }
     }],
     totalAmount: { type: Number, default: 0 },
+    amountPaid: { type: Number, default: 0 },
     paymentStatus: { type: String, enum: ['Pending', 'Paid'], default: 'Pending' },
     notes: String,
 }, { timestamps: true });

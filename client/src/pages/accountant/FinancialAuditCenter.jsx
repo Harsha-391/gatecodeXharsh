@@ -6,6 +6,7 @@ import './FinancialAuditCenter.css';
 const FinancialAuditCenter = () => {
     const navigate = useNavigate();
     const { section } = useParams();
+    const today = new Date().toLocaleDateString('en-CA');
 
     // Mapping params/routes to tabs
     const activeTab = section || 'overview';
@@ -300,11 +301,27 @@ const FinancialAuditCenter = () => {
                     <div className="filters-grid">
                         <div className="filter-item">
                             <label>Date Range (From)</label>
-                            <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+                            <input 
+                                type="date" 
+                                value={startDate} 
+                                max={today}
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    setStartDate(val > today ? today : val);
+                                }} 
+                            />
                         </div>
                         <div className="filter-item">
                             <label>Date Range (To)</label>
-                            <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+                            <input 
+                                type="date" 
+                                value={endDate} 
+                                max={today}
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    setEndDate(val > today ? today : val);
+                                }} 
+                            />
                         </div>
                         <div className="filter-item">
                             <label>Amount Min (₹)</label>

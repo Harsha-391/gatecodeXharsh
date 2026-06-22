@@ -22,6 +22,7 @@ const AdmissionsOversight = () => {
     const { user } = useAuth();
     const userRole = (user?.role || '').toLowerCase();
     const isCentralAdmin = userRole === 'centraladmin' || userRole === 'superadmin';
+    const today = new Date().toLocaleDateString('en-CA');
 
     // Tabs state: 'overview' | 'occupancy' | 'analytics' | 'transfers'
     const [activeTab, setActiveTab] = useState('overview');
@@ -174,7 +175,11 @@ const AdmissionsOversight = () => {
     }, [fetchData]);
 
     const handleFilterChange = (key, value) => {
-        setFilters(prev => ({ ...prev, [key]: value }));
+        let val = value;
+        if ((key === 'dateFrom' || key === 'dateTo') && value > today) {
+            val = today;
+        }
+        setFilters(prev => ({ ...prev, [key]: val }));
     };
 
     const handleClearFilters = () => {
@@ -415,12 +420,12 @@ const AdmissionsOversight = () => {
 
                                 <div className="filter-input-wrap">
                                     <label>From Date</label>
-                                    <input type="date" value={filters.dateFrom} onChange={(e) => handleFilterChange('dateFrom', e.target.value)} />
+                                    <input type="date" max={today} value={filters.dateFrom} onChange={(e) => handleFilterChange('dateFrom', e.target.value)} />
                                 </div>
 
                                 <div className="filter-input-wrap">
                                     <label>To Date</label>
-                                    <input type="date" value={filters.dateTo} onChange={(e) => handleFilterChange('dateTo', e.target.value)} />
+                                    <input type="date" max={today} value={filters.dateTo} onChange={(e) => handleFilterChange('dateTo', e.target.value)} />
                                 </div>
                             </div>
                         </div>

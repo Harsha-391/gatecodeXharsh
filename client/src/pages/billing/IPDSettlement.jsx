@@ -20,8 +20,62 @@ const getTemplateColor = () => {
 };
 
 const fmt = (n) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 0 }).format(n || 0);
+const fmtPDF = (n) => 'Rs. ' + new Intl.NumberFormat('en-IN', { minimumFractionDigits: 0 }).format(n || 0);
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 const fmtDateTime = (d) => d ? new Date(d).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+
+const getDaysStayed = (a) => {
+    if (!a) return 0;
+    const end = a.dischargeDate ? new Date(a.dischargeDate) : new Date();
+    return Math.max(1, Math.ceil(Math.abs(end.setHours(0,0,0,0) - new Date(a.admissionDate).setHours(0,0,0,0)) / (1000 * 60 * 60 * 24)) + 1);
+};
+
+const getAdmAmt = (a) => {
+    if (!a) return 0;
+    const days = getDaysStayed(a);
+    const bedAmt = (a.dailyWardCharge || 0) * days;
+    const facilitiesAmt = Number(a.totalAmount || 0);
+    return bedAmt + facilitiesAmt;
+};
+
+const getInvoicePaidForAdmission = (a, invoices = []) => {
+    if (!a || !invoices) return 0;
+    let paidFromInvoices = 0;
+    invoices.forEach(inv => {
+        if (inv.paymentStatus === 'Paid') {
+            (inv.items || []).forEach(item => {
+                if (item.itemType === 'Admission' && String(item.itemId) === String(a._id)) {
+                    paidFromInvoices += item.totalAmount;
+                }
+            });
+        }
+    });
+    return paidFromInvoices;
+};
+
+const getAdmPaid = (a, invoices = []) => {
+    if (!a) return 0;
+    if (a.paymentStatus === 'Paid') {
+        return getAdmAmt(a);
+    }
+    const directPaid = a.amountPaid || 0;
+    const invPaid = getInvoicePaidForAdmission(a, invoices);
+    return directPaid + invPaid;
+};
+
+const getAdmDirectPaid = (a, invoices = []) => {
+    if (!a) return 0;
+    if (a.amountPaid !== undefined && a.amountPaid !== null) {
+        return a.amountPaid;
+    }
+    if (a.paymentStatus === 'Paid') {
+        const wasInvoiced = invoices.some(inv => 
+            (inv.items || []).some(item => item.itemType === 'Admission' && String(item.itemId) === String(a._id))
+        );
+        return wasInvoiced ? 0 : getAdmAmt(a);
+    }
+    return 0;
+};
 
 const IPDSettlement = () => {
     const [searchQ, setSearchQ] = useState('');
@@ -73,7 +127,7 @@ const IPDSettlement = () => {
     // Calculate totals
     const calcAdmissionCharges = () => {
         if (!billing) return 0;
-        return (billing.admissions || []).reduce((s, a) => s + (a.totalAmount || 0), 0);
+        return (billing.admissions || []).reduce((s, a) => s + getAdmAmt(a), 0);
     };
     const calcLabCharges = () => {
         if (!billing) return 0;
@@ -93,7 +147,9 @@ const IPDSettlement = () => {
     };
     const calcTotalPaid = () => {
         if (!billing) return 0;
-        return (billing.invoices || []).reduce((s, inv) => s + (inv.amountPaid || 0), 0);
+        const invoicePaid = (billing.invoices || []).reduce((s, inv) => s + (inv.amountPaid || 0), 0);
+        const admissionDirectPaid = (billing.admissions || []).reduce((s, a) => s + getAdmDirectPaid(a, billing.invoices), 0);
+        return invoicePaid + admissionDirectPaid;
     };
     const calcGrandTotal = () =>
         calcAdmissionCharges() + calcLabCharges() + calcPharmacyCharges() + calcDoctorCharges() + calcFacilityCharges();
@@ -179,8 +235,8 @@ const IPDSettlement = () => {
                 head: [['Admission Date', 'Ward', 'Bed', 'Duration', 'Status', 'Amount']],
                 body: admissions.map(a => [
                     fmtDate(a.admissionDate), a.ward || '—', a.bedNumber || '—',
-                    a.daysStayed ? `${a.daysStayed} days` : '—',
-                    a.status, fmt(a.totalAmount || 0)
+                    `${getDaysStayed(a)} days`,
+                    a.status, fmtPDF(getAdmAmt(a))
                 ]),
                 headStyles: { fillColor: pc, fontSize: 8 },
                 bodyStyles: { fontSize: 8 },
@@ -197,14 +253,14 @@ const IPDSettlement = () => {
         autoTable(doc, {
             startY: y,
             body: [
-                ['Admission / Room Charges', fmt(calcAdmissionCharges())],
-                ['Doctor Consultation Charges', fmt(calcDoctorCharges())],
-                ['Laboratory Charges', fmt(calcLabCharges())],
-                ['Pharmacy Charges', fmt(calcPharmacyCharges())],
-                ['Facility Charges', fmt(calcFacilityCharges())],
-                ['GRAND TOTAL', fmt(calcGrandTotal())],
-                ['Amount Paid', fmt(calcTotalPaid())],
-                ['BALANCE DUE', fmt(calcBalance())],
+                ['Admission / Room Charges', fmtPDF(calcAdmissionCharges())],
+                ['Doctor Consultation Charges', fmtPDF(calcDoctorCharges())],
+                ['Laboratory Charges', fmtPDF(calcLabCharges())],
+                ['Pharmacy Charges', fmtPDF(calcPharmacyCharges())],
+                ['Facility Charges', fmtPDF(calcFacilityCharges())],
+                ['GRAND TOTAL', fmtPDF(calcGrandTotal())],
+                ['Amount Paid', fmtPDF(calcTotalPaid())],
+                ['BALANCE DUE', fmtPDF(calcBalance())],
             ],
             headStyles: { fillColor: pc },
             bodyStyles: { fontSize: 9 },
@@ -386,8 +442,16 @@ const IPDSettlement = () => {
                                             <td>{a.ward || '—'}</td>
                                             <td>{a.bedNumber || '—'}</td>
                                             <td><span className={`ipd-status-pill ipd-status-${(a.status||'').toLowerCase()}`}>{a.status}</span></td>
-                                            <td><span className={`ipd-status-pill ipd-pay-${(a.paymentStatus||'pending').toLowerCase()}`}>{a.paymentStatus || 'Pending'}</span></td>
-                                            <td><strong>{fmt(a.totalAmount || 0)}</strong></td>
+                                            <td>
+                                                <span className={`ipd-status-pill ipd-pay-${(a.paymentStatus||'pending').toLowerCase()}`}>
+                                                    {getAdmPaid(a, billing.invoices) >= getAdmAmt(a) 
+                                                        ? 'Paid' 
+                                                        : (getAdmPaid(a, billing.invoices) > 0 
+                                                            ? `Paid ${fmt(getAdmPaid(a, billing.invoices))}` 
+                                                            : 'Pending')}
+                                                </span>
+                                            </td>
+                                            <td><strong>{fmt(getAdmAmt(a))}</strong></td>
                                         </tr>
                                     ))}
                                 </tbody>

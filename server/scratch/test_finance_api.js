@@ -10,10 +10,10 @@ async function test() {
         const token = jwt.sign(
             {
                 jti: uuidv4(),
-                userId: '6a328fc464e9f4f9fbd6639f',
+                userId: '6a33e0cbe369bef405196fb9',
                 email: 'accountant@crm.com',
-                roleId: '6a328fc364e9f4f9fbd6637b',
-                hospitalId: '6a328fc364e9f4f9fbd66382',
+                roleId: '6a33e0cbe369bef405196f94',
+                hospitalId: '6a33e0cbe369bef405196f97',
                 tv: 0,
             },
             JWT_SECRET,
@@ -21,8 +21,8 @@ async function test() {
         );
         console.log('Token generated:', token.substring(0, 15) + '...');
         
-        console.log('Fetching profit-loss statement...');
-        const res = await axios.get('http://localhost:3000/api/finance/profit-loss', {
+        console.log('Fetching reception-collections...');
+        const res = await axios.get('http://localhost:3000/api/finance/reception-collections', {
             headers: {
                 Authorization: `Bearer ${token}`
             }

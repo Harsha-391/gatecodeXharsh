@@ -116,6 +116,7 @@ const exportToCSV = (logs, stats) => {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 const AuditLogs = () => {
+    const today = new Date().toLocaleDateString('en-CA');
     const { user } = useAuth();
     // ── State ─────────────────────────────────────────────────────────────────
     const [logs, setLogs] = useState([]);
@@ -344,11 +345,29 @@ const AuditLogs = () => {
                     <div className="audit-filter-row">
                         <div className="filter-group date-group">
                             <label><FiCalendar /> From</label>
-                            <input id="audit-date-from" type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
+                            <input 
+                                id="audit-date-from" 
+                                type="date" 
+                                value={dateFrom} 
+                                max={today}
+                                onChange={e => {
+                                    const val = e.target.value;
+                                    setDateFrom(val > today ? today : val);
+                                }} 
+                            />
                         </div>
                         <div className="filter-group date-group">
                             <label><FiCalendar /> To</label>
-                            <input id="audit-date-to" type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} />
+                            <input 
+                                id="audit-date-to" 
+                                type="date" 
+                                value={dateTo} 
+                                max={today}
+                                onChange={e => {
+                                    const val = e.target.value;
+                                    setDateTo(val > today ? today : val);
+                                }} 
+                            />
                         </div>
                         {(dateFrom || dateTo || search || successFilter || severityFilter || actionGroup !== 'All Events') && (
                             <button className="btn-clear-filters" onClick={() => {

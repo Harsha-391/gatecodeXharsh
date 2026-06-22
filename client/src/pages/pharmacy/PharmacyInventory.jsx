@@ -3,6 +3,7 @@ import { pharmacyAPI } from '../../utils/api';
 import './PharmacyInventory.css';
 
 const PharmacyInventory = () => {
+    const today = new Date().toLocaleDateString('en-CA');
     const [medicines, setMedicines] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -207,7 +208,7 @@ const PharmacyInventory = () => {
                                 <div className="form-row">
                                     <div className="form-group">
                                         <label>Purchase Date</label>
-                                        <input required type="date" value={newMedicine.purchaseDate} onChange={(e) => setNewMedicine({ ...newMedicine, purchaseDate: e.target.value })} />
+                                        <input required type="date" max={today} value={newMedicine.purchaseDate} onChange={(e) => { const val = e.target.value; setNewMedicine({ ...newMedicine, purchaseDate: val > today ? today : val }); }} />
                                     </div>
                                     <div className="form-group">
                                         <label>Expiry Date</label>

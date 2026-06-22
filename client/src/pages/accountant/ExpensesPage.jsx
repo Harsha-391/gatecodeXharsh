@@ -5,6 +5,7 @@ import './ExpensesPage.css';
 
 const ExpensesPage = () => {
     const navigate = useNavigate();
+    const today = new Date().toLocaleDateString('en-CA');
 
     const [expenses, setExpenses] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -227,14 +228,22 @@ const ExpensesPage = () => {
                             <input 
                                 type="date" 
                                 value={startDate} 
-                                onChange={(e) => setStartDate(e.target.value)}
+                                max={today}
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    setStartDate(val > today ? today : val);
+                                }}
                                 className="filter-date"
                             />
                             <span>to</span>
                             <input 
                                 type="date" 
                                 value={endDate} 
-                                onChange={(e) => setEndDate(e.target.value)}
+                                max={today}
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    setEndDate(val > today ? today : val);
+                                }}
                                 className="filter-date"
                             />
                         </div>
@@ -377,7 +386,11 @@ const ExpensesPage = () => {
                                         type="date" 
                                         required 
                                         value={newExpense.date}
-                                        onChange={(e) => setNewExpense({...newExpense, date: e.target.value})}
+                                        max={today}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            setNewExpense({...newExpense, date: val > today ? today : val});
+                                        }}
                                     />
                                 </div>
                                 <div className="form-group">

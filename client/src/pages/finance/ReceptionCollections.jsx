@@ -11,6 +11,7 @@ import './ReceptionCollections.css';
 
 const ReceptionCollections = () => {
     const navigate = useNavigate();
+    const today = new Date().toLocaleDateString('en-CA');
 
     // Auth & Role context
     const [user, setUser] = useState(null);
@@ -407,7 +408,11 @@ const ReceptionCollections = () => {
                                 <input 
                                     type="date" 
                                     value={startDate} 
-                                    onChange={(e) => setStartDate(e.target.value)} 
+                                    max={today}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        setStartDate(val > today ? today : val);
+                                    }} 
                                 />
                             </div>
                             <div className="filter-item">
@@ -415,7 +420,11 @@ const ReceptionCollections = () => {
                                 <input 
                                     type="date" 
                                     value={endDate} 
-                                    onChange={(e) => setEndDate(e.target.value)} 
+                                    max={today}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        setEndDate(val > today ? today : val);
+                                    }} 
                                 />
                             </div>
                             {!isReceptionist && (
@@ -581,7 +590,11 @@ const ReceptionCollections = () => {
                                 <input 
                                     type="date" 
                                     value={reconcileDate}
-                                    onChange={(e) => setReconcileDate(e.target.value)}
+                                    max={today}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        setReconcileDate(val > today ? today : val);
+                                    }}
                                     className="recon-date-picker"
                                 />
                             </div>

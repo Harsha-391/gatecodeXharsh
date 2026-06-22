@@ -5,6 +5,8 @@ import './Reconciliation.css';
 
 const Reconciliation = () => {
     const navigate = useNavigate();
+    const today = new Date().toLocaleDateString('en-CA');
+
 
     const [targetDate, setTargetDate] = useState(new Date().toISOString().split('T')[0]);
     const [expected, setExpected] = useState({ cash: 0, upi: 0, card: 0, bank: 0, total: 0 });
@@ -134,7 +136,11 @@ const Reconciliation = () => {
                             <input 
                                 type="date" 
                                 value={targetDate} 
-                                onChange={(e) => setTargetDate(e.target.value)}
+                                max={today}
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    setTargetDate(val > today ? today : val);
+                                }}
                                 className="recon-date-picker"
                             />
                         </div>

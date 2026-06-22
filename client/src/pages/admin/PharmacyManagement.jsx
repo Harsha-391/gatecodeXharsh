@@ -7,6 +7,7 @@ import {
 import './PharmacyManagement.css';
 
 const PharmacyManagement = () => {
+    const today = new Date().toLocaleDateString('en-CA');
     const [activeTab, setActiveTab] = useState('inventory');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -341,8 +342,9 @@ const PharmacyManagement = () => {
                                     <label>Purchase Date</label>
                                     <input
                                         type="date"
+                                        max={today}
                                         value={invFormData.purchaseDate ? invFormData.purchaseDate.split('T')[0] : ''}
-                                        onChange={(e) => setInvFormData({ ...invFormData, purchaseDate: e.target.value })}
+                                        onChange={(e) => { const val = e.target.value; setInvFormData({ ...invFormData, purchaseDate: val > today ? today : val }); }}
                                     />
                                 </div>
                             </div>

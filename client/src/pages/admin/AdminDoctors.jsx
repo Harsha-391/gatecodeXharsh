@@ -9,6 +9,7 @@ const AdminDoctors = () => {
     const navigate = useNavigate();
     const dispatch = useAppDispatch();
     const { user } = useAuth();
+    const today = new Date().toLocaleDateString('en-CA');
     const { doctors: doctorsState } = useAdminEntities();
 
     const doctors = doctorsState.data;
@@ -120,6 +121,9 @@ const AdminDoctors = () => {
         if (name === 'nationalId') {
             val = val.replace(/\D/g, '').slice(0, 12);
         }
+        if ((name === 'dob' || name === 'joiningDate') && value > today) {
+            val = today;
+        }
         setFormData({ ...formData, [name]: val });
         setError('');
         setSuccess('');
@@ -209,6 +213,9 @@ const AdminDoctors = () => {
         }
         if (name === 'nationalId') {
             val = val.replace(/\D/g, '').slice(0, 12);
+        }
+        if ((name === 'dob' || name === 'joiningDate') && value > today) {
+            val = today;
         }
         setInfoFormData(prev => ({ ...prev, [name]: val }));
     };
@@ -845,7 +852,7 @@ const AdminDoctors = () => {
                                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginTop: '14px' }}>
                                             <div className="form-group">
                                                 <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569', marginBottom: '6px', display: 'block' }}>Date of Birth *</label>
-                                                <input type="date" name="dob" value={formData.dob} onChange={handleChange} required style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '14px' }} />
+                                                <input type="date" name="dob" max={today} value={formData.dob} onChange={handleChange} required style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '14px' }} />
                                             </div>
                                             <div className="form-group">
                                                 <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569', marginBottom: '6px', display: 'block' }}>Gender *</label>
@@ -927,7 +934,7 @@ const AdminDoctors = () => {
                                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px', marginTop: '14px' }}>
                                             <div className="form-group">
                                                 <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569', marginBottom: '6px', display: 'block' }}>Joining Date *</label>
-                                                <input type="date" name="joiningDate" value={formData.joiningDate} onChange={handleChange} required style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '14px' }} />
+                                                <input type="date" name="joiningDate" max={today} value={formData.joiningDate} onChange={handleChange} required style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '14px' }} />
                                             </div>
                                             <div className="form-group">
                                                 <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569', marginBottom: '6px', display: 'block' }}>Employment Type *</label>
@@ -1398,7 +1405,7 @@ const AdminDoctors = () => {
                                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginTop: '14px' }}>
                                             <div className="form-group">
                                                 <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569', marginBottom: '6px', display: 'block' }}>Date of Birth *</label>
-                                                <input type="date" name="dob" value={infoFormData.dob} onChange={handleInfoChange} required style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '14px' }} />
+                                                <input type="date" name="dob" max={today} value={infoFormData.dob} onChange={handleInfoChange} required style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '14px' }} />
                                             </div>
                                             <div className="form-group">
                                                 <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569', marginBottom: '6px', display: 'block' }}>Gender *</label>
@@ -1480,7 +1487,7 @@ const AdminDoctors = () => {
                                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px', marginTop: '14px' }}>
                                             <div className="form-group">
                                                 <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569', marginBottom: '6px', display: 'block' }}>Joining Date *</label>
-                                                <input type="date" name="joiningDate" value={infoFormData.joiningDate} onChange={handleInfoChange} required style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '14px' }} />
+                                                <input type="date" name="joiningDate" max={today} value={infoFormData.joiningDate} onChange={handleInfoChange} required style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '14px' }} />
                                             </div>
                                             <div className="form-group">
                                                 <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569', marginBottom: '6px', display: 'block' }}>Employment Type *</label>

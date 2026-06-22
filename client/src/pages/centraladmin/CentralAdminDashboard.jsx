@@ -11,6 +11,7 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 
 const CentralAdminDashboard = () => {
     const navigate = useNavigate();
+    const today = new Date().toLocaleDateString('en-CA');
     const [activeTab, setActiveTab] = useState('hospitals');
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
@@ -695,9 +696,9 @@ const CentralAdminDashboard = () => {
                                         <button className={datePreset === '90' ? 'preset-btn active' : 'preset-btn'} onClick={() => handleDatePresetChange('90')}>Last 90 Days</button>
                                     </div>
                                     <div className="custom-date-inputs">
-                                        <input type="date" className="date-input" value={customStartDate} onChange={(e) => { setDatePreset('custom'); setCustomStartDate(e.target.value); }} />
+                                        <input type="date" className="date-input" max={today} value={customStartDate} onChange={(e) => { setDatePreset('custom'); const val = e.target.value; setCustomStartDate(val > today ? today : val); }} />
                                         <span>to</span>
-                                        <input type="date" className="date-input" value={customEndDate} onChange={(e) => { setDatePreset('custom'); setCustomEndDate(e.target.value); }} />
+                                        <input type="date" className="date-input" max={today} value={customEndDate} onChange={(e) => { setDatePreset('custom'); const val = e.target.value; setCustomEndDate(val > today ? today : val); }} />
                                         <button className="btn-save" onClick={handleApplyCustomDate}>Apply Custom</button>
                                     </div>
                                 </div>

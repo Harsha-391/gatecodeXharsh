@@ -144,7 +144,6 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
                         { label: 'Patient Billing', path: '/billing/patient', icon: <FiUsers /> },
                         { label: 'Pending Payments', path: '/billing/pending', icon: <FiClipboard /> },
                         { label: 'Invoices', path: '/billing/invoices', icon: <FiFileText /> },
-                        { label: 'Payment History', path: '/billing/history', icon: <FiDatabase /> },
                         { label: 'Refunds', path: '/billing/refunds', icon: <FiLogOut /> },
                         { label: 'Reception Collections', path: '/finance/reception-collections', icon: <FiTrendingUp /> }
                     ]
@@ -202,7 +201,6 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
                         { label: 'Laboratory Management', path: '/admin/lab-management', icon: <FiGrid /> },
                         { label: 'Tests & Packages', path: '/admin/test-packages', icon: <FiPackage /> },
                         { label: 'Pharmacy', path: '/admin/pharmacy', icon: <FiPackage /> },
-                        { label: 'Medicine Catalog', path: '/admin/medicines', icon: <FiPackage /> },
                         { label: 'Pharmacy Management', path: '/admin/pharmacy-management', icon: <FiPackage /> }
                     ]
                 },
@@ -305,7 +303,6 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
                     { label: 'Patient Billing', path: '/billing/patient', icon: <FiUsers /> },
                     { label: 'Pending Payments', path: '/billing/pending', icon: <FiClipboard /> },
                     { label: 'Invoices', path: '/billing/invoices', icon: <FiFileText /> },
-                    { label: 'Payment History', path: '/billing/history', icon: <FiDatabase /> },
                     { label: 'Refunds', path: '/billing/refunds', icon: <FiLogOut /> },
                     { label: 'Invoice Templates', path: '/billing/templates', icon: <FiClipboard /> },
                     { label: 'Reception Collections', path: '/finance/reception-collections', icon: <FiTrendingUp /> },

@@ -580,9 +580,13 @@ router.get('/invoices', verifyBillingAccess, async (req, res) => {
     try {
         const { Invoice } = getModels(req);
         const hFilter = req.user.hospitalId ? { hospitalId: req.user.hospitalId } : {};
-        const invoices = await Invoice.find(hFilter).sort({ createdAt: -1 }).lean();
+        const invoices = await Invoice.find(hFilter)
+            .populate({ path: 'patientId', model: getModels(req).User, select: 'patientId name email phone' })
+            .sort({ createdAt: -1 })
+            .lean();
         res.json({ success: true, invoices });
     } catch (error) {
+        console.error('Get invoices error:', error);
         res.status(500).json({ success: false, message: 'An internal error occurred' });
     }
 });
@@ -798,9 +802,23 @@ router.put('/pay', verifyBillingAccess, auditLog('CONFIRM_PAYMENT', (req) => ({
                 { _id: { $in: pharmacyOrderIds } }, { $set: { paymentStatus: 'Paid' } }),
             facilityChargeIds.length > 0 && FacilityCharge.updateMany(
                 { _id: { $in: facilityChargeIds } }, { $set: { paymentStatus: 'Paid' } }),
-            admissionIds.length > 0 && Admission.updateMany(
-                { _id: { $in: admissionIds } }, { $set: { paymentStatus: 'Paid' } }),
         ].filter(Boolean));
+
+        if (admissionIds.length > 0) {
+            const getBackendAdmAmt = (a) => {
+                if (!a) return 0;
+                const end = a.dischargeDate ? new Date(a.dischargeDate) : new Date();
+                const days = Math.max(1, Math.ceil(Math.abs(end.setHours(0,0,0,0) - new Date(a.admissionDate).setHours(0,0,0,0)) / (1000 * 60 * 60 * 24)) + 1);
+                const bedAmt = (a.dailyWardCharge || 0) * days;
+                const facilitiesAmt = Number(a.totalAmount || 0);
+                return bedAmt + facilitiesAmt;
+            };
+            const admsToPay = await Admission.find({ _id: { $in: admissionIds } });
+            for (const adm of admsToPay) {
+                const totalAmt = getBackendAdmAmt(adm);
+                await Admission.updateOne({ _id: adm._id }, { $set: { paymentStatus: 'Paid', amountPaid: totalAmt } });
+            }
+        }
 
         // Track collection transactions for bulk settlements
         const MasterCollectionTransaction = require('../models/collectionTransaction.model');

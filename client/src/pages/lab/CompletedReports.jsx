@@ -14,6 +14,7 @@ import './CompletedReports.css';
 const CompletedReports = () => {
   const dispatch = useAppDispatch();
   const { requests, loading } = useAppSelector((state) => state.lab);
+  const today = new Date().toLocaleDateString('en-CA');
   
   const [searchTerm, setSearchTerm] = useState('');
   const [filterDate, setFilterDate] = useState('');
@@ -125,8 +126,9 @@ const CompletedReports = () => {
           <div className="date-filter">
             <input 
               type="date" 
+              max={today}
               value={filterDate} 
-              onChange={(e) => setFilterDate(e.target.value)}
+              onChange={(e) => { const val = e.target.value; setFilterDate(val > today ? today : val); }}
             />
           </div>
         </div>

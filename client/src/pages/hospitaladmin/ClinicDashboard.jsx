@@ -219,6 +219,7 @@ const MODES = [
 // ─────────────────────────────────────────────
 const ClinicDashboard = () => {
     const navigate = useNavigate();
+    const today = new Date().toLocaleDateString('en-CA');
     const [mode, setMode] = useState('overview');
     const [preselectedPatient, setPreselectedPatient] = useState(null);
     const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
@@ -843,7 +844,7 @@ const PatientsMode = ({ onBookToken }) => {
                                 </div>
                                 <div className="clinic-form-group">
                                     <label>Date of Birth</label>
-                                    <input className="clinic-input" type="date" value={form.dob} onChange={e => setForm(f => ({ ...f, dob: e.target.value }))} />
+                                    <input className="clinic-input" type="date" max={today} value={form.dob} onChange={e => { const val = e.target.value; setForm(f => ({ ...f, dob: val > today ? today : val })); }} />
                                 </div>
                                 <div className="clinic-form-group">
                                     <label>Gender</label>
