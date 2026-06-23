@@ -26,6 +26,7 @@ const userSchema = new mongoose.Schema({
     parentName: { type: String, default: '' },
     parentPhone: { type: String, default: '' },
     doctorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    doctorName: { type: String, default: '' },
 
     // Static Demographics
     dob: String,

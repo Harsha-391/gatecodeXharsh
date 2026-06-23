@@ -27,6 +27,8 @@ const clinicPatientSchema = new mongoose.Schema({
     dob:    { type: Date, default: null },
     parentName: { type: String, default: '' },
     parentPhone: { type: String, default: '' },
+    doctorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    doctorName: { type: String, default: '' },
 
     // Medical profile
     bloodGroup:        { type: String, default: '' },

@@ -89,6 +89,7 @@ const ReceptionDashboard = () => {
         title: 'Mrs.', firstName: '', middleName: '', lastName: '',
         dob: '', age: '', gender: 'Female', mobile: '', email: '',
         address: '', aadhaar: '', isAadhaarVerified: false,
+        parentName: '', parentPhone: '',
 
         // Partner
         partnerTitle: 'Mr.', partnerFirstName: '', partnerLastName: '', partnerMobile: '',
@@ -1538,8 +1539,8 @@ const ReceptionDashboard = () => {
                                         <option value="Other">Other</option>
                                     </select>
                                 </div>
-                                <div className="field"><label>Partner Name</label><input name="partnerFirstName" value={intakeForm.partnerFirstName} onChange={handleInputChange} /></div>
-                                <div className="field"><label>Partner Mobile</label><input type="tel" name="partnerMobile" value={intakeForm.partnerMobile} onChange={handleInputChange} maxLength={10} /></div>
+                                <div className="field"><label>Parent Name</label><input name="parentName" value={intakeForm.parentName || ''} onChange={handleInputChange} /></div>
+                                <div className="field"><label>Parent Mobile</label><input type="tel" name="parentPhone" value={intakeForm.parentPhone || ''} onChange={handleInputChange} maxLength={10} /></div>
                             </div>
                         </div>
 

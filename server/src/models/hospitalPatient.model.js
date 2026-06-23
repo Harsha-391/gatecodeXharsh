@@ -22,6 +22,7 @@ const hospitalPatientSchema = new mongoose.Schema({
     parentName: { type: String, default: '' },
     parentPhone: { type: String, default: '' },
     doctorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    doctorName: { type: String, default: '' },
 
     // Medical Demographics
     bloodGroup:        { type: String, default: '' },

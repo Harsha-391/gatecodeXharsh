@@ -4,6 +4,7 @@ const { verifyToken } = require('../middleware/auth.middleware');
 const { resolveTenant } = require('../middleware/tenantMiddleware');
 const auditLog = require('../middleware/audit.middleware');
 const MasterHospitalPatient = require('../models/hospitalPatient.model');
+const Doctor = require('../models/doctor.model');
 
 // SEARCH API: Identifies patient by Phone or Name — scoped to hospital tenant
 router.get('/search', verifyToken, resolveTenant, auditLog('PATIENT_ACCESS', (req) => ({ model: 'HospitalPatient', label: `Patient Search Term: ${req.query.term || ''}` }), { dataCategory: 'PII' }), async (req, res) => {
@@ -156,6 +157,12 @@ router.post('/', verifyToken, resolveTenant, auditLog('CREATE_PATIENT', (req, bo
         const hospitalId = req.user.hospitalId || req.hospitalId;
         const patientId = 'MRN-' + Date.now() + Math.floor(Math.random() * 1000);
         
+        let doctorName = '';
+        if (doctorId) {
+            const doc = await Doctor.findById(doctorId).select('name');
+            if (doc) doctorName = doc.name;
+        }
+
         const userData = {
             name,
             phone,
@@ -169,7 +176,8 @@ router.post('/', verifyToken, resolveTenant, auditLog('CREATE_PATIENT', (req, bo
             hospitalId,
             parentName: parentName || '',
             parentPhone: parentPhone || '',
-            doctorId: doctorId || null
+            doctorId: doctorId || null,
+            doctorName: doctorName
         };
 
         const user = new MasterHospitalPatient(userData);

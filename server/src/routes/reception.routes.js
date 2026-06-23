@@ -92,7 +92,11 @@ router.post('/register', verifyToken, verifyReception, async (req, res) => {
             if (req.body.gender) user.gender = req.body.gender;
             if (req.body.parentName) user.parentName = req.body.parentName;
             if (req.body.parentPhone) user.parentPhone = req.body.parentPhone;
-            if (req.body.doctorId) user.doctorId = req.body.doctorId;
+            if (req.body.doctorId) {
+                user.doctorId = req.body.doctorId;
+                const doc = await Doctor.findById(req.body.doctorId).select('name');
+                if (doc) user.doctorName = doc.name;
+            }
 
             // Backfill PatientId for legacy walk-ins that were created without one
             if (!user.patientId) {
@@ -117,7 +121,10 @@ router.post('/register', verifyToken, verifyReception, async (req, res) => {
                     if (req.body.gender) tenantUser.gender = req.body.gender;
                     if (req.body.parentName) tenantUser.parentName = req.body.parentName;
                     if (req.body.parentPhone) tenantUser.parentPhone = req.body.parentPhone;
-                    if (req.body.doctorId) tenantUser.doctorId = req.body.doctorId;
+                    if (req.body.doctorId) {
+                        tenantUser.doctorId = req.body.doctorId;
+                        tenantUser.doctorName = user.doctorName;
+                    }
                 }
                 await tenantUser.save();
             }
@@ -127,6 +134,12 @@ router.post('/register', verifyToken, verifyReception, async (req, res) => {
 
         // Create New Walk-in Patient — use collision-resistant ID
         const patientId = 'MRN-' + Date.now() + Math.floor(Math.random() * 1000);
+
+        let doctorName = '';
+        if (req.body.doctorId) {
+            const doc = await Doctor.findById(req.body.doctorId).select('name');
+            if (doc) doctorName = doc.name;
+        }
 
         const userData = {
             name,
@@ -138,7 +151,8 @@ router.post('/register', verifyToken, verifyReception, async (req, res) => {
             gender: req.body.gender || 'Female',
             parentName: req.body.parentName || '',
             parentPhone: req.body.parentPhone || '',
-            doctorId: req.body.doctorId || null
+            doctorId: req.body.doctorId || null,
+            doctorName: doctorName
         };
 
         // Only attach email if it actually exists, to prevent duplicate sparse index errors
@@ -262,12 +276,12 @@ router.get('/search-patients', verifyToken, verifyReception, async (req, res) =>
 
         // Use tenant DB if available (tenant DB is already hospital-scoped, no hospitalId filter needed)
         const { User } = getModels(req);
-        let patients = await User.find(namePhoneFilter).select('name phone email patientId fertilityProfile gender parentName parentPhone doctorId').limit(10);
+        let patients = await User.find(namePhoneFilter).select('name phone email patientId fertilityProfile gender parentName parentPhone doctorId doctorName').limit(10);
 
         // If tenant DB returned nothing (or no tenant DB), fall back to master DB
         if (patients.length === 0) {
             // Note: no hospitalId filter here — master DB patients may not have hospitalId set
-            patients = await MasterHospitalPatient.find(namePhoneFilter).select('name phone email patientId fertilityProfile gender parentName parentPhone doctorId').limit(10);
+            patients = await MasterHospitalPatient.find(namePhoneFilter).select('name phone email patientId fertilityProfile gender parentName parentPhone doctorId doctorName').limit(10);
         }
 
         res.json({ success: true, patients });
@@ -300,8 +314,20 @@ router.put('/intake/:userId', verifyToken, verifyReception, async (req, res) => 
         if (updates.gender) updateQuery.gender = updates.gender;
         if (updates.parentName !== undefined) updateQuery.parentName = updates.parentName;
         if (updates.parentPhone !== undefined) updateQuery.parentPhone = updates.parentPhone;
-        if (updates.doctor !== undefined) updateQuery.doctorId = updates.doctor || null;
-        if (updates.doctorId !== undefined) updateQuery.doctorId = updates.doctorId || null;
+        
+        let targetDoctorId = undefined;
+        if (updates.doctor !== undefined) targetDoctorId = updates.doctor;
+        if (updates.doctorId !== undefined) targetDoctorId = updates.doctorId;
+        
+        if (targetDoctorId !== undefined) {
+            updateQuery.doctorId = targetDoctorId || null;
+            if (targetDoctorId) {
+                const doc = await Doctor.findById(targetDoctorId).select('name');
+                if (doc) updateQuery.doctorName = doc.name;
+            } else {
+                updateQuery.doctorName = '';
+            }
+        }
 
         // Update Root Aadhaar Fields
         if (updates.aadhaar) updateQuery.aadhaarNumber = updates.aadhaar;
