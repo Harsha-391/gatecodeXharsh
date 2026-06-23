@@ -8,16 +8,21 @@ const { resolveTenant } = require('../middleware/tenantMiddleware');
 const { getTenantModels } = require('../db/tenantModels');
 const MasterAppointment = require('../models/appointment.model');
 const MasterUser = require('../models/user.model');
+const MasterHospitalPatient = require('../models/hospitalPatient.model');
 const Doctor = require('../models/doctor.model'); // Required to fetch doctor details
 const { verifyToken } = require('../middleware/auth.middleware');
 
 const getModels = (req) => {
     if (req.tenantDb) {
-        return getTenantModels(req.tenantDb);
+        const tenantModels = getTenantModels(req.tenantDb);
+        return {
+            ...tenantModels,
+            User: tenantModels.HospitalPatient
+        };
     }
     return { 
         Appointment: MasterAppointment, 
-        User: MasterUser,
+        User: MasterHospitalPatient,
         ClinicalVisit: require('../models/clinicalVisit.model'),
         CollectionTransaction: require('../models/collectionTransaction.model')
     };
@@ -77,7 +82,7 @@ router.post('/register', verifyToken, verifyReception, async (req, res) => {
             userQuery.hospitalId = req.user.hospitalId;
         }
 
-        let user = await MasterUser.findOne(userQuery);
+        let user = await MasterHospitalPatient.findOne(userQuery);
 
         if (user) {
             // Update name if changed
@@ -94,10 +99,10 @@ router.post('/register', verifyToken, verifyReception, async (req, res) => {
 
             // Sync/update in tenant DB
             if (req.tenantDb) {
-                const TenantUser = getTenantModels(req.tenantDb).User;
-                let tenantUser = await TenantUser.findById(user._id);
+                const TenantHospitalPatient = getTenantModels(req.tenantDb).HospitalPatient;
+                let tenantUser = await TenantHospitalPatient.findById(user._id);
                 if (!tenantUser) {
-                    tenantUser = new TenantUser({
+                    tenantUser = new TenantHospitalPatient({
                         ...user.toObject(),
                         _id: user._id
                     });
@@ -127,7 +132,7 @@ router.post('/register', verifyToken, verifyReception, async (req, res) => {
         // Only attach email if it actually exists, to prevent duplicate sparse index errors
         if (email) userData.email = email;
 
-        const newUser = new MasterUser(userData);
+        const newUser = new MasterHospitalPatient(userData);
         await newUser.save();
 
         let newAppointment = null;
@@ -157,8 +162,8 @@ router.post('/register', verifyToken, verifyReception, async (req, res) => {
 
             // Save to tenant DB as well
             if (req.tenantDb) {
-                const TenantUser = getTenantModels(req.tenantDb).User;
-                const newTenantUser = new TenantUser({
+                const TenantHospitalPatient = getTenantModels(req.tenantDb).HospitalPatient;
+                const newTenantUser = new TenantHospitalPatient({
                     ...userData,
                     _id: newUser._id
                 });
@@ -174,8 +179,8 @@ router.post('/register', verifyToken, verifyReception, async (req, res) => {
         } else {
             // Save to tenant DB as well (User only)
             if (req.tenantDb) {
-                const TenantUser = getTenantModels(req.tenantDb).User;
-                const newTenantUser = new TenantUser({
+                const TenantHospitalPatient = getTenantModels(req.tenantDb).HospitalPatient;
+                const newTenantUser = new TenantHospitalPatient({
                     ...userData,
                     _id: newUser._id
                 });
@@ -250,7 +255,7 @@ router.get('/search-patients', verifyToken, verifyReception, async (req, res) =>
         // If tenant DB returned nothing (or no tenant DB), fall back to master DB
         if (patients.length === 0) {
             // Note: no hospitalId filter here — master DB patients may not have hospitalId set
-            patients = await MasterUser.find(namePhoneFilter).select('name phone email patientId fertilityProfile').limit(10);
+            patients = await MasterHospitalPatient.find(namePhoneFilter).select('name phone email patientId fertilityProfile').limit(10);
         }
 
         res.json({ success: true, patients });
@@ -321,7 +326,7 @@ router.put('/intake/:userId', verifyToken, verifyReception, async (req, res) => 
         if (!updatedUser) return res.status(404).json({ success: false, message: 'Patient not found' });
 
         if (req.tenantDb) {
-            await MasterUser.findByIdAndUpdate(userId, { $set: updateQuery }, { runValidators: false });
+            await MasterHospitalPatient.findByIdAndUpdate(userId, { $set: updateQuery }, { runValidators: false });
         }
 
         res.json({ success: true, message: 'Updated', user: updatedUser });

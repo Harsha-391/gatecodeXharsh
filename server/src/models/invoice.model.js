@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 const invoiceSchema = new mongoose.Schema({
     hospitalId: { type: mongoose.Schema.Types.ObjectId, ref: 'Hospital', required: true },
-    patientId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    patientId: { type: mongoose.Schema.Types.ObjectId, ref: 'HospitalPatient', required: true },
     patientName: { type: String, required: true },
     invoiceNumber: { type: String, required: true },
     invoiceDate: { type: Date, default: Date.now },

@@ -11,9 +11,9 @@ const labReportSchema = new mongoose.Schema({
     type: String, // Persistent ID like P-101
     required: true
   },
-  userId: { // Patient's User ObjectId
+  userId: { // Patient's HospitalPatient ObjectId
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
+    ref: 'HospitalPatient',
     required: true
   },
   doctorId: {

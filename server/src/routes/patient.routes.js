@@ -3,10 +3,10 @@ const router = express.Router();
 const { verifyToken } = require('../middleware/auth.middleware');
 const { resolveTenant } = require('../middleware/tenantMiddleware');
 const auditLog = require('../middleware/audit.middleware');
-const MasterUser = require('../models/user.model');
+const MasterHospitalPatient = require('../models/hospitalPatient.model');
 
 // SEARCH API: Identifies patient by Phone or Name — scoped to hospital tenant
-router.get('/search', verifyToken, resolveTenant, auditLog('PATIENT_ACCESS', (req) => ({ model: 'User', label: `Patient Search Term: ${req.query.term || ''}` }), { dataCategory: 'PII' }), async (req, res) => {
+router.get('/search', verifyToken, resolveTenant, auditLog('PATIENT_ACCESS', (req) => ({ model: 'HospitalPatient', label: `Patient Search Term: ${req.query.term || ''}` }), { dataCategory: 'PII' }), async (req, res) => {
     try {
         const { term } = req.query;
         if (!term || typeof term !== 'string' || term.trim().length < 2) {
@@ -17,7 +17,7 @@ router.get('/search', verifyToken, resolveTenant, auditLog('PATIENT_ACCESS', (re
         const safeTerm = term.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const hFilter = req.user.hospitalId ? { hospitalId: req.user.hospitalId } : {};
 
-        const patients = await MasterUser.find({
+        const patients = await MasterHospitalPatient.find({
             ...hFilter,
             $or: [
                 { phone: safeTerm },
@@ -94,7 +94,7 @@ router.get('/:id/full-history', verifyToken, resolveTenant, auditLog('VIEW_PATIE
         const userQuery = isObjectId ? { _id: userId } : { patientId: userId };
         // Always scope to hospital for data isolation
         if (req.user.hospitalId) userQuery.hospitalId = req.user.hospitalId;
-        const user = await MasterUser.findOne(userQuery).lean();
+        const user = await MasterHospitalPatient.findOne(userQuery).lean();
 
         if (!user) {
             return res.status(404).json({ success: false, message: 'Patient not found' });
@@ -143,7 +143,7 @@ router.get('/:id/full-history', verifyToken, resolveTenant, auditLog('VIEW_PATIE
 
 // CREATE PATIENT API: Registrations — scoped to hospital tenant
 router.post('/', verifyToken, resolveTenant, auditLog('CREATE_PATIENT', (req, body) => ({
-    model: 'User',
+    model: 'HospitalPatient',
     id: body.user?._id || null,
     label: body.user ? `${body.user.name} (${body.user.patientId || ''})` : 'Patient record created',
     after: body.user || null
@@ -169,13 +169,13 @@ router.post('/', verifyToken, resolveTenant, auditLog('CREATE_PATIENT', (req, bo
             hospitalId
         };
 
-        const user = new MasterUser(userData);
+        const user = new MasterHospitalPatient(userData);
         await user.save();
 
         if (req.tenantDb) {
             const { getTenantModels } = require('../db/tenantModels');
-            const TenantUser = getTenantModels(req.tenantDb).User;
-            const tenantUser = new TenantUser({
+            const TenantHospitalPatient = getTenantModels(req.tenantDb).HospitalPatient;
+            const tenantUser = new TenantHospitalPatient({
                 ...userData,
                 _id: user._id
             });
@@ -190,14 +190,14 @@ router.post('/', verifyToken, resolveTenant, auditLog('CREATE_PATIENT', (req, bo
 
 // UPDATE PATIENT API: Modify demographics — scoped to hospital tenant
 router.put('/:id', verifyToken, resolveTenant, auditLog('UPDATE_PATIENT', (req, body) => ({
-    model: 'User',
+    model: 'HospitalPatient',
     id: req.params.id,
     label: body.user ? `${body.user.name} (${body.user.patientId || ''})` : 'Patient record updated',
     before: req.oldUser || null,
     after: body.user || null
 }), { dataCategory: 'PII', severity: 'warning' }), async (req, res, next) => {
     try {
-        const user = await MasterUser.findById(req.params.id).lean();
+        const user = await MasterHospitalPatient.findById(req.params.id).lean();
         if (user) req.oldUser = user;
     } catch (_) {}
     next();
@@ -215,7 +215,7 @@ router.put('/:id', verifyToken, resolveTenant, auditLog('UPDATE_PATIENT', (req, 
         if (address) updateData.address = address;
         if (city) updateData.city = city;
 
-        const user = await MasterUser.findOneAndUpdate(
+        const user = await MasterHospitalPatient.findOneAndUpdate(
             { _id: req.params.id, hospitalId },
             { $set: updateData },
             { new: true }
@@ -224,8 +224,8 @@ router.put('/:id', verifyToken, resolveTenant, auditLog('UPDATE_PATIENT', (req, 
 
         if (req.tenantDb) {
             const { getTenantModels } = require('../db/tenantModels');
-            const TenantUser = getTenantModels(req.tenantDb).User;
-            await TenantUser.findByIdAndUpdate(req.params.id, { $set: updateData });
+            const TenantHospitalPatient = getTenantModels(req.tenantDb).HospitalPatient;
+            await TenantHospitalPatient.findByIdAndUpdate(req.params.id, { $set: updateData });
         }
 
         res.json({ success: true, user });
@@ -236,26 +236,26 @@ router.put('/:id', verifyToken, resolveTenant, auditLog('UPDATE_PATIENT', (req, 
 
 // DELETE PATIENT API: Deletion — scoped to hospital tenant
 router.delete('/:id', verifyToken, resolveTenant, auditLog('DELETE_PATIENT', (req, body) => ({
-    model: 'User',
+    model: 'HospitalPatient',
     id: req.params.id,
     label: 'Patient record deleted',
     before: req.oldUser || null
 }), { dataCategory: 'PII', severity: 'critical' }), async (req, res, next) => {
     try {
-        const user = await MasterUser.findById(req.params.id).lean();
+        const user = await MasterHospitalPatient.findById(req.params.id).lean();
         if (user) req.oldUser = user;
     } catch (_) {}
     next();
 }, async (req, res) => {
     try {
         const hospitalId = req.user.hospitalId || req.hospitalId;
-        const user = await MasterUser.findOneAndDelete({ _id: req.params.id, hospitalId });
+        const user = await MasterHospitalPatient.findOneAndDelete({ _id: req.params.id, hospitalId });
         if (!user) return res.status(404).json({ success: false, message: 'Patient not found' });
 
         if (req.tenantDb) {
             const { getTenantModels } = require('../db/tenantModels');
-            const TenantUser = getTenantModels(req.tenantDb).User;
-            await TenantUser.findByIdAndDelete(req.params.id);
+            const TenantHospitalPatient = getTenantModels(req.tenantDb).HospitalPatient;
+            await TenantHospitalPatient.findByIdAndDelete(req.params.id);
         }
 
         res.json({ success: true, message: 'Patient deleted successfully' });

@@ -32,6 +32,7 @@ function getTenantModels(tenantDb) {
         Doctor: model('Doctor', require('../models/doctor.model').schema),
         Lab: model('Lab', require('../models/lab.model').schema),
         ClinicPatient: model('ClinicPatient', require('../models/clinicPatient.model').schema),
+        HospitalPatient: model('HospitalPatient', require('../models/hospitalPatient.model').schema),
         Hospital: model('Hospital', require('../models/hospital.model').schema),
         ClinicalVisit: model('ClinicalVisit', require('../models/clinicalVisit.model').schema),
         Pharmacy: model('Pharmacy', require('../models/pharmacy.model').schema),
