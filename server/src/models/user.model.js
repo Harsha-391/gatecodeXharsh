@@ -23,6 +23,10 @@ const userSchema = new mongoose.Schema({
     // Patient ID for clinical tracking
     patientId: { type: String, unique: true, sparse: true },
 
+    parentName: { type: String, default: '' },
+    parentPhone: { type: String, default: '' },
+    doctorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+
     // Static Demographics
     dob: String,
     gender: String,

@@ -1528,6 +1528,8 @@ const ReceptionDashboard = () => {
                                 <div className="field"><label>Last Name</label><input name="lastName" value={intakeForm.lastName} onChange={handleInputChange} /></div>
                                 <div className="field"><label>Mobile</label><input type="tel" name="mobile" value={intakeForm.mobile} onChange={handleInputChange} maxLength={10} /></div>
                                 <div className="field"><label>Age</label><input name="age" value={intakeForm.age} onChange={handleInputChange} /></div>
+                            </div>
+                            <div className="form-row">
                                 <div className="field">
                                     <label>Gender</label>
                                     <select name="gender" value={intakeForm.gender || 'Female'} onChange={handleInputChange}>
@@ -1536,12 +1538,8 @@ const ReceptionDashboard = () => {
                                         <option value="Other">Other</option>
                                     </select>
                                 </div>
-                            </div>
-                            <div className="form-row">
                                 <div className="field"><label>Partner Name</label><input name="partnerFirstName" value={intakeForm.partnerFirstName} onChange={handleInputChange} /></div>
                                 <div className="field"><label>Partner Mobile</label><input type="tel" name="partnerMobile" value={intakeForm.partnerMobile} onChange={handleInputChange} maxLength={10} /></div>
-                                <div className="field"><label>Parent Name</label><input name="parentName" value={intakeForm.parentName || ''} onChange={handleInputChange} /></div>
-                                <div className="field"><label>Parent Mobile</label><input type="tel" name="parentPhone" value={intakeForm.parentPhone || ''} onChange={handleInputChange} maxLength={10} /></div>
                             </div>
                         </div>
 

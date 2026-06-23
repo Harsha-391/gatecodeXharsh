@@ -25,6 +25,8 @@ const clinicPatientSchema = new mongoose.Schema({
     email:  { type: String, trim: true, default: '' },
     gender: { type: String, enum: ['Male', 'Female', 'Other'], default: 'Male' },
     dob:    { type: Date, default: null },
+    parentName: { type: String, default: '' },
+    parentPhone: { type: String, default: '' },
 
     // Medical profile
     bloodGroup:        { type: String, default: '' },

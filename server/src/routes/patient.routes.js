@@ -149,7 +149,7 @@ router.post('/', verifyToken, resolveTenant, auditLog('CREATE_PATIENT', (req, bo
     after: body.user || null
 }), { dataCategory: 'PII', severity: 'warning' }), async (req, res) => {
     try {
-        const { name, email, phone, gender, dob, address, city } = req.body;
+        const { name, email, phone, gender, dob, address, city, parentName, parentPhone, doctorId } = req.body;
         if (!name || !phone) {
             return res.status(400).json({ success: false, message: 'Name and phone are required' });
         }
@@ -166,7 +166,10 @@ router.post('/', verifyToken, resolveTenant, auditLog('CREATE_PATIENT', (req, bo
             city,
             role: 'patient',
             patientId,
-            hospitalId
+            hospitalId,
+            parentName: parentName || '',
+            parentPhone: parentPhone || '',
+            doctorId: doctorId || null
         };
 
         const user = new MasterHospitalPatient(userData);
@@ -203,7 +206,7 @@ router.put('/:id', verifyToken, resolveTenant, auditLog('UPDATE_PATIENT', (req, 
     next();
 }, async (req, res) => {
     try {
-        const { name, email, phone, gender, dob, address, city } = req.body;
+        const { name, email, phone, gender, dob, address, city, parentName, parentPhone, doctorId } = req.body;
         const hospitalId = req.user.hospitalId || req.hospitalId;
 
         const updateData = {};
@@ -214,6 +217,9 @@ router.put('/:id', verifyToken, resolveTenant, auditLog('UPDATE_PATIENT', (req, 
         if (dob) updateData.dob = dob;
         if (address) updateData.address = address;
         if (city) updateData.city = city;
+        if (parentName !== undefined) updateData.parentName = parentName;
+        if (parentPhone !== undefined) updateData.parentPhone = parentPhone;
+        if (doctorId !== undefined) updateData.doctorId = doctorId || null;
 
         const user = await MasterHospitalPatient.findOneAndUpdate(
             { _id: req.params.id, hospitalId },
