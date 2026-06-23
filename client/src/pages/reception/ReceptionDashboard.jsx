@@ -983,10 +983,23 @@ const ReceptionDashboard = () => {
         }
     };
 
+    const getDoctorAvailabilityMessage = (doctor, dateStr) => {
+        if (!doctor || !dateStr) return null;
+        if (!doctor.availability) return null;
+        const dateObj = parseLocalDate(dateStr);
+        const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+        const dayName = days[dateObj.getDay()];
+        const schedule = doctor.availability[dayName];
+        if (schedule && schedule.available === false) {
+            return `Dr. ${doctor.name} is not available on ${dayName.charAt(0).toUpperCase() + dayName.slice(1)}.`;
+        }
+        return null;
+    };
+
     const handleInputChange = (e) => {
         const { name, value } = e.target;
 
-        if (name === 'mobile' || name === 'partnerMobile') {
+        if (name === 'mobile' || name === 'partnerMobile' || name === 'parentPhone') {
             const digitValue = value.replace(/\D/g, '').slice(0, 10);
             setIntakeForm(prev => ({ ...prev, [name]: digitValue }));
             return;
@@ -1007,9 +1020,35 @@ const ReceptionDashboard = () => {
             return;
         }
 
+        if (name === 'doctor') {
+            const docId = value;
+            const doctor = doctorsList.find(d => d._id === docId);
+            if (doctor && intakeForm.visitDate) {
+                const msg = getDoctorAvailabilityMessage(doctor, intakeForm.visitDate);
+                if (msg) {
+                    alert(msg);
+                    setIntakeForm(prev => ({ ...prev, doctor: '', visitTime: '' }));
+                    setAvailabilityCheck(prev => ({ ...prev, doctorId: '', bookedSlots: [] }));
+                    return;
+                }
+            }
+            setIntakeForm(prev => ({ ...prev, [name]: value, visitTime: '' }));
+            setAvailabilityCheck(prev => ({ ...prev, doctorId: value, bookedSlots: [] }));
+            return;
+        }
+
         if (name === 'visitDate') {
             // Prevent past dates
             if (value < todayStr) return;
+            const doctor = doctorsList.find(d => d._id === intakeForm.doctor);
+            if (doctor) {
+                const msg = getDoctorAvailabilityMessage(doctor, value);
+                if (msg) {
+                    alert(msg);
+                    setIntakeForm(prev => ({ ...prev, visitDate: '', visitTime: '' }));
+                    return;
+                }
+            }
             // Reset time slot when date changes (past slot may no longer be valid)
             setIntakeForm(prev => ({ ...prev, visitDate: value, visitTime: '' }));
             return;
@@ -1155,6 +1194,16 @@ const ReceptionDashboard = () => {
             setSaving(false); return;
         }
 
+        if (intakeForm.doctor && intakeForm.visitDate) {
+            const doctorObj = doctorsList.find(d => d._id === intakeForm.doctor);
+            const msg = getDoctorAvailabilityMessage(doctorObj, intakeForm.visitDate);
+            if (msg) {
+                alert(msg);
+                setSaving(false);
+                return;
+            }
+        }
+
         try {
             let userId = selectedPatientId;
 
@@ -1163,6 +1212,10 @@ const ReceptionDashboard = () => {
                 name: `${intakeForm.firstName} ${intakeForm.lastName}`.trim(),
                 email: intakeForm.email,
                 phone: intakeForm.mobile,
+                gender: intakeForm.gender || 'Female',
+                parentName: intakeForm.parentName || '',
+                parentPhone: intakeForm.parentPhone || '',
+                doctorId: intakeForm.doctor || null,
                 autoCreateAppointment: !(intakeForm.doctor && intakeForm.visitDate)
             });
 
@@ -1475,10 +1528,20 @@ const ReceptionDashboard = () => {
                                 <div className="field"><label>Last Name</label><input name="lastName" value={intakeForm.lastName} onChange={handleInputChange} /></div>
                                 <div className="field"><label>Mobile</label><input type="tel" name="mobile" value={intakeForm.mobile} onChange={handleInputChange} maxLength={10} /></div>
                                 <div className="field"><label>Age</label><input name="age" value={intakeForm.age} onChange={handleInputChange} /></div>
+                                <div className="field">
+                                    <label>Gender</label>
+                                    <select name="gender" value={intakeForm.gender || 'Female'} onChange={handleInputChange}>
+                                        <option value="Female">Female</option>
+                                        <option value="Male">Male</option>
+                                        <option value="Other">Other</option>
+                                    </select>
+                                </div>
                             </div>
                             <div className="form-row">
                                 <div className="field"><label>Partner Name</label><input name="partnerFirstName" value={intakeForm.partnerFirstName} onChange={handleInputChange} /></div>
                                 <div className="field"><label>Partner Mobile</label><input type="tel" name="partnerMobile" value={intakeForm.partnerMobile} onChange={handleInputChange} maxLength={10} /></div>
+                                <div className="field"><label>Parent Name</label><input name="parentName" value={intakeForm.parentName || ''} onChange={handleInputChange} /></div>
+                                <div className="field"><label>Parent Mobile</label><input type="tel" name="parentPhone" value={intakeForm.parentPhone || ''} onChange={handleInputChange} maxLength={10} /></div>
                             </div>
                         </div>
 
@@ -2942,33 +3005,53 @@ const ReceptionDashboard = () => {
                             <input type="date" value={availabilityCheck.date} onChange={(e) => setAvailabilityCheck({ ...availabilityCheck, date: e.target.value })}
                                 style={{ padding: '10px', borderRadius: '8px', border: '1.5px solid #e2e8f0', fontSize: '0.85rem' }} />
                         </div>
-                        {availabilityCheck.doctorId && (
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                                {timeSlots.map(t => {
-                                    const isBooked = availabilityCheck.bookedSlots.includes(t);
-                                    const isPast = availabilityCheck.date === todayStr && (() => {
-                                        const [h, m] = t.split(':').map(Number);
-                                        const now = new Date();
-                                        return new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m) <= now;
-                                    })();
-                                    return (
-                                        <button key={t} type="button"
-                                            onClick={() => !isBooked && !isPast && handleSlotClick(t)}
-                                            disabled={isBooked || isPast}
-                                            style={{
-                                                padding: '6px 10px', fontSize: '0.78rem', borderRadius: '6px', border: '1px solid #e2e8f0',
-                                                background: isBooked ? '#fee2e2' : isPast ? '#f1f5f9' : '#fff',
-                                                color: isBooked ? '#dc2626' : isPast ? '#94a3b8' : '#1e293b',
-                                                cursor: isBooked || isPast ? 'not-allowed' : 'pointer', fontWeight: 600,
-                                                opacity: isBooked || isPast ? 0.6 : 1
-                                            }}
-                                        >
-                                            {t}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        )}
+                        {availabilityCheck.doctorId && (() => {
+                            const selectedDoc = doctorsList.find(d => d._id === availabilityCheck.doctorId);
+                            const isUnavailable = (() => {
+                                if (!selectedDoc || !selectedDoc.availability || !availabilityCheck.date) return false;
+                                const dateObj = parseLocalDate(availabilityCheck.date);
+                                const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+                                const dayName = days[dateObj.getDay()];
+                                const schedule = selectedDoc.availability[dayName];
+                                return schedule && schedule.available === false;
+                            })();
+
+                            if (isUnavailable) {
+                                return (
+                                    <div style={{ color: '#dc2626', fontWeight: 700, fontSize: '0.82rem', padding: '8px 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        ⚠️ Specialist is not available on this day.
+                                    </div>
+                                );
+                            }
+
+                            return (
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                                    {timeSlots.map(t => {
+                                        const isBooked = availabilityCheck.bookedSlots.includes(t);
+                                        const isPast = availabilityCheck.date === todayStr && (() => {
+                                            const [h, m] = t.split(':').map(Number);
+                                            const now = new Date();
+                                            return new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m) <= now;
+                                        })();
+                                        return (
+                                            <button key={t} type="button"
+                                                onClick={() => !isBooked && !isPast && handleSlotClick(t)}
+                                                disabled={isBooked || isPast}
+                                                style={{
+                                                    padding: '6px 10px', fontSize: '0.78rem', borderRadius: '6px', border: '1px solid #e2e8f0',
+                                                    background: isBooked ? '#fee2e2' : isPast ? '#f1f5f9' : '#fff',
+                                                    color: isBooked ? '#dc2626' : isPast ? '#94a3b8' : '#1e293b',
+                                                    cursor: isBooked || isPast ? 'not-allowed' : 'pointer', fontWeight: 600,
+                                                    opacity: isBooked || isPast ? 0.6 : 1
+                                                }}
+                                            >
+                                                {t}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            );
+                        })()}
                     </div>
                 </div>
 

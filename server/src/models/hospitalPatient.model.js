@@ -19,6 +19,9 @@ const hospitalPatientSchema = new mongoose.Schema({
     email:  { type: String, trim: true, default: '' },
     gender: { type: String, default: 'Female' },
     dob:    { type: Date, default: null },
+    parentName: { type: String, default: '' },
+    parentPhone: { type: String, default: '' },
+    doctorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
 
     // Medical Demographics
     bloodGroup:        { type: String, default: '' },

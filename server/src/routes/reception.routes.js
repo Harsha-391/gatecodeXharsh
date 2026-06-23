@@ -89,6 +89,10 @@ router.post('/register', verifyToken, verifyReception, async (req, res) => {
             user.name = name;
             // Only update email if provided and different (avoid overwriting with empty)
             if (email && email !== user.email) user.email = email;
+            if (req.body.gender) user.gender = req.body.gender;
+            if (req.body.parentName) user.parentName = req.body.parentName;
+            if (req.body.parentPhone) user.parentPhone = req.body.parentPhone;
+            if (req.body.doctorId) user.doctorId = req.body.doctorId;
 
             // Backfill PatientId for legacy walk-ins that were created without one
             if (!user.patientId) {
@@ -110,6 +114,10 @@ router.post('/register', verifyToken, verifyReception, async (req, res) => {
                     tenantUser.name = user.name;
                     if (user.email) tenantUser.email = user.email;
                     tenantUser.phone = user.phone;
+                    if (req.body.gender) tenantUser.gender = req.body.gender;
+                    if (req.body.parentName) tenantUser.parentName = req.body.parentName;
+                    if (req.body.parentPhone) tenantUser.parentPhone = req.body.parentPhone;
+                    if (req.body.doctorId) tenantUser.doctorId = req.body.doctorId;
                 }
                 await tenantUser.save();
             }
@@ -126,7 +134,11 @@ router.post('/register', verifyToken, verifyReception, async (req, res) => {
             role: 'patient',
             patientId,
             fertilityProfile: {},
-            hospitalId: req.user.hospitalId || undefined
+            hospitalId: req.user.hospitalId || undefined,
+            gender: req.body.gender || 'Female',
+            parentName: req.body.parentName || '',
+            parentPhone: req.body.parentPhone || '',
+            doctorId: req.body.doctorId || null
         };
 
         // Only attach email if it actually exists, to prevent duplicate sparse index errors
@@ -250,12 +262,12 @@ router.get('/search-patients', verifyToken, verifyReception, async (req, res) =>
 
         // Use tenant DB if available (tenant DB is already hospital-scoped, no hospitalId filter needed)
         const { User } = getModels(req);
-        let patients = await User.find(namePhoneFilter).select('name phone email patientId fertilityProfile').limit(10);
+        let patients = await User.find(namePhoneFilter).select('name phone email patientId fertilityProfile gender parentName parentPhone doctorId').limit(10);
 
         // If tenant DB returned nothing (or no tenant DB), fall back to master DB
         if (patients.length === 0) {
             // Note: no hospitalId filter here — master DB patients may not have hospitalId set
-            patients = await MasterHospitalPatient.find(namePhoneFilter).select('name phone email patientId fertilityProfile').limit(10);
+            patients = await MasterHospitalPatient.find(namePhoneFilter).select('name phone email patientId fertilityProfile gender parentName parentPhone doctorId').limit(10);
         }
 
         res.json({ success: true, patients });
@@ -285,6 +297,11 @@ router.put('/intake/:userId', verifyToken, verifyReception, async (req, res) => 
         if (updates.city) updateQuery.city = updates.city;
         if (updates.state) updateQuery.state = updates.state;
         if (updates.zipCode) updateQuery.zipCode = updates.zipCode;
+        if (updates.gender) updateQuery.gender = updates.gender;
+        if (updates.parentName !== undefined) updateQuery.parentName = updates.parentName;
+        if (updates.parentPhone !== undefined) updateQuery.parentPhone = updates.parentPhone;
+        if (updates.doctor !== undefined) updateQuery.doctorId = updates.doctor || null;
+        if (updates.doctorId !== undefined) updateQuery.doctorId = updates.doctorId || null;
 
         // Update Root Aadhaar Fields
         if (updates.aadhaar) updateQuery.aadhaarNumber = updates.aadhaar;
