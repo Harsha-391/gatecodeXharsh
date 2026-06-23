@@ -10,6 +10,8 @@ const Service = require('../models/service.model');
 const User = require('../models/user.model');
 const { verifyAdminOrSuperAdmin } = require('../middleware/auth.middleware');
 const bcrypt = require('bcryptjs');
+const { resolveTenant } = require('../middleware/tenantMiddleware');
+const { getTenantModels } = require('../db/tenantModels');
 
 /**
  * Returns hospitalId filter for queries.
@@ -441,13 +443,20 @@ router.post('/labs', verifyAdminOrSuperAdmin, async (req, res) => {
     const defaultPassword = password || nanoid(12); // Generate password if not provided
     // Don't hash password here - User model's pre-save hook will handle it
 
+    const Role = require('../models/role.model');
+    const hospitalId = getHospitalId(req);
+    let roleDoc = await Role.findOne({ name: 'Lab Technician', hospitalId });
+    if (!roleDoc && hospitalId) {
+      roleDoc = await Role.findOne({ name: 'Lab Technician', hospitalId: null });
+    }
+
     const user = new User({
       name,
       email: email.toLowerCase(),
       password: defaultPassword,
       phone: phone || '',
-      role: 'lab',
-      hospitalId: getHospitalId(req)
+      role: roleDoc ? roleDoc._id : 'lab',
+      hospitalId
     });
 
     await user.save();
@@ -493,7 +502,6 @@ router.post('/labs', verifyAdminOrSuperAdmin, async (req, res) => {
 
     // Sync to tenant DB
     const { syncToTenant } = require('../utils/tenantSync');
-    const hospitalId = getHospitalId(req);
     await syncToTenant('User', user, 'save', hospitalId);
     await syncToTenant('Lab', lab, 'save', hospitalId);
 
@@ -526,6 +534,14 @@ router.put('/labs/:id', verifyAdminOrSuperAdmin, async (req, res) => {
       return res.status(404).json({ success: false, message: 'Lab not found' });
     }
 
+    if (req.body.email && (!lab.email || req.body.email.toLowerCase() !== lab.email.toLowerCase())) {
+      const emailLower = req.body.email.toLowerCase();
+      const emailUser = await User.findOne({ email: emailLower });
+      if (emailUser && (!lab.userId || emailUser._id.toString() !== lab.userId.toString())) {
+        return res.status(400).json({ success: false, message: 'User with this email already exists' });
+      }
+    }
+
     Object.assign(lab, req.body);
     await lab.save();
 
@@ -533,10 +549,12 @@ router.put('/labs/:id', verifyAdminOrSuperAdmin, async (req, res) => {
     await syncToTenant('Lab', lab, 'save', lab.hospitalId);
 
     // Also sync User if it is updated (email, phone, name etc.)
-    const user = await User.findOne({ email: lab.email });
+    const user = lab.userId ? await User.findById(lab.userId) : await User.findOne({ email: lab.email });
     if (user) {
         if (lab.name) user.name = lab.name;
         if (lab.phone !== undefined) user.phone = lab.phone;
+        if (lab.email) user.email = lab.email.toLowerCase();
+        if (req.body.password) user.password = req.body.password; // pre-save hook will hash it
         await user.save();
         await syncToTenant('User', user, 'save', lab.hospitalId);
     }
@@ -596,13 +614,20 @@ router.post('/pharmacies', verifyAdminOrSuperAdmin, async (req, res) => {
     const defaultPassword = password || nanoid(12); // Generate password if not provided
     // Don't hash password here - User model's pre-save hook will handle it
 
+    const Role = require('../models/role.model');
+    const hospitalId = getHospitalId(req);
+    let roleDoc = await Role.findOne({ name: 'Pharmacist', hospitalId });
+    if (!roleDoc && hospitalId) {
+      roleDoc = await Role.findOne({ name: 'Pharmacist', hospitalId: null });
+    }
+
     const user = new User({
       name,
       email: email.toLowerCase(),
       password: defaultPassword,
       phone: phone || '',
-      role: 'pharmacy',
-      hospitalId: getHospitalId(req)
+      role: roleDoc ? roleDoc._id : 'pharmacy',
+      hospitalId
     });
 
     await user.save();
@@ -647,7 +672,6 @@ router.post('/pharmacies', verifyAdminOrSuperAdmin, async (req, res) => {
 
     // Sync to tenant DB
     const { syncToTenant } = require('../utils/tenantSync');
-    const hospitalId = getHospitalId(req);
     await syncToTenant('User', user, 'save', hospitalId);
     await syncToTenant('Pharmacy', pharmacy, 'save', hospitalId);
 
@@ -680,6 +704,14 @@ router.put('/pharmacies/:id', verifyAdminOrSuperAdmin, async (req, res) => {
       return res.status(404).json({ success: false, message: 'Pharmacy not found' });
     }
 
+    if (req.body.email && (!pharmacy.email || req.body.email.toLowerCase() !== pharmacy.email.toLowerCase())) {
+      const emailLower = req.body.email.toLowerCase();
+      const emailUser = await User.findOne({ email: emailLower });
+      if (emailUser && (!pharmacy.userId || emailUser._id.toString() !== pharmacy.userId.toString())) {
+        return res.status(400).json({ success: false, message: 'User with this email already exists' });
+      }
+    }
+
     Object.assign(pharmacy, req.body);
     await pharmacy.save();
 
@@ -687,10 +719,12 @@ router.put('/pharmacies/:id', verifyAdminOrSuperAdmin, async (req, res) => {
     await syncToTenant('Pharmacy', pharmacy, 'save', pharmacy.hospitalId);
 
     // Also sync User if it is updated (email, phone, name etc.)
-    const user = await User.findOne({ email: pharmacy.email });
+    const user = pharmacy.userId ? await User.findById(pharmacy.userId) : await User.findOne({ email: pharmacy.email });
     if (user) {
         if (pharmacy.name) user.name = pharmacy.name;
         if (pharmacy.phone !== undefined) user.phone = pharmacy.phone;
+        if (pharmacy.email) user.email = pharmacy.email.toLowerCase();
+        if (req.body.password) user.password = req.body.password; // pre-save hook will hash it
         await user.save();
         await syncToTenant('User', user, 'save', pharmacy.hospitalId);
     }
@@ -743,14 +777,21 @@ router.post('/receptions', verifyAdminOrSuperAdmin, async (req, res) => {
     // Create user account for the reception
     const defaultPassword = password || nanoid(12); // Generate password if not provided
 
+    const Role = require('../models/role.model');
+    const hospitalId = getHospitalId(req);
+    let roleDoc = await Role.findOne({ name: 'Receptionist', hospitalId });
+    if (!roleDoc && hospitalId) {
+      roleDoc = await Role.findOne({ name: 'Receptionist', hospitalId: null });
+    }
+
     const user = new User({
       name,
       email: email.toLowerCase(),
       password: defaultPassword,
       phone: phone || '',
-      role: 'reception',
+      role: roleDoc ? roleDoc._id : 'reception',
       services: services || [],
-      hospitalId: getHospitalId(req),
+      hospitalId,
       counterName: name
     });
 
@@ -766,7 +807,6 @@ router.post('/receptions', verifyAdminOrSuperAdmin, async (req, res) => {
 
     // Sync to tenant DB
     const { syncToTenant } = require('../utils/tenantSync');
-    const hospitalId = getHospitalId(req);
     await syncToTenant('User', user, 'save', hospitalId);
     await syncToTenant('Reception', reception, 'save', hospitalId);
 
@@ -887,7 +927,7 @@ router.delete('/receptions/:id', verifyAdminOrSuperAdmin, async (req, res) => {
 });
 
 // Services routes
-router.post('/services', verifyAdminOrSuperAdmin, async (req, res) => {
+router.post('/services', verifyAdminOrSuperAdmin, resolveTenant, async (req, res) => {
   try {
     const {
       id, title, description, icon, color, price, duration, category, features, active,
@@ -898,12 +938,13 @@ router.post('/services', verifyAdminOrSuperAdmin, async (req, res) => {
       return res.status(400).json({ success: false, message: 'ID, title, and description are required' });
     }
 
-    const existingService = await Service.findOne({ id });
+    const ServiceModel = req.tenantDb ? getTenantModels(req.tenantDb).Service : Service;
+    const existingService = await ServiceModel.findOne({ id });
     if (existingService) {
       return res.status(400).json({ success: false, message: 'Service with this ID already exists' });
     }
 
-    const service = new Service({
+    const service = new ServiceModel({
       id,
       title,
       description,
@@ -930,9 +971,10 @@ router.post('/services', verifyAdminOrSuperAdmin, async (req, res) => {
   }
 });
 
-router.get('/services', verifyAdminOrSuperAdmin, async (req, res) => {
+router.get('/services', verifyAdminOrSuperAdmin, resolveTenant, async (req, res) => {
   try {
-    const services = await Service.find().sort({ title: 1 });
+    const ServiceModel = req.tenantDb ? getTenantModels(req.tenantDb).Service : Service;
+    const services = await ServiceModel.find().sort({ title: 1 });
     res.json({ success: true, services });
   } catch (error) {
     console.error('Get services error:', error);
@@ -940,16 +982,17 @@ router.get('/services', verifyAdminOrSuperAdmin, async (req, res) => {
   }
 });
 
-router.put('/services/:id', verifyAdminOrSuperAdmin, async (req, res) => {
+router.put('/services/:id', verifyAdminOrSuperAdmin, resolveTenant, async (req, res) => {
   try {
+    const ServiceModel = req.tenantDb ? getTenantModels(req.tenantDb).Service : Service;
     // Support lookup by MongoDB _id (ObjectId) or by the string 'id' field
     const mongoose = require('mongoose');
     let service;
     if (mongoose.Types.ObjectId.isValid(req.params.id)) {
-      service = await Service.findById(req.params.id);
+      service = await ServiceModel.findById(req.params.id);
     }
     if (!service) {
-      service = await Service.findOne({ id: req.params.id });
+      service = await ServiceModel.findOne({ id: req.params.id });
     }
     if (!service) {
       return res.status(404).json({ success: false, message: 'Service not found' });
@@ -975,15 +1018,16 @@ router.put('/services/:id', verifyAdminOrSuperAdmin, async (req, res) => {
   }
 });
 
-router.delete('/services/:id', verifyAdminOrSuperAdmin, async (req, res) => {
+router.delete('/services/:id', verifyAdminOrSuperAdmin, resolveTenant, async (req, res) => {
   try {
+    const ServiceModel = req.tenantDb ? getTenantModels(req.tenantDb).Service : Service;
     const mongoose = require('mongoose');
     let service;
     if (mongoose.Types.ObjectId.isValid(req.params.id)) {
-      service = await Service.findByIdAndDelete(req.params.id);
+      service = await ServiceModel.findByIdAndDelete(req.params.id);
     }
     if (!service) {
-      service = await Service.findOneAndDelete({ id: req.params.id });
+      service = await ServiceModel.findOneAndDelete({ id: req.params.id });
     }
     if (!service) {
       return res.status(404).json({ success: false, message: 'Service not found' });

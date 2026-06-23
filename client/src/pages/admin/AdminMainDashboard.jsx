@@ -165,7 +165,7 @@ const AdminMainDashboard = () => {
             accentLight: 'rgba(124,58,237,0.12)',
             gradStart: '#7c3aed',
             gradEnd: '#a855f7',
-            path: '/admin/revenue',
+            path: '',
             desc: 'Collected today'
         },
     ];
@@ -222,33 +222,36 @@ const AdminMainDashboard = () => {
                 </div>
 
                 <div className="amd-stats-grid">
-                    {statCards.map((card, idx) => (
-                        <div
-                            key={idx}
-                            className="amd-stat-card"
-                            onClick={() => navigate(card.path)}
-                            style={{ '--card-accent': card.accent, '--card-light': card.accentLight }}
-                        >
-                            <div className="amd-stat-top">
-                                <div className="amd-stat-icon-wrap" style={{ background: card.accentLight }}>
-                                    <span className="amd-stat-emoji">{card.icon}</span>
-                                </div>
-                                <div className="amd-stat-arrow">→</div>
-                            </div>
-                            <div className="amd-stat-value">
-                                {loading
-                                    ? <span className="amd-skeleton" />
-                                    : card.value
-                                }
-                            </div>
-                            <div className="amd-stat-label">{card.label}</div>
-                            <div className="amd-stat-desc">{card.desc}</div>
+                    {statCards.map((card, idx) => {
+                        const isClickable = !!card.path;
+                        return (
                             <div
-                                className="amd-stat-bar"
-                                style={{ background: `linear-gradient(90deg, ${card.gradStart}, ${card.gradEnd})` }}
-                            />
-                        </div>
-                    ))}
+                                key={idx}
+                                className={`amd-stat-card ${!isClickable ? 'non-clickable' : ''}`}
+                                onClick={() => isClickable && navigate(card.path)}
+                                style={{ '--card-accent': card.accent, '--card-light': card.accentLight }}
+                            >
+                                <div className="amd-stat-top">
+                                    <div className="amd-stat-icon-wrap" style={{ background: card.accentLight }}>
+                                        <span className="amd-stat-emoji">{card.icon}</span>
+                                    </div>
+                                    {isClickable && <div className="amd-stat-arrow">→</div>}
+                                </div>
+                                <div className="amd-stat-value">
+                                    {loading
+                                        ? <span className="amd-skeleton" />
+                                        : card.value
+                                    }
+                                </div>
+                                <div className="amd-stat-label">{card.label}</div>
+                                <div className="amd-stat-desc">{card.desc}</div>
+                                <div
+                                    className="amd-stat-bar"
+                                    style={{ background: `linear-gradient(90deg, ${card.gradStart}, ${card.gradEnd})` }}
+                                />
+                            </div>
+                        );
+                    })}
                 </div>
 
                 {/* Quick Access Links */}

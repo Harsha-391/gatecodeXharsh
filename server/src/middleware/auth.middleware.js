@@ -65,10 +65,19 @@ exports.verifyToken = async (req, res, next) => {
             }
 
             if (!roleData) {
-                const query = { name: { $regex: new RegExp(`^${user.role}$`, 'i') } };
+                const roleMapping = {
+                    'lab': 'Lab Technician',
+                    'pharmacy': 'Pharmacist',
+                    'reception': 'Receptionist'
+                };
+                const targetRoleName = roleMapping[String(user.role).toLowerCase()] || user.role;
+                const query = { name: { $regex: new RegExp(`^${targetRoleName}$`, 'i') } };
                 // Scope legacy role lookup to the user's hospital
                 if (user.hospitalId) query.hospitalId = user.hospitalId;
                 roleData = await Role.findOne(query);
+                if (!roleData && user.hospitalId) {
+                    roleData = await Role.findOne({ name: { $regex: new RegExp(`^${targetRoleName}$`, 'i') }, hospitalId: null });
+                }
                 if (roleData) {
                     user.role = roleData._id;
                     await user.save();

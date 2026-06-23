@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { hospitalAPI } from '../../utils/api';
+import { hospitalAPI, administratorAPI } from '../../utils/api';
 import '../administration/SuperAdmin.css';
+
+const RESOURCE_TYPES = ['Room', 'Bed', 'Equipment', 'Vehicle', 'Other'];
 
 const AdminFacilities = () => {
   const navigate = useNavigate();
@@ -13,6 +15,15 @@ const AdminFacilities = () => {
   const [editingIdx, setEditingIdx] = useState(-1);
   const [editForm, setEditForm] = useState({ pricePerDay: 0, bedCount: 0 });
 
+  // Resources state
+  const [resources, setResources] = useState([]);
+  const [resLoading, setResLoading] = useState(false);
+  const [resSubmitting, setResSubmitting] = useState(false);
+  const [resError, setResError] = useState('');
+  const [resSuccess, setResSuccess] = useState('');
+  const [resForm, setResForm] = useState({ name: '', type: 'Equipment', total: '', description: '' });
+  const [showResForm, setShowResForm] = useState(false);
+
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     const role = (user.role || '').toLowerCase();
@@ -21,6 +32,7 @@ const AdminFacilities = () => {
       return;
     }
     fetchMyHospital();
+    fetchResources();
   }, [navigate]);
 
   const fetchMyHospital = async () => {
@@ -35,6 +47,20 @@ const AdminFacilities = () => {
       setError('Error loading hospital information');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchResources = async () => {
+    try {
+      setResLoading(true);
+      const res = await administratorAPI.getResources();
+      if (res.success) {
+        setResources(res.resources || []);
+      }
+    } catch (err) {
+      console.error('Error fetching resources:', err);
+    } finally {
+      setResLoading(false);
     }
   };
 
@@ -117,6 +143,57 @@ const AdminFacilities = () => {
     }
   };
 
+  const handleResFormChange = (e) => {
+    const { name, value } = e.target;
+    setResForm(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleAddResource = async (e) => {
+    e.preventDefault();
+    if (resSubmitting) return;
+    setResError('');
+    setResSuccess('');
+
+    if (!resForm.name.trim() || !resForm.total) {
+      setResError('Resource name and total count are required.');
+      return;
+    }
+    if (Number(resForm.total) <= 0) {
+      setResError('Total count must be greater than zero.');
+      return;
+    }
+
+    setResSubmitting(true);
+    try {
+      const res = await administratorAPI.createResource({
+        name: resForm.name.trim(),
+        type: resForm.type,
+        total: Number(resForm.total),
+        description: resForm.description.trim()
+      });
+      if (res.success) {
+        setResSuccess('Resource added successfully!');
+        setResForm({ name: '', type: 'Equipment', total: '', description: '' });
+        setShowResForm(false);
+        await fetchResources();
+      }
+    } catch (err) {
+      setResError(err.response?.data?.message || 'Error adding resource.');
+    } finally {
+      setResSubmitting(false);
+    }
+  };
+
+  const handleDeleteResource = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this resource?')) return;
+    try {
+      await administratorAPI.deleteResource(id);
+      await fetchResources();
+    } catch (err) {
+      setResError('Failed to delete resource.');
+    }
+  };
+
   const formatCurrency = (n) => `₹${(n || 0).toLocaleString('en-IN')}`;
 
   return (
@@ -124,8 +201,8 @@ const AdminFacilities = () => {
       <div className="superadmin-container">
         <div className="admin-header">
           <div>
-            <h1>Manage Facilities & Wards</h1>
-            <p>Add and manage hospital rooms, wards (ICU, OT, General Ward), and their daily pricing</p>
+            <h1>Manage Facilities, Wards &amp; Resources</h1>
+            <p>Add and manage hospital rooms, wards (ICU, OT, General Ward), daily pricing, and physical resources</p>
           </div>
           <button onClick={() => navigate('/admin')} className="btn btn-secondary">
             ← Back to Dashboard
@@ -135,6 +212,7 @@ const AdminFacilities = () => {
         {error && <div className="error-message">{error}</div>}
         {success && <div className="success-message">{success}</div>}
 
+        {/* ─── Facilities Section ─── */}
         <div className="form-card" style={{ marginBottom: '30px' }}>
           <h2>Add New Facility / Ward</h2>
           <form onSubmit={handleAddFacility}>
@@ -180,7 +258,7 @@ const AdminFacilities = () => {
         </div>
 
         <div className="users-table">
-          <h2>Active Facilities & Wards</h2>
+          <h2>Active Facilities &amp; Wards</h2>
           {loading ? (
             <div className="loading-message">Loading facilities...</div>
           ) : !hospitalInfo?.facilities || hospitalInfo.facilities.length === 0 ? (
@@ -241,6 +319,134 @@ const AdminFacilities = () => {
             </table>
           )}
         </div>
+
+        {/* ─── Resources Section ─── */}
+        <div style={{ marginTop: '40px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <div>
+              <h2 style={{ margin: 0 }}>Hospital Resources</h2>
+              <p style={{ color: '#6b7280', margin: '4px 0 0 0', fontSize: '0.9rem' }}>
+                Manage physical resources (beds, equipment, vehicles, etc.) used in the Resource Management dashboard
+              </p>
+            </div>
+            <button
+              className="btn btn-primary"
+              onClick={() => { setShowResForm(s => !s); setResError(''); setResSuccess(''); }}
+            >
+              {showResForm ? 'Cancel' : '+ Add Resource'}
+            </button>
+          </div>
+
+          {resError && <div className="error-message">{resError}</div>}
+          {resSuccess && <div className="success-message">{resSuccess}</div>}
+
+          {showResForm && (
+            <div className="form-card" style={{ marginBottom: '20px' }}>
+              <h2>Add New Resource</h2>
+              <form onSubmit={handleAddResource}>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label htmlFor="res-name">Resource Name *</label>
+                    <input
+                      type="text"
+                      id="res-name"
+                      name="name"
+                      value={resForm.name}
+                      onChange={handleResFormChange}
+                      placeholder="e.g., ICU Ventilator, Hospital Bed"
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="res-type">Resource Type *</label>
+                    <select id="res-type" name="type" value={resForm.type} onChange={handleResFormChange}>
+                      {RESOURCE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="res-total">Total Count *</label>
+                    <input
+                      type="number"
+                      id="res-total"
+                      name="total"
+                      value={resForm.total}
+                      onChange={handleResFormChange}
+                      placeholder="e.g., 10"
+                      min="1"
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="res-description">Description (Optional)</label>
+                    <input
+                      type="text"
+                      id="res-description"
+                      name="description"
+                      value={resForm.description}
+                      onChange={handleResFormChange}
+                      placeholder="e.g., Used in ICU ward"
+                    />
+                  </div>
+                </div>
+                <div className="form-actions" style={{ marginTop: '10px' }}>
+                  <button type="submit" className="btn btn-primary" disabled={resSubmitting}>
+                    {resSubmitting ? 'Saving...' : '+ Add Resource'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          <div className="users-table">
+            {resLoading ? (
+              <div className="loading-message">Loading resources...</div>
+            ) : resources.length === 0 ? (
+              <div className="empty-message">No resources added yet. Click "Add Resource" above to get started.</div>
+            ) : (
+              <table>
+                <thead>
+                  <tr>
+                    <th>Resource Name</th>
+                    <th>Type</th>
+                    <th>Total Count</th>
+                    <th>Description</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {resources.map((res) => (
+                    <tr key={res._id}>
+                      <td style={{ fontWeight: 600 }}>{res.name}</td>
+                      <td>
+                        <span style={{
+                          background: res.type === 'Bed' ? '#ecfdf5' : res.type === 'Room' ? '#eff6ff' : '#f5f3ff',
+                          color: res.type === 'Bed' ? '#047857' : res.type === 'Room' ? '#1d4ed8' : '#6d28d9',
+                          padding: '2px 8px',
+                          borderRadius: '6px',
+                          fontSize: '0.78rem',
+                          fontWeight: 700
+                        }}>
+                          {res.type}
+                        </span>
+                      </td>
+                      <td>{res.total}</td>
+                      <td style={{ color: '#6b7280', fontSize: '0.88rem' }}>{res.description || '—'}</td>
+                      <td>
+                        <button
+                          onClick={() => handleDeleteResource(res._id)}
+                          className="btn-delete"
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+
       </div>
     </div>
   );

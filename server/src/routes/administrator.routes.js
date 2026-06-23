@@ -24,6 +24,7 @@ const MasterHospital = require('../models/hospital.model');
 const MasterInsuranceClaim = require('../models/insuranceClaim.model');
 const MasterDoctor = require('../models/doctor.model');
 const MasterService = require('../models/service.model');
+const MasterResource = require('../models/resource.model');
 
 // Administrator Access Middleware
 const verifyAdministratorAccess = async (req, res, next) => {
@@ -70,7 +71,8 @@ const getModels = (req) => {
         Expense: MasterExpense,
         InsuranceClaim: MasterInsuranceClaim,
         Doctor: MasterDoctor,
-        Service: MasterService
+        Service: MasterService,
+        Resource: MasterResource
     };
 };
 
@@ -107,7 +109,7 @@ router.get('/stats', verifyAdministratorAccess, async (req, res) => {
         const pendingPharmacy = await PharmacyOrder.countDocuments({ hospitalId, orderStatus: { $in: ['Upcoming', 'Pending', 'In Progress'] } });
         const pendingBilling = await Invoice.countDocuments({ hospitalId, paymentStatus: { $in: ['Pending', 'Partially Paid'] } });
 
-        // Bed occupancy totals (Static base of 50 beds: 40 general ward, 10 ICU ward)
+                // Bed occupancy totals (Static base of 50 beds: 40 general ward, 10 ICU ward)
         let totalBeds = 50;
         let totalICUBeds = 10;
         let totalWardBeds = 40;
@@ -117,23 +119,36 @@ router.get('/stats', verifyAdministratorAccess, async (req, res) => {
 
         if (facilities.length > 0) {
             let icuTotal = 0;
-            let nonIcuTotal = 0;
+            let wardTotal = 0;
             for (const facility of facilities) {
                 const count = facility.bedCount || 0;
-                if (facility.name.toUpperCase().includes('ICU')) {
+                const nameUpper = facility.name.toUpperCase();
+                if (nameUpper.includes('ICU')) {
                     icuTotal += count;
-                } else {
-                    nonIcuTotal += count;
+                } else if (nameUpper.includes('GENERAL') || nameUpper.includes('WARD') || nameUpper.includes('GW') || (!nameUpper.includes('PRIVATE') && !nameUpper.includes('DELUXE') && !nameUpper.includes('OT') && !nameUpper.includes('SUITE') && !nameUpper.includes('SPECIAL'))) {
+                    wardTotal += count;
                 }
             }
-            totalBeds = icuTotal + nonIcuTotal;
+            totalBeds = facilities.reduce((sum, f) => sum + (f.bedCount || 0), 0);
             totalICUBeds = icuTotal;
-            totalWardBeds = nonIcuTotal;
+            totalWardBeds = wardTotal;
         }
 
         const occupiedBeds = await Admission.countDocuments({ hospitalId, status: 'Admitted' });
         const occupiedICUBeds = await Admission.countDocuments({ hospitalId, status: 'Admitted', ward: { $regex: /ICU/i } });
-        const occupiedWardBeds = Math.max(0, occupiedBeds - occupiedICUBeds);
+        
+        let occupiedWardBeds = 0;
+        if (facilities.length > 0) {
+            const wardNames = facilities
+                .filter(f => {
+                    const nameUpper = f.name.toUpperCase();
+                    return !nameUpper.includes('ICU') && (nameUpper.includes('GENERAL') || nameUpper.includes('WARD') || nameUpper.includes('GW') || (!nameUpper.includes('PRIVATE') && !nameUpper.includes('DELUXE') && !nameUpper.includes('OT') && !nameUpper.includes('SUITE') && !nameUpper.includes('SPECIAL')));
+                })
+                .map(f => f.name);
+            occupiedWardBeds = await Admission.countDocuments({ hospitalId, status: 'Admitted', ward: { $in: wardNames } });
+        } else {
+            occupiedWardBeds = Math.max(0, occupiedBeds - occupiedICUBeds);
+        }
 
         const availableBeds = Math.max(0, totalBeds - occupiedBeds);
 
@@ -828,10 +843,11 @@ router.get('/admissions/oversight/occupancy', verifyAdministratorAccess, auditLo
             for (const facility of facilities) {
                 const count = facility.bedCount || 0;
                 const activeInFacility = currentAdmissions.filter(a => String(a.ward).toLowerCase() === String(facility.name).toLowerCase()).length;
-                if (facility.name.toUpperCase().includes('ICU')) {
+                const nameUpper = facility.name.toUpperCase();
+                if (nameUpper.includes('ICU')) {
                     icuTotal += count;
                     icuOccupied += activeInFacility;
-                } else {
+                } else if (nameUpper.includes('GENERAL') || nameUpper.includes('WARD') || nameUpper.includes('GW') || (!nameUpper.includes('PRIVATE') && !nameUpper.includes('DELUXE') && !nameUpper.includes('OT') && !nameUpper.includes('SUITE') && !nameUpper.includes('SPECIAL'))) {
                     wardTotal += count;
                     wardOccupied += activeInFacility;
                 }
@@ -843,8 +859,10 @@ router.get('/admissions/oversight/occupancy', verifyAdministratorAccess, auditLo
             wardOccupied = currentAdmissions.filter(a => a.ward === 'General' || (a.ward && a.ward !== 'ICU')).length;
         }
 
-        const totalBedsCount = icuTotal + wardTotal;
-        const occupiedBeds = icuOccupied + wardOccupied;
+        const totalBedsCount = facilities.length > 0
+            ? facilities.reduce((sum, f) => sum + (f.bedCount || 0), 0)
+            : (icuTotal + wardTotal);
+        const occupiedBeds = currentAdmissions.filter(a => a.bedNumber).length;
         const availableBeds = Math.max(0, totalBedsCount - occupiedBeds);
 
         res.json({
@@ -1140,32 +1158,87 @@ router.get('/revenue', verifyAdministratorAccess, async (req, res) => {
     }
 });
 
-// 10. Resource Management
+// 10. Resource Management - Dynamic from DB
 router.get('/resources', verifyAdministratorAccess, async (req, res) => {
     try {
         const hospitalId = req.hospitalId || req.user.hospitalId;
         const models = getModels(req);
-        const { Admission } = models;
+        const { Resource, Admission } = models;
 
-        const totalRooms = 30;
-        const totalBeds = 50;
+        const dbResources = await Resource.find({ hospitalId, isActive: true }).sort({ createdAt: 1 });
 
+        // Calculate utilization for Room/Bed types using current admissions
         const currentAdmitted = await Admission.countDocuments({ hospitalId, status: 'Admitted' });
 
-        const resources = [
-            { name: 'Hospital Rooms', total: totalRooms, occupied: Math.min(totalRooms, Math.ceil(currentAdmitted * 0.8)), type: 'Room', utilization: Math.round((Math.min(totalRooms, Math.ceil(currentAdmitted * 0.8)) / totalRooms) * 100) },
-            { name: 'Hospital Beds', total: totalBeds, occupied: currentAdmitted, type: 'Bed', utilization: Math.round((currentAdmitted / totalBeds) * 100) },
-            { name: 'ICU Ventilators', total: 5, occupied: Math.min(5, Math.ceil(currentAdmitted * 0.1)), type: 'Equipment', utilization: Math.round((Math.min(5, Math.ceil(currentAdmitted * 0.1)) / 5) * 100) },
-            { name: 'ECG Machines', total: 8, occupied: 3, type: 'Equipment', utilization: 38 },
-            { name: 'Defibrillators', total: 6, occupied: 1, type: 'Equipment', utilization: 17 }
-        ];
+        const resources = dbResources.map(r => {
+            let occupied = 0;
+            if (r.type === 'Bed') {
+                occupied = Math.min(r.total, currentAdmitted);
+            } else if (r.type === 'Room') {
+                occupied = Math.min(r.total, Math.ceil(currentAdmitted * 0.8));
+            }
+            const utilization = r.total > 0 ? Math.round((occupied / r.total) * 100) : 0;
+            return {
+                _id: r._id,
+                name: r.name,
+                type: r.type,
+                total: r.total,
+                occupied,
+                utilization,
+                description: r.description
+            };
+        });
 
-        const maintenanceAlerts = [
-            { resource: 'Defibrillator Unit #2', type: 'Calibration due', status: 'Pending', date: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000) },
-            { resource: 'Ventilator #4', type: 'Annual Service', status: 'Completed', date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000) }
-        ];
+        res.json({ success: true, resources, maintenanceAlerts: [] });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
 
-        res.json({ success: true, resources, maintenanceAlerts });
+// Add a new resource
+router.post('/resources', verifyAdministratorAccess, async (req, res) => {
+    try {
+        const hospitalId = req.hospitalId || req.user.hospitalId;
+        const models = getModels(req);
+        const { Resource } = models;
+
+        const { name, type, total, description } = req.body;
+        if (!name || !total) {
+            return res.status(400).json({ success: false, message: 'Name and total count are required' });
+        }
+
+        const resource = await Resource.create({
+            hospitalId,
+            name: name.trim(),
+            type: type || 'Equipment',
+            total: Number(total),
+            description: description || ''
+        });
+
+        res.json({ success: true, resource });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// Delete a resource
+router.delete('/resources/:id', verifyAdministratorAccess, async (req, res) => {
+    try {
+        const hospitalId = req.hospitalId || req.user.hospitalId;
+        const models = getModels(req);
+        const { Resource } = models;
+
+        const resource = await Resource.findOneAndUpdate(
+            { _id: req.params.id, hospitalId },
+            { isActive: false },
+            { new: true }
+        );
+
+        if (!resource) {
+            return res.status(404).json({ success: false, message: 'Resource not found' });
+        }
+
+        res.json({ success: true, message: 'Resource deleted' });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
@@ -1301,11 +1374,11 @@ router.get('/reports', verifyAdministratorAccess, auditLog('DATA_EXPORT', null, 
         const servicesReportPromise = (async () => {
             try {
                 const serviceQuery = {};
-                if (hospitalId) serviceQuery.hospitalId = hospitalId;
+                if (hospitalId && !req.tenantDb) serviceQuery.hospitalId = hospitalId;
                 let res = await Service.find(serviceQuery)
                     .select('title description category serviceType price gst billingType duration active department visibility')
                     .lean();
-                if (!res.length) {
+                if (!res.length && !req.tenantDb) {
                     res = await Service.find({})
                         .select('title description category serviceType price gst billingType duration active department visibility')
                         .lean();

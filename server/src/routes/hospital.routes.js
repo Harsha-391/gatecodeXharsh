@@ -854,6 +854,9 @@ router.put('/my-hospital/facilities', verifyHospitalAdmin, async (req, res) => {
         hospital.facilities = facilities;
         await hospital.save();
 
+        const { syncToTenant } = require('../utils/tenantSync');
+        await syncToTenant('Hospital', hospital, 'save', hospital._id);
+
         res.json({ success: true, message: 'Facilities updated successfully', hospital });
     } catch (err) {
         console.error('Update facilities error:', err);
@@ -878,6 +881,9 @@ router.put('/my-hospital/department-fees', verifyHospitalAdmin, async (req, res)
 
         hospital.departmentFees = departmentFees;
         await hospital.save();
+
+        const { syncToTenant } = require('../utils/tenantSync');
+        await syncToTenant('Hospital', hospital, 'save', hospital._id);
 
         res.json({ success: true, message: 'Department fees updated successfully', hospital });
     } catch (err) {

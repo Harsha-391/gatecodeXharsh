@@ -256,6 +256,24 @@
     color: var(--card-accent, #14b8a6);
 }
 
+.amd-stat-card.non-clickable {
+    cursor: default;
+}
+
+.amd-stat-card.non-clickable:hover {
+    transform: none;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+    border-color: #f1f5f9;
+}
+
+.amd-stat-card.non-clickable:hover .amd-stat-icon-wrap {
+    transform: none;
+}
+
+.amd-stat-card.non-clickable:hover .amd-stat-bar {
+    transform: scaleX(0);
+}
+
 .amd-stat-top {
     display: flex;
     align-items: center;

@@ -52,9 +52,18 @@ async function buildUserResponse(user, preloadedRoles = null) {
         }
         if (!roleData) {
             // Legacy string fallback - find role by name scoped to the user's hospital
-            const query = { name: { $regex: new RegExp(`^${user.role}$`, 'i') } };
+            const roleMapping = {
+                'lab': 'Lab Technician',
+                'pharmacy': 'Pharmacist',
+                'reception': 'Receptionist'
+            };
+            const targetRoleName = roleMapping[String(user.role).toLowerCase()] || user.role;
+            const query = { name: { $regex: new RegExp(`^${targetRoleName}$`, 'i') } };
             if (user.hospitalId) query.hospitalId = user.hospitalId;
             roleData = await Role.findOne(query);
+            if (!roleData && user.hospitalId) {
+                roleData = await Role.findOne({ name: { $regex: new RegExp(`^${targetRoleName}$`, 'i') }, hospitalId: null });
+            }
             if (roleData) {
                 user.role = roleData._id;
                 await user.save();
@@ -518,11 +527,20 @@ router.post('/users', verifyAdminOrSuperAdmin, auditLog('USER_CREATE', null, { s
             }
             if (!roleDoc) {
                 // If it's a string like 'hospitaladmin', 'doctor' etc., try to find it
-                const query = { name: { $regex: new RegExp(`^${roleId}$`, 'i') } };
+                const roleMapping = {
+                    'lab': 'Lab Technician',
+                    'pharmacy': 'Pharmacist',
+                    'reception': 'Receptionist'
+                };
+                const targetRoleName = roleMapping[String(roleId).toLowerCase()] || roleId;
+                const query = { name: { $regex: new RegExp(`^${targetRoleName}$`, 'i') } };
                 if (req.body.hospitalId) query.hospitalId = req.body.hospitalId;
                 else if (req.user.hospitalId) query.hospitalId = req.user.hospitalId;
 
                 roleDoc = await Role.findOne(query);
+                if (!roleDoc && query.hospitalId) {
+                    roleDoc = await Role.findOne({ name: { $regex: new RegExp(`^${targetRoleName}$`, 'i') }, hospitalId: null });
+                }
             }
 
             if (!roleDoc) {
@@ -568,7 +586,7 @@ router.post('/users', verifyAdminOrSuperAdmin, auditLog('USER_CREATE', null, { s
             email: email.toLowerCase(),
             password,
             phone: phone || '',
-            role: roleId,
+            role: roleDoc ? roleDoc._id : roleId,
             hospitalId: assignedHospitalId,
             services: roleName === 'doctor' ? services : [],
             departments: departments || [],
@@ -692,10 +710,19 @@ router.put('/users/:userId', verifyAdminOrSuperAdmin, auditLog('USER_UPDATE', (r
                     roleDoc = await Role.findById(roleId);
                 }
                 if (!roleDoc) {
+                    const roleMapping = {
+                        'lab': 'Lab Technician',
+                        'pharmacy': 'Pharmacist',
+                        'reception': 'Receptionist'
+                    };
+                    const targetRoleName = roleMapping[String(roleId).toLowerCase()] || roleId;
                     // Try finding by name scoped to hospital
-                    const query = { name: { $regex: new RegExp(`^${roleId}$`, 'i') } };
+                    const query = { name: { $regex: new RegExp(`^${targetRoleName}$`, 'i') } };
                     if (user.hospitalId) query.hospitalId = user.hospitalId;
                     roleDoc = await Role.findOne(query);
+                    if (!roleDoc && user.hospitalId) {
+                        roleDoc = await Role.findOne({ name: { $regex: new RegExp(`^${targetRoleName}$`, 'i') }, hospitalId: null });
+                    }
                 }
                 if (!roleDoc) {
                     // Fallback to checking system role strings

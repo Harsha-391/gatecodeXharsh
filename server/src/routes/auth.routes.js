@@ -34,8 +34,28 @@ async function buildUserResponse(user) {
       isSystemRole: true
     };
   } else if (user.role) {
-    roleData = await Role.findById(user.role);
-    roleName = roleData ? roleData.name : null;
+    if (mongoose.Types.ObjectId.isValid(user.role)) {
+      roleData = await Role.findById(user.role);
+    }
+    if (!roleData) {
+      const roleMapping = {
+        'lab': 'Lab Technician',
+        'pharmacy': 'Pharmacist',
+        'reception': 'Receptionist'
+      };
+      const targetRoleName = roleMapping[String(user.role).toLowerCase()] || user.role;
+      const query = { name: { $regex: new RegExp(`^${targetRoleName}$`, 'i') } };
+      if (user.hospitalId) query.hospitalId = user.hospitalId;
+      roleData = await Role.findOne(query);
+      if (!roleData && user.hospitalId) {
+        roleData = await Role.findOne({ name: { $regex: new RegExp(`^${targetRoleName}$`, 'i') }, hospitalId: null });
+      }
+      if (roleData) {
+        user.role = roleData._id;
+        await user.save();
+      }
+    }
+    roleName = roleData ? roleData.name : String(user.role);
   }
 
   return {

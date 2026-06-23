@@ -46,6 +46,8 @@ function getTenantModels(tenantDb) {
         DoctorPayout: model('DoctorPayout', require('../models/doctorPayout.model').schema),
         DiscountRequest: model('DiscountRequest', require('../models/discountRequest.model').schema),
         CollectionTransaction: model('CollectionTransaction', require('../models/collectionTransaction.model').schema),
+        Service: model('Service', require('../models/service.model').schema),
+        Resource: model('Resource', require('../models/resource.model').schema),
     };
 }
 
