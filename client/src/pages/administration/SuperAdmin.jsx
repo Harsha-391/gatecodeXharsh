@@ -342,7 +342,7 @@ const SuperAdmin = () => {
                                         return (
                                             <tr key={userItem.id || userItem._id}>
                                                 <td>
-                                                    {userItem.avatar ? (
+                                                    {userItem.avatar && (userItem.avatar.startsWith('http') || userItem.avatar.startsWith('data:')) ? (
                                                         <img
                                                             src={userItem.avatar}
                                                             alt={userItem.name}
@@ -350,7 +350,7 @@ const SuperAdmin = () => {
                                                         />
                                                     ) : (
                                                         <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#cbd5e1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px' }}>
-                                                            {userItem.name?.charAt(0).toUpperCase()}
+                                                            {userItem.avatar ? userItem.avatar : userItem.name?.charAt(0).toUpperCase()}
                                                         </div>
                                                     )}
                                                 </td>

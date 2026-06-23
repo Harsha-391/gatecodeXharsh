@@ -944,9 +944,9 @@ const CentralAdminDashboard = () => {
                                                 {hospitalStats.staffList.map(u => (
                                                     <tr key={u._id}>
                                                         <td><div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                                            {u.avatar
+                                                            {u.avatar && (u.avatar.startsWith('http') || u.avatar.startsWith('data:'))
                                                                 ? <img src={u.avatar} alt={u.name} style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover' }} />
-                                                                : <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#e0f7fa', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: '#06b6d4' }}>{u.name?.charAt(0)?.toUpperCase()}</div>
+                                                                : <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#e0f7fa', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: '#06b6d4' }}>{u.avatar ? u.avatar : u.name?.charAt(0)?.toUpperCase()}</div>
                                                             }
                                                             {u.name}
                                                         </div></td>
@@ -1372,7 +1372,7 @@ const CentralAdminDashboard = () => {
                                 <div className="loading-message">Loading staff...</div>
                             ) : filteredStaff.length === 0 ? (
                                 <div className="ca-empty"><p>No staff found{staffHospitalFilter ? ' for this hospital' : ''}.</p></div>
-                            ) : (
+                                ) : (
                                 <div className="users-table">
                                     <table>
                                         <thead>
@@ -1383,9 +1383,9 @@ const CentralAdminDashboard = () => {
                                         <tbody>
                                             {filteredStaff.map(u => (
                                                 <tr key={u.id || u._id}>
-                                                    <td>{u.avatar
+                                                    <td>{u.avatar && (u.avatar.startsWith('http') || u.avatar.startsWith('data:'))
                                                         ? <img src={u.avatar} alt={u.name} style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover' }} />
-                                                        : <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#e0f7fa', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: '#06b6d4', fontSize: '14px' }}>{u.name?.charAt(0)?.toUpperCase()}</div>
+                                                        : <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#e0f7fa', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: '#06b6d4', fontSize: '14px' }}>{u.avatar ? u.avatar : u.name?.charAt(0)?.toUpperCase()}</div>
                                                     }</td>
                                                     <td style={{ fontWeight: 500 }}>{u.name}</td>
                                                     <td>

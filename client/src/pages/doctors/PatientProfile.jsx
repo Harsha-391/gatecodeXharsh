@@ -498,10 +498,10 @@ const PatientProfile = () => {
                 {/* Identity Card */}
                 <div style={C.idCard}>
                     <div style={C.avatar}>
-                        {patient.avatar ? (
+                        {patient.avatar && (patient.avatar.startsWith('http') || patient.avatar.startsWith('data:')) ? (
                             <img src={patient.avatar} alt={patient.name} style={{ width: '100%', height: '100%', borderRadius: '20px', objectFit: 'cover' }} />
                         ) : (
-                            (patient.name || 'P')[0].toUpperCase()
+                            <span style={{ fontSize: '2.2rem' }}>{patient.avatar ? patient.avatar : (patient.name || 'P')[0].toUpperCase()}</span>
                         )}
                     </div>
                     <div style={C.idInfo}>

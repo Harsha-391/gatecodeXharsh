@@ -1138,7 +1138,13 @@ const AdminDoctors = () => {
                                     <tr key={doctor._id}>
                                         <td>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                <span>{doctor.image}</span>
+                                                <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #bfdbfe', overflow: 'hidden', flexShrink: 0 }}>
+                                                    {doctor.image && (doctor.image.startsWith('http') || doctor.image.startsWith('data:')) ? (
+                                                        <img src={doctor.image} alt={doctor.name || 'Doctor'} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                    ) : (
+                                                        <span style={{ fontSize: '18px' }}>{doctor.image || '👨‍⚕️'}</span>
+                                                    )}
+                                                </div>
                                                 {/* FALLBACK: If doctor.name is empty, use userId.name */}
                                                 <strong>{doctor.name || doctor.userId?.name || 'Unknown Name'}</strong>
                                             </div>

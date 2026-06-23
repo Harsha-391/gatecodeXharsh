@@ -6,6 +6,7 @@ const { getTenantModels } = require('../db/tenantModels');
 const MasterAppointment = require('../models/appointment.model');
 const Doctor = require('../models/doctor.model');
 const MasterUser = require('../models/user.model'); // Need User model to update profile
+const MasterHospitalPatient = require('../models/hospitalPatient.model');
 const Lab = require('../models/lab.model');
 const MasterLabReport = require('../models/labReport.model');
 const MasterInventory = require('../models/inventory.model');
@@ -24,7 +25,9 @@ const getModels = (req) => {
             User: m.User,
             LabReport: m.LabReport,
             PharmacyOrder: m.PharmacyOrder,
-            Inventory: m.Inventory
+            Inventory: m.Inventory,
+            HospitalPatient: m.HospitalPatient,
+            LabTest: m.LabTest
         };
     }
     return {
@@ -32,7 +35,9 @@ const getModels = (req) => {
         User: MasterUser,
         LabReport: MasterLabReport,
         PharmacyOrder: MasterPharmacyOrder,
-        Inventory: MasterInventory
+        Inventory: MasterInventory,
+        HospitalPatient: MasterHospitalPatient,
+        LabTest: require('../models/labTest.model')
     };
 };
 
@@ -156,10 +161,10 @@ router.get('/patients/:patientId/full-profile', verifyToken, resolveTenant, asyn
         const { patientId } = req.params;
         const hid = req.user.hospitalId;
 
-        const { User, Appointment, LabReport, PharmacyOrder } = getModels(req);
+        const { HospitalPatient, Appointment, LabReport, PharmacyOrder } = getModels(req);
 
         // Get patient info — allow finding globally since patient is already authenticated/linked via appointments
-        const patient = await User.findById(patientId).lean();
+        const patient = await HospitalPatient.findById(patientId).lean();
         if (!patient) return res.status(404).json({ success: false, message: 'Patient not found' });
 
         // Scope all sub-queries to hospital (allowing fallback to global/unassigned reports)
@@ -219,8 +224,8 @@ router.put('/patients/:patientId/profile', verifyToken, resolveTenant, async (re
         const findQuery = { _id: patientId };
         if (hospitalId) findQuery.hospitalId = hospitalId;
 
-        const { User } = getModels(req);
-        const user = await User.findOne(findQuery);
+        const { HospitalPatient } = getModels(req);
+        const user = await HospitalPatient.findOne(findQuery);
         if (!user) return res.status(404).json({ message: 'Patient not found' });
 
         // Merge existing profile with updates
@@ -229,7 +234,7 @@ router.put('/patients/:patientId/profile', verifyToken, resolveTenant, async (re
 
         // If req.tenantDb is present, this updated the tenant user. We also update the master user!
         if (req.tenantDb) {
-            const masterUser = await MasterUser.findById(patientId);
+            const masterUser = await MasterHospitalPatient.findById(patientId);
             if (masterUser) {
                 masterUser.fertilityProfile = { ...masterUser.fertilityProfile, ...updates };
                 await masterUser.save();
@@ -434,7 +439,7 @@ router.get('/all-appointments', verifyToken, resolveTenant, async (req, res) => 
 // 6. UPDATE Session (Notes)
 router.patch('/appointments/:id/prescription', verifyToken, resolveTenant, upload.single('prescriptionFile'), async (req, res) => {
     try {
-        const { Appointment, User, LabReport, PharmacyOrder, Inventory } = getModels(req);
+        const { Appointment, User, HospitalPatient, LabReport, PharmacyOrder, Inventory } = getModels(req);
         let uploadedFileEntry = null;
         if (req.file) {
             const typeErr = await validateFileType(req.file, ['image/jpeg', 'image/png', 'application/pdf']);
@@ -595,7 +600,7 @@ router.patch('/appointments/:id/prescription', verifyToken, resolveTenant, uploa
         let pId = appointment.patientId;
         let pName = 'Patient';
         if (appointment.userId) {
-            const pUser = await User.findById(appointment.userId);
+            const pUser = await HospitalPatient.findById(appointment.userId);
             if (pUser) {
                 pId = pUser.patientId || pId;
                 pName = pUser.name || pName;
@@ -606,19 +611,24 @@ router.patch('/appointments/:id/prescription', verifyToken, resolveTenant, uploa
             let reportId;
             
             // Dynamically calculate total amount for these lab tests
-            const LabTest = require('../models/labTest.model');
+            const { LabTest } = getModels(req);
+            const isTenant = !!req.tenantDb;
             const allTests = await LabTest.find();
             let totalAmount = 0;
             const hidStr = (req.user.hospitalId || appointment.hospitalId || '').toString();
             (appointment.labTests || []).forEach(testName => {
                 const testObj = allTests.find(t => t.name.trim().toLowerCase() === testName.trim().toLowerCase());
                 if (testObj) {
-                    if (hidStr && testObj.hospitalPrices && testObj.hospitalPrices.has && testObj.hospitalPrices.has(hidStr)) {
-                        totalAmount += testObj.hospitalPrices.get(hidStr) || 0;
-                    } else if (hidStr && testObj.hospitalPrices && typeof testObj.hospitalPrices === 'object' && testObj.hospitalPrices[hidStr]) {
-                        totalAmount += testObj.hospitalPrices[hidStr];
-                    } else {
+                    if (isTenant) {
                         totalAmount += testObj.price || 0;
+                    } else {
+                        if (hidStr && testObj.hospitalPrices && testObj.hospitalPrices.has && testObj.hospitalPrices.has(hidStr)) {
+                            totalAmount += testObj.hospitalPrices.get(hidStr) || 0;
+                        } else if (hidStr && testObj.hospitalPrices && typeof testObj.hospitalPrices === 'object' && testObj.hospitalPrices[hidStr]) {
+                            totalAmount += testObj.hospitalPrices[hidStr];
+                        } else {
+                            totalAmount += testObj.price || 0;
+                        }
                     }
                 }
             });
@@ -863,7 +873,7 @@ router.post('/appointments/:id/recommend-admission', verifyToken, resolveTenant,
     try {
         const { notes, priority, requestedDepartment } = req.body;
         const appointmentId = req.params.id;
-        const { Appointment, User } = getModels(req);
+        const { Appointment, User, HospitalPatient } = getModels(req);
 
         const findQuery = { _id: appointmentId };
         if (req.user.hospitalId) findQuery.hospitalId = req.user.hospitalId;
@@ -908,7 +918,7 @@ router.post('/appointments/:id/recommend-admission', verifyToken, resolveTenant,
         let pName = 'Patient';
         let pPhone = '';
         if (appointment.userId) {
-            const pUser = await User.findById(appointment.userId);
+            const pUser = await HospitalPatient.findById(appointment.userId);
             if (pUser) {
                 pId = pUser.patientId || pId;
                 pName = pUser.name || pName;
@@ -1006,7 +1016,7 @@ router.post('/appointments/:id/recommend-admission', verifyToken, resolveTenant,
 router.delete('/appointments/:id/recommend-admission', verifyToken, resolveTenant, async (req, res) => {
     try {
         const appointmentId = req.params.id;
-        const { Appointment, User } = getModels(req);
+        const { Appointment, User, HospitalPatient } = getModels(req);
 
         const findQuery = { _id: appointmentId };
         if (req.user.hospitalId) findQuery.hospitalId = req.user.hospitalId;
@@ -1063,7 +1073,7 @@ router.delete('/appointments/:id/recommend-admission', verifyToken, resolveTenan
         let pId = appointment.patientId || 'N/A';
         let pName = 'Patient';
         if (appointment.userId) {
-            const pUser = await User.findById(appointment.userId);
+            const pUser = await HospitalPatient.findById(appointment.userId);
             if (pUser) {
                 pId = pUser.patientId || pId;
                 pName = pUser.name || pName;

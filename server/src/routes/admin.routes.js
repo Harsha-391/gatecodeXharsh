@@ -687,15 +687,43 @@ router.put('/users/:userId', verifyAdminOrSuperAdmin, auditLog('USER_UPDATE', (r
                 newRoleName = 'hospitaladmin';
                 roleChanged = true;
             } else {
-                const roleDoc = await Role.findById(roleId);
-                if (!roleDoc) return res.status(400).json({ success: false, message: 'Invalid role' });
-                user.role = roleId;
-                newRoleName = roleDoc.name.toLowerCase();
+                let roleDoc = null;
+                if (mongoose.Types.ObjectId.isValid(roleId)) {
+                    roleDoc = await Role.findById(roleId);
+                }
+                if (!roleDoc) {
+                    // Try finding by name scoped to hospital
+                    const query = { name: { $regex: new RegExp(`^${roleId}$`, 'i') } };
+                    if (user.hospitalId) query.hospitalId = user.hospitalId;
+                    roleDoc = await Role.findOne(query);
+                }
+                if (!roleDoc) {
+                    // Fallback to checking system role strings
+                    const systemRoleStrings = ['doctor', 'receptionist', 'pharmacist', 'lab technician', 'reception', 'lab', 'pharmacy', 'nurse'];
+                    if (systemRoleStrings.includes(String(roleId).toLowerCase())) {
+                        newRoleName = String(roleId).toLowerCase();
+                        user.role = roleId;
+                    } else {
+                        return res.status(400).json({ success: false, message: 'Invalid role' });
+                    }
+                } else {
+                    newRoleName = roleDoc.name.toLowerCase();
+                    user.role = roleDoc._id; // update to ObjectId if found
+                }
                 roleChanged = true;
             }
         } else if (user.role && !['centraladmin', 'superadmin', 'hospitaladmin'].includes(user.role)) {
-            const roleDoc = await Role.findById(user.role);
-            newRoleName = roleDoc ? roleDoc.name.toLowerCase() : null;
+            let roleDoc = null;
+            if (mongoose.Types.ObjectId.isValid(user.role)) {
+                roleDoc = await Role.findById(user.role);
+            }
+            if (!roleDoc) {
+                // Try finding by name scoped to hospital
+                const query = { name: { $regex: new RegExp(`^${user.role}$`, 'i') } };
+                if (user.hospitalId) query.hospitalId = user.hospitalId;
+                roleDoc = await Role.findOne(query);
+            }
+            newRoleName = roleDoc ? roleDoc.name.toLowerCase() : String(user.role).toLowerCase();
         } else if (user.role === 'hospitaladmin') {
             newRoleName = 'hospitaladmin';
         }

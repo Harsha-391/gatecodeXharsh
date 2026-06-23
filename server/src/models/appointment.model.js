@@ -31,6 +31,8 @@ const appointmentSchema = new mongoose.Schema({
     patientEmail: { type: String, default: '' },
     patientGender: { type: String, default: '' },
     patientDob: { type: Date, default: null },
+    parentName: { type: String, default: '' },
+    parentPhone: { type: String, default: '' },
     hospitalId: { type: mongoose.Schema.Types.ObjectId, ref: 'Hospital', index: true },
 
     doctorId: {

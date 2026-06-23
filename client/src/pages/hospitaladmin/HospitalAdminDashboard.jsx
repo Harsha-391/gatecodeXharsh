@@ -593,11 +593,11 @@ const HospitalAdminDashboard = () => {
                                 <div style={{ flexShrink: 0 }}>
                                     {profileFile ? (
                                         <img src={URL.createObjectURL(profileFile)} alt="Preview" style={{ width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover', border: '3px solid var(--brand-500, #14b8a6)' }} />
-                                    ) : currentUser?.avatar ? (
+                                    ) : currentUser?.avatar && (currentUser.avatar.startsWith('http') || currentUser.avatar.startsWith('data:')) ? (
                                         <img src={currentUser.avatar} alt={currentUser.name} style={{ width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover', border: '3px solid var(--brand-500, #14b8a6)' }} />
                                     ) : (
                                         <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: '#e0e7ff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px', fontWeight: 700, color: '#6366f1', border: '3px solid #c7d2fe' }}>
-                                            {(currentUser?.name || 'A').charAt(0).toUpperCase()}
+                                            {currentUser?.avatar ? currentUser.avatar : (currentUser?.name || 'A').charAt(0).toUpperCase()}
                                         </div>
                                     )}
                                 </div>
@@ -760,11 +760,11 @@ const HospitalAdminDashboard = () => {
                                                 return (
                                                     <tr key={userItem.id || userItem._id}>
                                                         <td>
-                                                            {userItem.avatar ? (
+                                                            {userItem.avatar && (userItem.avatar.startsWith('http') || userItem.avatar.startsWith('data:')) ? (
                                                                 <img src={userItem.avatar} alt={userItem.name} style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover' }} />
                                                             ) : (
                                                                 <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#cbd5e1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px' }}>
-                                                                    {userItem.name?.charAt(0).toUpperCase()}
+                                                                    {userItem.avatar ? userItem.avatar : userItem.name?.charAt(0).toUpperCase()}
                                                                 </div>
                                                             )}
                                                         </td>

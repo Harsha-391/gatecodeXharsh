@@ -1,51 +1,56 @@
-require('dotenv').config();
+require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
 const mongoose = require('mongoose');
-const MONGO_URI = process.env.MONGODB_URL;
 
-async function main() {
-    try {
-        console.log('Connecting to master MongoDB...');
-        await mongoose.connect(MONGO_URI);
-        const db = mongoose.connection.db;
+// Configure standard DNS resolvers to prevent ECONNREFUSED issues on Windows
+const dns = require('dns');
+try {
+    dns.setServers(['8.8.8.8', '1.1.1.1']);
+} catch (_) {}
 
-        // 1. Get hospitals list
-        console.log('\n--- HOSPITALS IN MASTER DB ---');
-        const hospitals = await db.collection('hospitals').find({}).toArray();
-        hospitals.forEach(h => {
-            console.log(`Hospital ID: ${h._id}, Name: ${h.name}, Slug: ${h.slug}, AdminUserId: ${h.adminUserId}`);
-        });
+const MasterHospitalPatient = require('../src/models/hospitalPatient.model');
+const MasterUser = require('../src/models/user.model');
+const { getTenantConnection } = require('../src/db/tenantDb');
+const { getTenantModels } = require('../src/db/tenantModels');
 
-        // 2. Count collections in Master DB
-        console.log('\n--- MASTER DB COLLECTIONS AND COUNTS ---');
-        const masterCols = await db.listCollections().toArray();
-        for (const col of masterCols) {
-            const count = await db.collection(col.name).countDocuments({});
-            console.log(` - ${col.name}: ${count}`);
+async function inspect() {
+    const mongoUrl = process.env.MONGODB_URL || 'mongodb+srv://jabbamaster00_db_user:lvdtPEPM0i8hRCuh@cluster0.w01dnsr.mongodb.net/';
+    await mongoose.connect(mongoUrl);
+
+    const name = 'Raj Kumar Rao';
+
+    console.log('=== MASTER DATABASE ===');
+    const masterHospitalPatient = await MasterHospitalPatient.findOne({ name }).lean();
+    console.log('Master HospitalPatient found:', masterHospitalPatient ? 'YES' : 'NO');
+    if (masterHospitalPatient) console.log(masterHospitalPatient);
+
+    const masterUser = await MasterUser.findOne({ name }).lean();
+    console.log('Master User found:', masterUser ? 'YES' : 'NO');
+    if (masterUser) console.log(masterUser);
+
+    console.log('\n=== TENANT DATABASE ===');
+    const hospitalId = '6a200269d01a91451fefb80d';
+    const tenantDb = await getTenantConnection(hospitalId);
+    if (tenantDb) {
+        const collections = await tenantDb.db.listCollections().toArray();
+        console.log('Tenant Collections list:', collections.map(c => c.name));
+
+        const TenantHospitalPatient = getTenantModels(tenantDb).HospitalPatient;
+        const tenantHospitalPatient = await TenantHospitalPatient.findOne({ name }).lean();
+        console.log('Tenant HospitalPatient found:', tenantHospitalPatient ? 'YES' : 'NO');
+        if (tenantHospitalPatient) console.log(tenantHospitalPatient);
+
+        // Also check clinicpatients collection
+        try {
+            const clinicPatientsColl = tenantDb.collection('clinicpatients');
+            const cp = await clinicPatientsColl.findOne({ name });
+            console.log('Tenant clinicpatients collection search:', cp ? 'YES' : 'NO');
+            if (cp) console.log(cp);
+        } catch (e) {
+            console.error('Error querying clinicpatients in tenant DB:', e.message);
         }
-
-        // 3. Inspect tenant databases
-        const adminDb = mongoose.connection.client.db().admin();
-        const dbsInfo = await adminDb.listDatabases();
-        for (const d of dbsInfo.databases) {
-            if (d.name.startsWith('hms_hospital_') || d.name.includes('hospital')) {
-                console.log(`\n==================================================`);
-                console.log(`TENANT DATABASE: ${d.name}`);
-                console.log(`==================================================`);
-                const tenantDb = mongoose.connection.client.db(d.name);
-                const tenantCols = await tenantDb.listCollections().toArray();
-                for (const col of tenantCols) {
-                    const count = await tenantDb.collection(col.name).countDocuments({});
-                    console.log(` - ${col.name}: ${count}`);
-                }
-            }
-        }
-
-    } catch (err) {
-        console.error('Error:', err);
-    } finally {
-        await mongoose.disconnect();
-        console.log('\nDisconnected.');
     }
+
+    await mongoose.disconnect();
 }
 
-main();
+inspect().catch(console.error);

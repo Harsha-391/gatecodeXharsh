@@ -49,7 +49,7 @@ const getModels = (req) => {
         const tenantModels = getTenantModels(req.tenantDb);
         return {
             ...tenantModels,
-            LabTest: MasterLabTest, // Always use master LabTest schema
+            LabTest: tenantModels.LabTest,
         };
     }
     return {
@@ -174,13 +174,14 @@ router.get('/patient/:identifier', verifyBillingAccess, async (req, res) => {
         // Heal and calculate pricing for lab reports dynamically
         const allLabTests = await LabTest.find({}).lean();
         const hospitalIdStr = req.user.hospitalId ? req.user.hospitalId.toString() : null;
+        const isTenant = !!req.tenantDb;
 
         // Map test name to its price for fast lookup
         const testPriceMap = {};
         allLabTests.forEach(t => {
             const nameKey = t.name.trim().toLowerCase();
             let effectivePrice = t.price;
-            if (hospitalIdStr && t.hospitalPrices) {
+            if (!isTenant && hospitalIdStr && t.hospitalPrices) {
                 const hPrice = t.hospitalPrices[hospitalIdStr] || t.hospitalPrices.get?.(hospitalIdStr);
                 if (hPrice !== undefined && hPrice !== null) {
                     effectivePrice = hPrice;

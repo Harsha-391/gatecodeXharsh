@@ -173,6 +173,8 @@ router.post('/register', verifyToken, verifyReception, async (req, res) => {
                 patientEmail: newUser.email || '',
                 patientGender: newUser.gender || 'Male',
                 patientDob: newUser.dob ? new Date(newUser.dob) : null,
+                parentName: newUser.parentName || '',
+                parentPhone: newUser.parentPhone || '',
                 hospitalId: req.user.hospitalId || undefined,
                 doctorName: 'Pending Assignment',
                 appointmentDate: new Date(),
@@ -506,6 +508,8 @@ router.patch('/appointments/:id/reschedule', verifyToken, verifyReception, async
             patientEmail: appt.patientEmail || '',
             patientGender: appt.patientGender || 'Male',
             patientDob: appt.patientDob || null,
+            parentName: appt.parentName || '',
+            parentPhone: appt.parentPhone || '',
             hospitalId: appt.hospitalId || req.user.hospitalId,
             doctorId: finalDoctorId,
             doctorUserId: finalDoctorUserId,
@@ -722,6 +726,8 @@ router.post('/book-appointment', verifyToken, verifyReception, async (req, res) 
             patientEmail: patient.email || '',
             patientGender: patient.gender || 'Male',
             patientDob: patient.dob ? new Date(patient.dob) : null,
+            parentName: patient.parentName || '',
+            parentPhone: patient.parentPhone || '',
             doctorId: doctor._id,
             doctorUserId: doctor.userId,
             doctorName: doctor.name,
@@ -822,6 +828,9 @@ router.post('/book-appointment', verifyToken, verifyReception, async (req, res) 
 
     } catch (error) {
         console.error("Reception Booking Error:", error);
+        if (error.code === 11000) {
+            return res.status(400).json({ success: false, message: 'This slot is already booked for this doctor at this time. Please select another slot.' });
+        }
         res.status(500).json({ success: false, message: 'An internal error occurred' });
     }
 });

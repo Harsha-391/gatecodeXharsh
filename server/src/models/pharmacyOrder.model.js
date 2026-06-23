@@ -9,7 +9,7 @@ const pharmacyOrderSchema = new mongoose.Schema({
     patientId: { type: String, required: true },
     userId: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
+        ref: 'HospitalPatient',
         required: true
     },
     doctorId: {

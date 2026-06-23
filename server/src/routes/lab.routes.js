@@ -16,13 +16,17 @@ const getModels = (req) => {
         return {
             LabReport: m.LabReport,
             Appointment: m.Appointment,
-            User: m.User
+            User: m.User,
+            HospitalPatient: m.HospitalPatient,
+            LabTest: m.LabTest
         };
     }
     return {
         LabReport: require('../models/labReport.model'),
         Appointment: require('../models/appointment.model'),
-        User: require('../models/user.model')
+        User: require('../models/user.model'),
+        HospitalPatient: require('../models/hospitalPatient.model'),
+        LabTest: require('../models/labTest.model')
     };
 };
 
@@ -130,7 +134,8 @@ router.get('/stats', verifyToken, resolveTenant, verifyLab, async (req, res) => 
             $or: [{ status: { $in: ['Report Ready', 'Completed'] } }, { status: { $exists: false }, reportStatus: 'UPLOADED' }]
         });
         
-        const LabTest = require('../models/labTest.model');
+        const { LabTest } = getModels(req);
+        const isTenant = !!req.tenantDb;
         const allTests = await LabTest.find();
         
         let revenue = 0;
@@ -141,13 +146,17 @@ router.get('/stats', verifyToken, resolveTenant, verifyLab, async (req, res) => 
                 (report.testNames || []).forEach(testName => {
                     const testObj = allTests.find(t => t.name.trim().toLowerCase() === testName.trim().toLowerCase());
                     if (testObj) {
-                        const hospitalStrId = hid ? hid.toString() : null;
-                        if (hospitalStrId && testObj.hospitalPrices && testObj.hospitalPrices.has && testObj.hospitalPrices.has(hospitalStrId)) {
-                            revenue += testObj.hospitalPrices.get(hospitalStrId) || 0;
-                        } else if (hospitalStrId && testObj.hospitalPrices && typeof testObj.hospitalPrices === 'object' && testObj.hospitalPrices[hospitalStrId]) {
-                            revenue += testObj.hospitalPrices[hospitalStrId];
-                        } else {
+                        if (isTenant) {
                             revenue += testObj.price || 0;
+                        } else {
+                            const hospitalStrId = hid ? hid.toString() : null;
+                            if (hospitalStrId && testObj.hospitalPrices && testObj.hospitalPrices.has && testObj.hospitalPrices.has(hospitalStrId)) {
+                                revenue += testObj.hospitalPrices.get(hospitalStrId) || 0;
+                            } else if (hospitalStrId && testObj.hospitalPrices && typeof testObj.hospitalPrices === 'object' && testObj.hospitalPrices[hospitalStrId]) {
+                                revenue += testObj.hospitalPrices[hospitalStrId];
+                            } else {
+                                revenue += testObj.price || 0;
+                            }
                         }
                     } else {
                         revenue += 500; // Fallback if test no longer exists
@@ -212,7 +221,7 @@ router.get('/my-reports', verifyToken, resolveTenant, verifyLabOrReportsView, as
 // 2. GET ASSIGNED REQUESTS (Pending or All)
 router.get('/requests', verifyToken, resolveTenant, verifyLabOrReportsView, async (req, res) => {
     try {
-        const { LabReport, User } = getModels(req);
+        const { LabReport, User, HospitalPatient } = getModels(req);
         const { status, search } = req.query;
         const hid = req.user.hospitalId;
         const hospitalFilter = hid ? { hospitalId: hid } : {};
@@ -259,7 +268,7 @@ router.get('/requests', verifyToken, resolveTenant, verifyLabOrReportsView, asyn
                 ]
             };
             if (hid) userQuery.hospitalId = hid;
-            const users = await User.find(userQuery).select('_id');
+            const users = await HospitalPatient.find(userQuery).select('_id');
             const userIds = users.map(u => u._id);
 
             const searchConditions = [
@@ -405,7 +414,7 @@ router.post('/upload-report/:reportId', verifyToken, resolveTenant, verifyLab, u
 // 4. CREATE A NEW LAB TEST MANUALLY (Walk-in/Manual report creation)
 router.post('/create', verifyToken, resolveTenant, verifyLab, upload.single('reportFile'), auditLog('CREATE_PRESCRIPTION', null, { dataCategory: 'PHI' }), async (req, res) => {
     try {
-        const { LabReport, User } = getModels(req);
+        const { LabReport, HospitalPatient } = getModels(req);
         const { patientId, testNames, amount, notes, paymentStatus, paymentMode, doctorId } = req.body;
 
         if (!patientId) {
@@ -416,7 +425,7 @@ router.post('/create', verifyToken, resolveTenant, verifyLab, upload.single('rep
         }
 
         const searchTerm = patientId.trim();
-        const patientUser = await User.findOne({
+        const patientUser = await HospitalPatient.findOne({
             $or: [
                 { patientId: searchTerm.toUpperCase() },
                 { name: { $regex: new RegExp('^' + searchTerm + '$', 'i') } }

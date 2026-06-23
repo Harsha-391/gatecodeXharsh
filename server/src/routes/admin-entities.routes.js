@@ -477,6 +477,7 @@ router.post('/labs', verifyAdminOrSuperAdmin, async (req, res) => {
     }
 
     const lab = new Lab({
+      userId: user._id,
       name,
       email: email.toLowerCase(),
       phone: phone || '',
@@ -631,6 +632,7 @@ router.post('/pharmacies', verifyAdminOrSuperAdmin, async (req, res) => {
     }
 
     const pharmacy = new Pharmacy({
+      userId: user._id,
       name,
       email: email.toLowerCase(),
       phone: phone || '',

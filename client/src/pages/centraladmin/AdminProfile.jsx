@@ -146,10 +146,10 @@ const AdminProfile = () => {
                     <div className="profile-summary-card">
                         <div className="avatar-upload-container">
                             <div className="profile-summary-avatar">
-                                {formData.avatar ? (
+                                {formData.avatar && (formData.avatar.startsWith('http') || formData.avatar.startsWith('data:')) ? (
                                     <img src={formData.avatar} alt={formData.name} />
                                 ) : (
-                                    <span className="avatar-initials">{getInitials(formData.name)}</span>
+                                    <span className="avatar-initials">{formData.avatar ? formData.avatar : getInitials(formData.name)}</span>
                                 )}
                             </div>
                             <button type="button" className="avatar-upload-btn" onClick={handleAvatarUploadMock}>

@@ -341,7 +341,27 @@ const AdminLabs = () => {
               </div>
 
               <div className="form-group">
-                <label>Availability</label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <label style={{ margin: 0 }}>Availability</label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.9rem', cursor: 'pointer', fontWeight: 500, whiteSpace: 'nowrap' }}>
+                    <input
+                      type="checkbox"
+                      checked={days.every(day => formData.availability[day]?.available)}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        const newAvail = { ...formData.availability };
+                        days.forEach(day => {
+                          newAvail[day] = {
+                            ...newAvail[day],
+                            available: checked
+                          };
+                        });
+                        setFormData({ ...formData, availability: newAvail });
+                      }}
+                    />
+                    Select All Days
+                  </label>
+                </div>
                 <div className="availability-grid">
                   {days.map(day => (
                     <div key={day} className="availability-day">

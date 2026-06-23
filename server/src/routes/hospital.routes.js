@@ -16,10 +16,20 @@ const QuestionLibrary = require('../models/questionLibrary.model');
 const jwt = require('jsonwebtoken');
 const { verifyToken } = require('../middleware/auth.middleware');
 const { getTenantConnection, getTenantDbName, getActiveConnections, removeTenantConnection } = require('../db/tenantDb');
+const { resolveTenant } = require('../middleware/tenantMiddleware');
+const { getTenantModels } = require('../db/tenantModels');
 
 const { JWT_SECRET } = require('../config/jwt');
 const auditLog = require('../middleware/audit.middleware');
 const validatePassword = require('../utils/validatePassword');
+
+const getModels = (req) => {
+    if (req.tenantDb) {
+        const m = getTenantModels(req.tenantDb);
+        return { LabTest: m.LabTest };
+    }
+    return { LabTest: require('../models/labTest.model') };
+};
 
 /**
  * Central Admin middleware — only 'centraladmin' (or legacy 'superadmin') can access
@@ -295,7 +305,28 @@ router.post('/', verifyCentralAdmin, auditLog('HOSPITAL_UPDATE', null, { severit
                 _type: 'tenant_init',
             });
 
-            console.log(`✅ Tenant DB created and seeded: ${dbName}`);
+            // Seed default lab tests for this hospital tenant database
+            const { LabTest: TenantLabTest } = getTenantModels(tenantConn);
+            const dummyTests = [
+                { name: 'Complete Blood Count (CBC)', code: 'CBC', category: 'Hematology', price: 350, description: 'Measures red and white blood cells, platelets, and hemoglobin. Useful for checking anemia and infection. No fasting required.' },
+                { name: 'Lipid Profile', code: 'LIPID', category: 'Biochemistry', price: 600, description: 'Measures total cholesterol, HDL, LDL, and triglycerides. Fasting of 10-12 hours is strictly required.' },
+                { name: 'Liver Function Test (LFT)', code: 'LFT', category: 'Biochemistry', price: 750, description: 'Evaluates protein, bilirubin, and liver enzymes (SGOT, SGPT, ALP) in the blood to assess liver health.' },
+                { name: 'Kidney Function Test (KFT)', code: 'KFT', category: 'Biochemistry', price: 700, description: 'Tests blood levels of urea, creatinine, uric acid, and electrolytes to check how well kidneys filter waste.' },
+                { name: 'Thyroid Profile (T3, T4, TSH)', code: 'THYROID', category: 'Endocrinology', price: 850, description: 'Screening test for hyperthyroidism and hypothyroidism. TSH is highly sensitive.' },
+                { name: 'HbA1c (Glycated Hemoglobin)', code: 'HBA1C', category: 'Diabetology', price: 450, description: 'Reflects your average blood sugar levels over the past 3 months. Essential for diabetes management. No fasting required.' },
+                { name: 'Blood Glucose (Fasting & PP)', code: 'GLUCOSE', category: 'Diabetology', price: 150, description: 'Measures glucose levels before and 2 hours after a meal. Used to diagnose and monitor diabetes.' },
+                { name: 'Urine Routine & Microscopy', code: 'URINE', category: 'Pathology', price: 200, description: 'Analysis of urine sample for color, pH, protein, glucose, and microscopic elements like cells or bacteria.' },
+                { name: 'Vitamin D3 (25-Hydroxy)', code: 'VITD3', category: 'Vitamins', price: 1200, description: 'Measures levels of Vitamin D to assess bone strength, calcium absorption, and immune function.' },
+                { name: 'Vitamin B12', code: 'VITB12', category: 'Vitamins', price: 900, description: 'Measures Vitamin B12 levels. Vital for nerve health and red blood cell production.' },
+                { name: 'Iron Profile', code: 'IRON', category: 'Hematology', price: 800, description: 'Measures serum iron, ferritin, and total iron-binding capacity (TIBC) to diagnose iron-deficiency anemia.' },
+                { name: 'Electrolytes Panel', code: 'ELECTROLYTES', category: 'Biochemistry', price: 400, description: 'Measures blood sodium, potassium, and chloride levels. Vital for nerve and muscle function.' },
+                { name: 'Dengue NS1 Antigen & Antibody', code: 'DENGUE', category: 'Serology', price: 1100, description: 'Rapid antigen and antibody test for early detection of Dengue viral infection.' },
+                { name: 'Widal Test (Typhoid)', code: 'WIDAL', category: 'Serology', price: 300, description: 'Slide agglutination test to screen for enteric fever (Typhoid).' },
+                { name: 'C-Reactive Protein (CRP)', code: 'CRP', category: 'Immunology', price: 450, description: 'Measures general level of inflammation in the body. Useful in diagnosing infectious or chronic inflammatory conditions.' }
+            ];
+            await TenantLabTest.insertMany(dummyTests.map(t => ({ ...t, hospitalId: hospital._id, isActive: true })));
+
+            console.log(`✅ Tenant DB created and seeded with meta & default lab tests: ${dbName}`);
         } catch (dbErr) {
             // Non-fatal: hospital is created, DB will be provisioned on first login
             console.warn(`⚠️  Could not pre-provision tenant DB for ${hospital.name}:`, dbErr.message);
@@ -923,22 +954,32 @@ router.delete('/my-hospital/inventory/:id', verifyHospitalAdmin, async (req, res
 // ==========================================
 
 // GET lab tests with hospital prices (global + hospital-specific)
-router.get('/my-hospital/lab-tests', verifyHospitalAdmin, async (req, res) => {
+router.get('/my-hospital/lab-tests', verifyHospitalAdmin, resolveTenant, async (req, res) => {
     try {
+        const { LabTest } = getModels(req);
+        const isTenant = !!req.tenantDb;
         const hospitalId = req.user.hospitalId;
         if (!hospitalId) return res.status(400).json({ success: false, message: 'No hospital linked' });
 
         const hid = hospitalId.toString();
-        const tests = await LabTest.find({
-            isActive: true,
-            $or: [{ hospitalId: null }, { hospitalId: hospitalId }]
-        }).sort({ name: 1 }).lean();
+        let query = { isActive: true };
+        if (!isTenant) {
+            query.$or = [{ hospitalId: null }, { hospitalId: hospitalId }];
+        }
+
+        const tests = await LabTest.find(query).sort({ name: 1 }).lean();
 
         tests.forEach(t => {
-            const hp = t.hospitalPrices && t.hospitalPrices[hid];
-            t.hospitalPrice = hp !== undefined ? hp : null;
-            t.effectivePrice = hp !== undefined ? hp : t.price;
-            t.isOwnTest = t.hospitalId ? t.hospitalId.toString() === hid : false;
+            if (isTenant) {
+                t.hospitalPrice = t.price;
+                t.effectivePrice = t.price;
+                t.isOwnTest = true;
+            } else {
+                const hp = t.hospitalPrices && t.hospitalPrices[hid];
+                t.hospitalPrice = hp !== undefined ? hp : null;
+                t.effectivePrice = hp !== undefined ? hp : t.price;
+                t.isOwnTest = t.hospitalId ? t.hospitalId.toString() === hid : false;
+            }
         });
         res.json({ success: true, data: tests });
     } catch (err) {
@@ -947,8 +988,10 @@ router.get('/my-hospital/lab-tests', verifyHospitalAdmin, async (req, res) => {
 });
 
 // SET hospital-specific lab test price
-router.put('/my-hospital/lab-tests/:testId/price', verifyHospitalAdmin, async (req, res) => {
+router.put('/my-hospital/lab-tests/:testId/price', verifyHospitalAdmin, resolveTenant, async (req, res) => {
     try {
+        const { LabTest } = getModels(req);
+        const isTenant = !!req.tenantDb;
         const hospitalId = req.user.hospitalId;
         if (!hospitalId) return res.status(400).json({ success: false, message: 'No hospital linked' });
 
@@ -956,10 +999,16 @@ router.put('/my-hospital/lab-tests/:testId/price', verifyHospitalAdmin, async (r
         const test = await LabTest.findById(req.params.testId);
         if (!test) return res.status(404).json({ success: false, message: 'Lab test not found' });
 
-        if (price === null || price === undefined || price === '') {
-            test.hospitalPrices.delete(hospitalId.toString());
-        } else {
+        if (isTenant) {
+            test.price = Number(price);
+            test.hospitalPrices = test.hospitalPrices || new Map();
             test.hospitalPrices.set(hospitalId.toString(), Number(price));
+        } else {
+            if (price === null || price === undefined || price === '') {
+                test.hospitalPrices.delete(hospitalId.toString());
+            } else {
+                test.hospitalPrices.set(hospitalId.toString(), Number(price));
+            }
         }
         await test.save();
         res.json({ success: true, message: 'Price updated', data: test });

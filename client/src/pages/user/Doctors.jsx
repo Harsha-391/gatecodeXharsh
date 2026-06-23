@@ -147,7 +147,7 @@ const Doctors = () => {
                   {/* Doctor Image */}
                   <div className="doctor-image-wrapper">
                     <div className="doctor-image">
-                      {doctor.image && doctor.image.startsWith('http') ? (
+                      {doctor.image && (doctor.image.startsWith('http') || doctor.image.startsWith('data:')) ? (
                          <img src={doctor.image} alt={doctor.name} />
                       ) : (
                          <span className="doctor-emoji">{doctor.image}</span>
