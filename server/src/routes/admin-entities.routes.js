@@ -32,13 +32,28 @@ function getHospitalFilter(req) {
 function getHospitalId(req) {
   const role = req.user ? req.user.role : null;
   const isCentral = role === 'centraladmin' || role === 'superadmin';
-  if (isCentral) return req.body.hospitalId || null;
+  if (isCentral) return req.body.hospitalId || req.query.hospitalId || null;
   return (req.user && req.user.hospitalId) || null;
+}
+
+async function getTenantEntities(req) {
+  const hospitalId = getHospitalId(req);
+  if (hospitalId) {
+    const { getTenantConnection } = require('../db/tenantDb');
+    const { getTenantModels } = require('../db/tenantModels');
+    const tenantDb = await getTenantConnection(String(hospitalId));
+    if (tenantDb) {
+      const m = getTenantModels(tenantDb);
+      return { Doctor: m.Doctor, Lab: m.Lab, Pharmacy: m.Pharmacy, Reception: m.Reception };
+    }
+  }
+  return { Doctor, Lab, Pharmacy, Reception };
 }
 
 // Create doctor
 router.post('/doctors', verifyAdminOrSuperAdmin, async (req, res) => {
   try {
+    const { Doctor, Lab, Pharmacy, Reception } = await getTenantEntities(req);
     console.log('CREATE DOCTOR REQ BODY:', req.body);
     const { 
       name, email, phone, specialty, experience, education, services, availability, 
@@ -166,7 +181,7 @@ router.post('/doctors', verifyAdminOrSuperAdmin, async (req, res) => {
     const { syncToTenant } = require('../utils/tenantSync');
     const hospitalId = getHospitalId(req);
     await syncToTenant('User', user, 'save', hospitalId);
-    await syncToTenant('Doctor', doctor, 'save', hospitalId);
+    
 
     // No automatic department addition to the hospital record to ensure strict Superadmin control
 
@@ -210,6 +225,7 @@ router.post('/doctors', verifyAdminOrSuperAdmin, async (req, res) => {
 // Get all doctors
 router.get('/doctors', verifyAdminOrSuperAdmin, async (req, res) => {
   try {
+    const { Doctor, Lab, Pharmacy, Reception } = await getTenantEntities(req);
     const filter = getHospitalFilter(req);
     const doctors = await Doctor.find(filter).populate('userId', 'name email phone role').sort({ createdAt: -1 });
     res.json({ success: true, doctors });
@@ -221,6 +237,7 @@ router.get('/doctors', verifyAdminOrSuperAdmin, async (req, res) => {
 // Get single doctor
 router.get('/doctors/:id', verifyAdminOrSuperAdmin, async (req, res) => {
   try {
+    const { Doctor, Lab, Pharmacy, Reception } = await getTenantEntities(req);
     const doctor = await Doctor.findById(req.params.id).populate('userId', 'name email phone role');
     if (!doctor) {
       return res.status(404).json({ success: false, message: 'Doctor not found' });
@@ -235,6 +252,7 @@ router.get('/doctors/:id', verifyAdminOrSuperAdmin, async (req, res) => {
 // Update doctor
 router.put('/doctors/:id', verifyAdminOrSuperAdmin, async (req, res) => {
   try {
+    const { Doctor, Lab, Pharmacy, Reception } = await getTenantEntities(req);
     const { 
       name, email, phone, specialty, experience, education, services, availability, 
       successRate, patientsCount, image, bio, consultationFee, departments,
@@ -381,7 +399,7 @@ router.put('/doctors/:id', verifyAdminOrSuperAdmin, async (req, res) => {
     }
 
     const { syncToTenant } = require('../utils/tenantSync');
-    await syncToTenant('Doctor', doctor, 'save', doctor.hospitalId);
+    
 
     const populatedDoctor = await Doctor.findById(doctor._id).populate('userId', 'name email phone role');
     res.json({ success: true, message: 'Doctor updated successfully', doctor: populatedDoctor });
@@ -394,6 +412,7 @@ router.put('/doctors/:id', verifyAdminOrSuperAdmin, async (req, res) => {
 // Delete doctor
 router.delete('/doctors/:id', verifyAdminOrSuperAdmin, async (req, res) => {
   try {
+    const { Doctor, Lab, Pharmacy, Reception } = await getTenantEntities(req);
     const doctor = await Doctor.findById(req.params.id);
     if (!doctor) {
       return res.status(404).json({ success: false, message: 'Doctor not found' });
@@ -409,7 +428,7 @@ router.delete('/doctors/:id', verifyAdminOrSuperAdmin, async (req, res) => {
       }
     }
 
-    await syncToTenant('Doctor', doctor, 'delete', doctor.hospitalId);
+    
     await Doctor.findByIdAndDelete(req.params.id);
     res.json({ success: true, message: 'Doctor deleted successfully' });
   } catch (error) {
@@ -421,6 +440,7 @@ router.delete('/doctors/:id', verifyAdminOrSuperAdmin, async (req, res) => {
 // Labs routes
 router.post('/labs', verifyAdminOrSuperAdmin, async (req, res) => {
   try {
+    const { Doctor, Lab, Pharmacy, Reception } = await getTenantEntities(req);
     const { name, email, phone, address, services, facilities, availability, description, password } = req.body;
 
     if (!name || !email) {
@@ -503,7 +523,7 @@ router.post('/labs', verifyAdminOrSuperAdmin, async (req, res) => {
     // Sync to tenant DB
     const { syncToTenant } = require('../utils/tenantSync');
     await syncToTenant('User', user, 'save', hospitalId);
-    await syncToTenant('Lab', lab, 'save', hospitalId);
+    
 
     res.status(201).json({
       success: true,
@@ -519,6 +539,7 @@ router.post('/labs', verifyAdminOrSuperAdmin, async (req, res) => {
 
 router.get('/labs', verifyAdminOrSuperAdmin, async (req, res) => {
   try {
+    const { Doctor, Lab, Pharmacy, Reception } = await getTenantEntities(req);
     const filter = getHospitalFilter(req);
     const labs = await Lab.find(filter).sort({ createdAt: -1 });
     res.json({ success: true, labs });
@@ -529,6 +550,7 @@ router.get('/labs', verifyAdminOrSuperAdmin, async (req, res) => {
 
 router.put('/labs/:id', verifyAdminOrSuperAdmin, async (req, res) => {
   try {
+    const { Doctor, Lab, Pharmacy, Reception } = await getTenantEntities(req);
     const lab = await Lab.findById(req.params.id);
     if (!lab) {
       return res.status(404).json({ success: false, message: 'Lab not found' });
@@ -546,7 +568,7 @@ router.put('/labs/:id', verifyAdminOrSuperAdmin, async (req, res) => {
     await lab.save();
 
     const { syncToTenant } = require('../utils/tenantSync');
-    await syncToTenant('Lab', lab, 'save', lab.hospitalId);
+    
 
     // Also sync User if it is updated (email, phone, name etc.)
     const user = lab.userId ? await User.findById(lab.userId) : await User.findOne({ email: lab.email });
@@ -568,6 +590,7 @@ router.put('/labs/:id', verifyAdminOrSuperAdmin, async (req, res) => {
 
 router.delete('/labs/:id', verifyAdminOrSuperAdmin, async (req, res) => {
   try {
+    const { Doctor, Lab, Pharmacy, Reception } = await getTenantEntities(req);
     const lab = await Lab.findById(req.params.id);
     if (!lab) {
       return res.status(404).json({ success: false, message: 'Lab not found' });
@@ -580,7 +603,7 @@ router.delete('/labs/:id', verifyAdminOrSuperAdmin, async (req, res) => {
       if (user) await syncToTenant('User', user, 'delete', lab.hospitalId);
     }
 
-    await syncToTenant('Lab', lab, 'delete', lab.hospitalId);
+    
     await Lab.findByIdAndDelete(req.params.id);
     res.json({ success: true, message: 'Lab deleted successfully' });
   } catch (error) {
@@ -592,6 +615,7 @@ router.delete('/labs/:id', verifyAdminOrSuperAdmin, async (req, res) => {
 // Pharmacy routes
 router.post('/pharmacies', verifyAdminOrSuperAdmin, async (req, res) => {
   try {
+    const { Doctor, Lab, Pharmacy, Reception } = await getTenantEntities(req);
     const { name, email, phone, address, medications, availability, description, password } = req.body;
 
     if (!name || !email) {
@@ -673,7 +697,7 @@ router.post('/pharmacies', verifyAdminOrSuperAdmin, async (req, res) => {
     // Sync to tenant DB
     const { syncToTenant } = require('../utils/tenantSync');
     await syncToTenant('User', user, 'save', hospitalId);
-    await syncToTenant('Pharmacy', pharmacy, 'save', hospitalId);
+    
 
     res.status(201).json({
       success: true,
@@ -689,6 +713,7 @@ router.post('/pharmacies', verifyAdminOrSuperAdmin, async (req, res) => {
 
 router.get('/pharmacies', verifyAdminOrSuperAdmin, async (req, res) => {
   try {
+    const { Doctor, Lab, Pharmacy, Reception } = await getTenantEntities(req);
     const filter = getHospitalFilter(req);
     const pharmacies = await Pharmacy.find(filter).sort({ createdAt: -1 });
     res.json({ success: true, pharmacies });
@@ -699,6 +724,7 @@ router.get('/pharmacies', verifyAdminOrSuperAdmin, async (req, res) => {
 
 router.put('/pharmacies/:id', verifyAdminOrSuperAdmin, async (req, res) => {
   try {
+    const { Doctor, Lab, Pharmacy, Reception } = await getTenantEntities(req);
     const pharmacy = await Pharmacy.findById(req.params.id);
     if (!pharmacy) {
       return res.status(404).json({ success: false, message: 'Pharmacy not found' });
@@ -716,7 +742,7 @@ router.put('/pharmacies/:id', verifyAdminOrSuperAdmin, async (req, res) => {
     await pharmacy.save();
 
     const { syncToTenant } = require('../utils/tenantSync');
-    await syncToTenant('Pharmacy', pharmacy, 'save', pharmacy.hospitalId);
+    
 
     // Also sync User if it is updated (email, phone, name etc.)
     const user = pharmacy.userId ? await User.findById(pharmacy.userId) : await User.findOne({ email: pharmacy.email });
@@ -738,6 +764,7 @@ router.put('/pharmacies/:id', verifyAdminOrSuperAdmin, async (req, res) => {
 
 router.delete('/pharmacies/:id', verifyAdminOrSuperAdmin, async (req, res) => {
   try {
+    const { Doctor, Lab, Pharmacy, Reception } = await getTenantEntities(req);
     const pharmacy = await Pharmacy.findById(req.params.id);
     if (!pharmacy) {
       return res.status(404).json({ success: false, message: 'Pharmacy not found' });
@@ -750,7 +777,7 @@ router.delete('/pharmacies/:id', verifyAdminOrSuperAdmin, async (req, res) => {
       if (user) await syncToTenant('User', user, 'delete', pharmacy.hospitalId);
     }
 
-    await syncToTenant('Pharmacy', pharmacy, 'delete', pharmacy.hospitalId);
+    
     await Pharmacy.findByIdAndDelete(req.params.id);
     res.json({ success: true, message: 'Pharmacy deleted successfully' });
   } catch (error) {
@@ -762,6 +789,7 @@ router.delete('/pharmacies/:id', verifyAdminOrSuperAdmin, async (req, res) => {
 // Reception routes
 router.post('/receptions', verifyAdminOrSuperAdmin, async (req, res) => {
   try {
+    const { Doctor, Lab, Pharmacy, Reception } = await getTenantEntities(req);
     const { name, email, phone, services, availability, description, password } = req.body;
 
     if (!name || !email) {
@@ -808,7 +836,7 @@ router.post('/receptions', verifyAdminOrSuperAdmin, async (req, res) => {
     // Sync to tenant DB
     const { syncToTenant } = require('../utils/tenantSync');
     await syncToTenant('User', user, 'save', hospitalId);
-    await syncToTenant('Reception', reception, 'save', hospitalId);
+    
 
     res.status(201).json({
       success: true,
@@ -832,6 +860,7 @@ router.post('/receptions', verifyAdminOrSuperAdmin, async (req, res) => {
 
 router.get('/receptions', verifyAdminOrSuperAdmin, async (req, res) => {
   try {
+    const { Doctor, Lab, Pharmacy, Reception } = await getTenantEntities(req);
     const filter = getHospitalFilter(req);
     const receptions = await Reception.find(filter)
       .populate('userId', 'name email phone services')
@@ -857,6 +886,7 @@ router.get('/receptions', verifyAdminOrSuperAdmin, async (req, res) => {
 
 router.put('/receptions/:id', verifyAdminOrSuperAdmin, async (req, res) => {
   try {
+    const { Doctor, Lab, Pharmacy, Reception } = await getTenantEntities(req);
     const { name, email, phone, services, password } = req.body;
     const reception = await Reception.findById(req.params.id);
     if (!reception) {
@@ -882,7 +912,7 @@ router.put('/receptions/:id', verifyAdminOrSuperAdmin, async (req, res) => {
     await reception.save();
 
     const { syncToTenant } = require('../utils/tenantSync');
-    await syncToTenant('Reception', reception, 'save', reception.hospitalId);
+    
 
     res.json({ 
       success: true, 
@@ -905,6 +935,7 @@ router.put('/receptions/:id', verifyAdminOrSuperAdmin, async (req, res) => {
 
 router.delete('/receptions/:id', verifyAdminOrSuperAdmin, async (req, res) => {
   try {
+    const { Doctor, Lab, Pharmacy, Reception } = await getTenantEntities(req);
     const reception = await Reception.findById(req.params.id);
     if (!reception) {
       return res.status(404).json({ success: false, message: 'Reception not found' });
@@ -917,7 +948,7 @@ router.delete('/receptions/:id', verifyAdminOrSuperAdmin, async (req, res) => {
       if (user) await syncToTenant('User', user, 'delete', reception.hospitalId);
     }
 
-    await syncToTenant('Reception', reception, 'delete', reception.hospitalId);
+    
     await Reception.findByIdAndDelete(req.params.id);
     res.json({ success: true, message: 'Reception deleted successfully' });
   } catch (error) {

@@ -175,10 +175,16 @@ router.delete('/:id', verifyCentralAdmin, async (req, res) => {
 router.get('/:id/stats', verifyCentralAdmin, async (req, res) => {
     try {
         const mongoose = require('mongoose');
-        const Appointment = require('../models/appointment.model');
+        const { getTenantConnection } = require('../db/tenantDb');
+        const { getTenantModels } = require('../db/tenantModels');
 
         const clinic = await Hospital.findOne({ _id: req.params.id, clinicType: 'clinic' }).populate('adminUserId', 'name email phone');
         if (!clinic) return res.status(404).json({ success: false, message: 'Clinic not found' });
+
+        // Resolve tenant connection
+        const tenantDb = await getTenantConnection(clinic._id.toString());
+        const tenantModels = getTenantModels(tenantDb);
+        const { ClinicPatient, Appointment, User } = tenantModels;
 
         const clinicObjId = new mongoose.Types.ObjectId(clinic._id.toString());
 

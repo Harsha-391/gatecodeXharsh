@@ -10,19 +10,21 @@ const getModels = (req) => {
         const m = getTenantModels(req.tenantDb);
         return {
             Inventory: m.Inventory,
-            User: m.User
+            User: m.User,
+            Role: m.Role
         };
     }
     return {
         Inventory: require('../models/inventory.model'),
-        User: require('../models/user.model')
+        User: require('../models/user.model'),
+        Role: require('../models/role.model')
     };
 };
 
 // GET all inventory
 router.get('/inventory', verifyToken, resolveTenant, async (req, res) => {
     try {
-        const { Inventory, User } = getModels(req);
+        const { Inventory, User, Role } = getModels(req);
         let pharmacyIds = [req.user.id];
         let query = { pharmacyId: req.user.id };
 

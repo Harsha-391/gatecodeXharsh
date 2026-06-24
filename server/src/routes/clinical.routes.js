@@ -12,7 +12,8 @@ const getModels = (req) => {
             LabReport: m.LabReport,
             PharmacyOrder: m.PharmacyOrder,
             Inventory: m.Inventory,
-            Appointment: m.Appointment
+            Appointment: m.Appointment,
+            Notification: m.Notification
         };
     }
     return {
@@ -20,7 +21,8 @@ const getModels = (req) => {
         LabReport: require('../models/labReport.model'),
         PharmacyOrder: require('../models/pharmacyOrder.model'),
         Inventory: require('../models/inventory.model'),
-        Appointment: require('../models/appointment.model')
+        Appointment: require('../models/appointment.model'),
+        Notification: require('../models/notification.model')
     };
 };
 
@@ -76,7 +78,7 @@ router.get('/history/:patientId', verifyToken, resolveTenant, async (req, res) =
 router.post('/diagnose/:visitId', verifyToken, resolveTenant, async (req, res) => {
     try {
         const { diagnosis, prescription, labTests, notes } = req.body;
-        const { ClinicalVisit, LabReport, PharmacyOrder, Inventory, Appointment } = getModels(req);
+        const { ClinicalVisit, LabReport, PharmacyOrder, Inventory, Appointment, Notification } = getModels(req);
 
         // RLS: validate the visit belongs to this hospital before updating
         const visitFilter = { _id: req.params.visitId };
@@ -111,7 +113,6 @@ router.post('/diagnose/:visitId', verifyToken, resolveTenant, async (req, res) =
         }
 
         const io = req.app.get('io');
-        const Notification = require('../models/notification.model');
 
         // A. CREATE PHARMACY ORDER — wrapped so it never blocks consultation completion
         if (prescription && prescription.length > 0) {

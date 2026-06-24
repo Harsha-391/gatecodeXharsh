@@ -18,7 +18,10 @@ const getModels = (req) => {
             Appointment: m.Appointment,
             User: m.User,
             HospitalPatient: m.HospitalPatient,
-            LabTest: m.LabTest
+            LabTest: m.LabTest,
+            Lab: m.Lab,
+            Doctor: m.Doctor,
+            Notification: m.Notification
         };
     }
     return {
@@ -26,7 +29,10 @@ const getModels = (req) => {
         Appointment: require('../models/appointment.model'),
         User: require('../models/user.model'),
         HospitalPatient: require('../models/hospitalPatient.model'),
-        LabTest: require('../models/labTest.model')
+        LabTest: require('../models/labTest.model'),
+        Lab: require('../models/lab.model'),
+        Doctor: require('../models/doctor.model'),
+        Notification: require('../models/notification.model')
     };
 };
 
@@ -79,7 +85,7 @@ const verifyLabOrReportsView = async (req, res, next) => {
 // 1. GET LAB DASHBOARD STATS
 router.get('/stats', verifyToken, resolveTenant, verifyLab, async (req, res) => {
     try {
-        const { LabReport } = getModels(req);
+        const { LabReport, Lab } = getModels(req);
         const hid = req.user.hospitalId;
         const hospitalFilter = hid ? { hospitalId: hid } : {};
 
@@ -191,7 +197,7 @@ router.get('/stats', verifyToken, resolveTenant, verifyLab, async (req, res) => 
 // 1b. GET MY ASSIGNED REPORTS
 router.get('/my-reports', verifyToken, resolveTenant, verifyLabOrReportsView, async (req, res) => {
     try {
-        const { LabReport } = getModels(req);
+        const { LabReport, Lab, Doctor } = getModels(req);
         const hid = req.user.hospitalId;
         const hospitalFilter = hid ? { hospitalId: hid } : {};
 
@@ -221,7 +227,7 @@ router.get('/my-reports', verifyToken, resolveTenant, verifyLabOrReportsView, as
 // 2. GET ASSIGNED REQUESTS (Pending or All)
 router.get('/requests', verifyToken, resolveTenant, verifyLabOrReportsView, async (req, res) => {
     try {
-        const { LabReport, User, HospitalPatient } = getModels(req);
+        const { LabReport, User, HospitalPatient, Lab, Doctor } = getModels(req);
         const { status, search } = req.query;
         const hid = req.user.hospitalId;
         const hospitalFilter = hid ? { hospitalId: hid } : {};
@@ -318,7 +324,7 @@ router.get('/requests', verifyToken, resolveTenant, verifyLabOrReportsView, asyn
 // 3. UPLOAD TEST REPORT
 router.post('/upload-report/:reportId', verifyToken, resolveTenant, verifyLab, upload.single('reportFile'), auditLog('UPDATE_PRESCRIPTION', (req) => ({ model: 'LabReport', id: req.params.reportId, label: 'Lab report uploaded' }), { dataCategory: 'PHI' }), async (req, res) => {
     try {
-        const { LabReport, Appointment } = getModels(req);
+        const { LabReport, Appointment, Notification } = getModels(req);
         const { reportId } = req.params;
         const { notes } = req.body;
 
@@ -382,7 +388,6 @@ router.post('/upload-report/:reportId', verifyToken, resolveTenant, verifyLab, u
         }
 
         const io = req.app.get('io');
-        const Notification = require('../models/notification.model');
 
         const notificationItem = new Notification({
             senderId: req.user.id,
@@ -414,7 +419,7 @@ router.post('/upload-report/:reportId', verifyToken, resolveTenant, verifyLab, u
 // 4. CREATE A NEW LAB TEST MANUALLY (Walk-in/Manual report creation)
 router.post('/create', verifyToken, resolveTenant, verifyLab, upload.single('reportFile'), auditLog('CREATE_PRESCRIPTION', null, { dataCategory: 'PHI' }), async (req, res) => {
     try {
-        const { LabReport, HospitalPatient } = getModels(req);
+        const { LabReport, HospitalPatient, Notification } = getModels(req);
         const { patientId, testNames, amount, notes, paymentStatus, paymentMode, doctorId } = req.body;
 
         if (!patientId) {
@@ -495,7 +500,6 @@ router.post('/create', verifyToken, resolveTenant, verifyLab, upload.single('rep
         if (fileResult && doctorId) {
             try {
                 const io = req.app.get('io');
-                const Notification = require('../models/notification.model');
 
                 const notificationItem = new Notification({
                     senderId: req.user.id,

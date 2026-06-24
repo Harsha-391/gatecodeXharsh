@@ -8,6 +8,7 @@ const jwt = require('jsonwebtoken');
 const { verifyAdmin, verifyAdminOrSuperAdmin, verifyToken, verifySuperAdmin } = require('../middleware/auth.middleware');
 const { nanoid } = require('nanoid');
 const auditLog = require('../middleware/audit.middleware');
+const { resolveTenant } = require('../middleware/tenantMiddleware');
 
 // Entity models
 const Doctor = require('../models/doctor.model');
@@ -614,9 +615,15 @@ router.post('/users', verifyAdminOrSuperAdmin, auditLog('USER_CREATE', null, { s
 
         // Auto-create linked entity profiles with hospitalId
         try {
+            const { getTenantConnection } = require('../db/tenantDb');
+            const { getTenantModels } = require('../db/tenantModels');
+            const tenantDb = await getTenantConnection(String(assignedHospitalId));
+            const tenantModels = getTenantModels(tenantDb);
+
             if (roleName === 'doctor') {
+                const TenantDoctor = tenantModels.Doctor;
                 let doctorId = nanoid(10);
-                while (await Doctor.findOne({ doctorId })) doctorId = nanoid(10);
+                while (await TenantDoctor.findOne({ doctorId })) doctorId = nanoid(10);
                 const defaultAvailability = {
                     monday: { available: true, startTime: '09:00', endTime: '17:00' },
                     tuesday: { available: true, startTime: '09:00', endTime: '17:00' },
@@ -626,7 +633,7 @@ router.post('/users', verifyAdminOrSuperAdmin, auditLog('USER_CREATE', null, { s
                     saturday: { available: true, startTime: '09:00', endTime: '17:00' },
                     sunday: { available: false, startTime: '09:00', endTime: '17:00' }
                 };
-                const newDoc = await Doctor.create({
+                await TenantDoctor.create({
                     doctorId, userId: user._id, name: user.name,
                     email: user.email, phone: user.phone,
                     hospitalId: assignedHospitalId,
@@ -634,22 +641,21 @@ router.post('/users', verifyAdminOrSuperAdmin, auditLog('USER_CREATE', null, { s
                     departments: user.departments,
                     specialty: 'General', consultationFee: 0
                 });
-                await syncToTenant('Doctor', newDoc, 'save', assignedHospitalId);
             } else if (roleName === 'lab' || roleName === 'lab technician') {
-                const newLab = await Lab.create({
+                const TenantLab = tenantModels.Lab;
+                await TenantLab.create({
                     name: user.name, email: user.email, phone: user.phone,
                     userId: user._id, hospitalId: assignedHospitalId
                 });
-                await syncToTenant('Lab', newLab, 'save', assignedHospitalId);
             } else if (roleName === 'pharmacy' || roleName === 'pharmacist') {
-                const newPharmacy = await Pharmacy.create({
+                const TenantPharmacy = tenantModels.Pharmacy;
+                await TenantPharmacy.create({
                     name: user.name, email: user.email, phone: user.phone,
                     userId: user._id, hospitalId: assignedHospitalId
                 });
-                await syncToTenant('Pharmacy', newPharmacy, 'save', assignedHospitalId);
             } else if (roleName === 'reception' || roleName === 'receptionist') {
-                const newRec = await Reception.create({ userId: user._id, hospitalId: assignedHospitalId });
-                await syncToTenant('Reception', newRec, 'save', assignedHospitalId);
+                const TenantReception = tenantModels.Reception;
+                await TenantReception.create({ userId: user._id, hospitalId: assignedHospitalId });
             }
         } catch (profileError) {
             console.error('Error creating linked profile:', profileError);
@@ -778,12 +784,18 @@ router.put('/users/:userId', verifyAdminOrSuperAdmin, auditLog('USER_UPDATE', (r
         // Update linked entity profiles
         try {
             const hospitalId = user.hospitalId;
+            const { getTenantConnection } = require('../db/tenantDb');
+            const { getTenantModels } = require('../db/tenantModels');
+            const tenantDb = await getTenantConnection(String(hospitalId));
+            const tenantModels = getTenantModels(tenantDb);
+
             if (newRoleName === 'doctor') {
-                let doctorProfile = await Doctor.findOne({ userId: user._id });
+                const TenantDoctor = tenantModels.Doctor;
+                let doctorProfile = await TenantDoctor.findOne({ userId: user._id });
                 if (!doctorProfile && roleChanged) {
                     let doctorId = nanoid(10);
-                    while (await Doctor.findOne({ doctorId })) doctorId = nanoid(10);
-                    doctorProfile = new Doctor({
+                    while (await TenantDoctor.findOne({ doctorId })) doctorId = nanoid(10);
+                    doctorProfile = new TenantDoctor({
                         doctorId, userId: user._id, hospitalId,
                         availability: {
                             monday: { available: true, startTime: '09:00', endTime: '17:00' },
@@ -804,21 +816,20 @@ router.put('/users/:userId', verifyAdminOrSuperAdmin, auditLog('USER_UPDATE', (r
                     if (departments !== undefined) doctorProfile.departments = departments;
                     doctorProfile.hospitalId = hospitalId;
                     await doctorProfile.save();
-                    await syncToTenant('Doctor', doctorProfile, 'save', hospitalId);
                 }
             }
             if (['lab', 'lab technician'].includes(newRoleName)) {
-                const updatedLab = await Lab.findOneAndUpdate({ userId: user._id }, { name, email, phone, hospitalId }, { upsert: true, new: true });
-                if (updatedLab) await syncToTenant('Lab', updatedLab, 'save', hospitalId);
+                const TenantLab = tenantModels.Lab;
+                await TenantLab.findOneAndUpdate({ userId: user._id }, { name, email, phone, hospitalId }, { upsert: true, new: true });
             }
             if (['pharmacy', 'pharmacist'].includes(newRoleName)) {
-                const updatedPharm = await Pharmacy.findOneAndUpdate({ userId: user._id }, { name, email, phone, hospitalId }, { upsert: true, new: true });
-                if (updatedPharm) await syncToTenant('Pharmacy', updatedPharm, 'save', hospitalId);
+                const TenantPharmacy = tenantModels.Pharmacy;
+                await TenantPharmacy.findOneAndUpdate({ userId: user._id }, { name, email, phone, hospitalId }, { upsert: true, new: true });
             }
             if (['reception', 'receptionist'].includes(newRoleName)) {
-                let rec = await Reception.findOne({ userId: user._id });
-                if (!rec && roleChanged) rec = await Reception.create({ userId: user._id, hospitalId });
-                if (rec) await syncToTenant('Reception', rec, 'save', hospitalId);
+                const TenantReception = tenantModels.Reception;
+                let rec = await TenantReception.findOne({ userId: user._id });
+                if (!rec && roleChanged) rec = await TenantReception.create({ userId: user._id, hospitalId });
             }
         } catch (profileError) {
             console.error('Error updating linked profile:', profileError);
@@ -865,25 +876,25 @@ router.delete('/users/:userId', verifyAdminOrSuperAdmin, auditLog('USER_DELETE',
             }
         }
 
-        const { syncToTenant } = require('../utils/tenantSync');
+        const { getTenantConnection } = require('../db/tenantDb');
+        const { getTenantModels } = require('../db/tenantModels');
+        const tenantDb = await getTenantConnection(String(user.hospitalId));
+        const tenantModels = getTenantModels(tenantDb);
 
         if (roleName === 'doctor') {
-            const docProf = await Doctor.findOneAndDelete({ userId: user._id });
-            if (docProf) await syncToTenant('Doctor', docProf, 'delete', user.hospitalId);
+            await tenantModels.Doctor.findOneAndDelete({ userId: user._id });
         }
         if (roleName === 'lab' || roleName === 'lab technician') {
-            const labProf = await Lab.findOneAndDelete({ userId: user._id });
-            if (labProf) await syncToTenant('Lab', labProf, 'delete', user.hospitalId);
+            await tenantModels.Lab.findOneAndDelete({ userId: user._id });
         }
         if (roleName === 'pharmacy' || roleName === 'pharmacist') {
-            const pharmProf = await Pharmacy.findOneAndDelete({ userId: user._id });
-            if (pharmProf) await syncToTenant('Pharmacy', pharmProf, 'delete', user.hospitalId);
+            await tenantModels.Pharmacy.findOneAndDelete({ userId: user._id });
         }
         if (roleName === 'reception' || roleName === 'receptionist') {
-            const recProf = await Reception.findOneAndDelete({ userId: user._id });
-            if (recProf) await syncToTenant('Reception', recProf, 'delete', user.hospitalId);
+            await tenantModels.Reception.findOneAndDelete({ userId: user._id });
         }
 
+        const { syncToTenant } = require('../utils/tenantSync');
         await syncToTenant('User', user, 'delete', user.hospitalId);
         await User.findByIdAndDelete(userId);
         res.json({ success: true, message: 'User and associated profile deleted successfully' });
@@ -1042,7 +1053,7 @@ router.put('/users/:userId/permissions', verifyToken, verifyAdminOrSuperAdmin, a
 });
 
 // GET /api/admin/dashboard-stats
-router.get('/dashboard-stats', verifyToken, verifyAdminOrSuperAdmin, async (req, res) => {
+router.get('/dashboard-stats', verifyToken, verifyAdminOrSuperAdmin, resolveTenant, async (req, res) => {
     try {
         const hospitalId = req.user.hospitalId;
         if (!hospitalId) {
@@ -1083,11 +1094,24 @@ router.get('/dashboard-stats', verifyToken, verifyAdminOrSuperAdmin, async (req,
             }
         }
 
-        // 3. Count doctors (from Doctor collection)
-        const totalDoctors = await Doctor.countDocuments({ hospitalId });
+        // Dynamic models for tenant DB scoping
+        let DoctorModel = Doctor;
+        let PatientModel = require('../models/hospitalPatient.model');
+        let AppointmentModel = require('../models/appointment.model');
 
-        // 4. Count patients (Users with role 'patient')
-        const totalPatients = await User.countDocuments({ hospitalId, role: 'patient' });
+        if (req.tenantDb) {
+            const { getTenantModels } = require('../db/tenantModels');
+            const tenantModels = getTenantModels(req.tenantDb);
+            DoctorModel = tenantModels.Doctor;
+            PatientModel = tenantModels.HospitalPatient;
+            AppointmentModel = tenantModels.Appointment;
+        }
+
+        // 3. Count doctors
+        const totalDoctors = await DoctorModel.countDocuments({ hospitalId });
+
+        // 4. Count patients
+        const totalPatients = await PatientModel.countDocuments({ hospitalId });
 
         // 5. Today's Appointments & Revenue
         const todayStart = new Date();
@@ -1095,8 +1119,7 @@ router.get('/dashboard-stats', verifyToken, verifyAdminOrSuperAdmin, async (req,
         const tomorrowStart = new Date(todayStart);
         tomorrowStart.setUTCDate(tomorrowStart.getUTCDate() + 1);
 
-        const Appointment = require('../models/appointment.model');
-        const todayApts = await Appointment.find({
+        const todayApts = await AppointmentModel.find({
             hospitalId,
             appointmentDate: { $gte: todayStart, $lt: tomorrowStart }
         }).select('amount status paymentStatus').lean();

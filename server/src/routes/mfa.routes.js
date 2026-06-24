@@ -85,7 +85,15 @@ router.post('/complete-login', otpLimiter, async (req, res) => {
         const isValid = authenticator.verify({ token, secret: user.mfaSecret });
         if (!isValid) {
             try {
-                const AuditLogModel = require('../models/auditLog.model');
+                const { getTenantConnection } = require('../db/tenantDb');
+                const { getTenantModels } = require('../db/tenantModels');
+                let AuditLogModel = require('../models/auditLog.model');
+                if (user.hospitalId) {
+                    const tenantDb = await getTenantConnection(user.hospitalId.toString());
+                    if (tenantDb) {
+                        AuditLogModel = getTenantModels(tenantDb).AuditLog;
+                    }
+                }
                 await AuditLogModel.create({
                     clinicId: user.hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
                     userId: user._id,
@@ -114,9 +122,18 @@ router.post('/complete-login', otpLimiter, async (req, res) => {
                 navLinks: [],
             };
         } else {
+            let RoleModel = Role;
+            if (user.hospitalId) {
+                const { getTenantConnection } = require('../db/tenantDb');
+                const { getTenantModels } = require('../db/tenantModels');
+                const tenantDb = await getTenantConnection(user.hospitalId.toString());
+                if (tenantDb) {
+                    RoleModel = getTenantModels(tenantDb).Role;
+                }
+            }
             const mongoose = require('mongoose');
-            if (mongoose.Types.ObjectId.isValid(user.role)) roleData = await Role.findById(user.role);
-            if (!roleData) roleData = await Role.findOne({ name: new RegExp(`^${user.role}$`, 'i') });
+            if (mongoose.Types.ObjectId.isValid(user.role)) roleData = await RoleModel.findById(user.role);
+            if (!roleData) roleData = await RoleModel.findOne({ name: new RegExp(`^${user.role}$`, 'i') });
         }
 
         if (!roleData) {
@@ -147,7 +164,15 @@ router.post('/complete-login', otpLimiter, async (req, res) => {
 
         // Audit successful MFA login
         try {
-            const AuditLogModel = require('../models/auditLog.model');
+            const { getTenantConnection } = require('../db/tenantDb');
+            const { getTenantModels } = require('../db/tenantModels');
+            let AuditLogModel = require('../models/auditLog.model');
+            if (user.hospitalId) {
+                const tenantDb = await getTenantConnection(user.hospitalId.toString());
+                if (tenantDb) {
+                    AuditLogModel = getTenantModels(tenantDb).AuditLog;
+                }
+            }
             await AuditLogModel.create({
                 clinicId: user.hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
                 userId: user._id,

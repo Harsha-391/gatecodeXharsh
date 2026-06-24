@@ -1,10 +1,23 @@
 const express = require('express');
 const router = express.Router();
-const TestPackage = require('../models/testPackage.model');
 const { verifyToken, verifyAdminOrSuperAdmin } = require('../middleware/auth.middleware');
+const { resolveTenant } = require('../middleware/tenantMiddleware');
+const { getTenantModels } = require('../db/tenantModels');
+const MasterTestPackage = require('../models/testPackage.model');
+
+const getModels = (req) => {
+    if (req.tenantDb) {
+        return {
+            TestPackage: getTenantModels(req.tenantDb).TestPackage
+        };
+    }
+    return {
+        TestPackage: MasterTestPackage
+    };
+};
 
 // 1. GET ALL TEST PACKAGES (Accessible to any authenticated staff)
-router.get('/', verifyToken, async (req, res) => {
+router.get('/', verifyToken, resolveTenant, async (req, res) => {
     try {
         const query = {};
         const roleStr = req.user._roleData?.name?.toLowerCase() || req.user.role?.toString()?.toLowerCase();
@@ -13,6 +26,7 @@ router.get('/', verifyToken, async (req, res) => {
             query.isActive = { $ne: false };
         }
 
+        const { TestPackage } = getModels(req);
         const packages = await TestPackage.find(query)
             .populate('tests', 'name code price category isActive')
             .sort({ name: 1 });
@@ -25,8 +39,9 @@ router.get('/', verifyToken, async (req, res) => {
 });
 
 // 2. GET SINGLE PACKAGE
-router.get('/:id', verifyToken, async (req, res) => {
+router.get('/:id', verifyToken, resolveTenant, async (req, res) => {
     try {
+        const { TestPackage } = getModels(req);
         const pkg = await TestPackage.findById(req.params.id)
             .populate('tests', 'name code price category isActive');
 
@@ -40,7 +55,7 @@ router.get('/:id', verifyToken, async (req, res) => {
 });
 
 // 3. CREATE A NEW TEST PACKAGE
-router.post('/', verifyAdminOrSuperAdmin, async (req, res) => {
+router.post('/', verifyAdminOrSuperAdmin, resolveTenant, async (req, res) => {
     try {
         const { name, code, description, tests, price, discountedPrice, category, isActive } = req.body;
 
@@ -48,6 +63,7 @@ router.post('/', verifyAdminOrSuperAdmin, async (req, res) => {
             return res.status(400).json({ success: false, message: 'Package name is required' });
         }
 
+        const { TestPackage } = getModels(req);
         const exists = await TestPackage.findOne({ name });
         if (exists) {
             return res.status(400).json({ success: false, message: 'A package with this name already exists' });
@@ -69,10 +85,11 @@ router.post('/', verifyAdminOrSuperAdmin, async (req, res) => {
 });
 
 // 4. UPDATE A TEST PACKAGE
-router.put('/:id', verifyAdminOrSuperAdmin, async (req, res) => {
+router.put('/:id', verifyAdminOrSuperAdmin, resolveTenant, async (req, res) => {
     try {
         const { name, code, description, tests, price, discountedPrice, category, isActive } = req.body;
 
+        const { TestPackage } = getModels(req);
         const updatedPackage = await TestPackage.findByIdAndUpdate(
             req.params.id,
             { name, code, description, tests: tests || [], price, discountedPrice, category, isActive },
@@ -89,8 +106,9 @@ router.put('/:id', verifyAdminOrSuperAdmin, async (req, res) => {
 });
 
 // 5. DELETE A TEST PACKAGE
-router.delete('/:id', verifyAdminOrSuperAdmin, async (req, res) => {
+router.delete('/:id', verifyAdminOrSuperAdmin, resolveTenant, async (req, res) => {
     try {
+        const { TestPackage } = getModels(req);
         const pkg = await TestPackage.findByIdAndDelete(req.params.id);
         if (!pkg) return res.status(404).json({ success: false, message: 'Test package not found' });
 

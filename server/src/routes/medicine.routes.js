@@ -1,11 +1,25 @@
 const express = require('express');
 const router = express.Router();
-const Medicine = require('../models/medicine.model');
 const { verifyAdminOrSuperAdmin, verifyToken } = require('../middleware/auth.middleware');
+const { resolveTenant } = require('../middleware/tenantMiddleware');
+const { getTenantModels } = require('../db/tenantModels');
+const MasterMedicine = require('../models/medicine.model');
+
+const getModels = (req) => {
+    if (req.tenantDb) {
+        return {
+            Medicine: getTenantModels(req.tenantDb).Medicine
+        };
+    }
+    return {
+        Medicine: MasterMedicine
+    };
+};
 
 // Get all medicines
-router.get('/', verifyToken, async (req, res) => {
+router.get('/', verifyToken, resolveTenant, async (req, res) => {
     try {
+        const { Medicine } = getModels(req);
         const medicines = await Medicine.find({}).sort({ name: 1 });
         res.json({ success: true, data: medicines });
     } catch (error) {
@@ -14,9 +28,10 @@ router.get('/', verifyToken, async (req, res) => {
 });
 
 // Add a new medicine
-router.post('/', verifyAdminOrSuperAdmin, async (req, res) => {
+router.post('/', verifyAdminOrSuperAdmin, resolveTenant, async (req, res) => {
     try {
         const { name, genericName, category, description } = req.body;
+        const { Medicine } = getModels(req);
 
         const existing = await Medicine.findOne({ name });
         if (existing) return res.status(400).json({ success: false, message: 'Medicine already exists' });
@@ -31,10 +46,11 @@ router.post('/', verifyAdminOrSuperAdmin, async (req, res) => {
 });
 
 // Update a medicine
-router.put('/:id', verifyAdminOrSuperAdmin, async (req, res) => {
+router.put('/:id', verifyAdminOrSuperAdmin, resolveTenant, async (req, res) => {
     try {
         const { id } = req.params;
         const { name, genericName, category, description } = req.body;
+        const { Medicine } = getModels(req);
         const medicine = await Medicine.findByIdAndUpdate(id, { name, genericName, category, description }, { new: true });
 
         if (!medicine) return res.status(404).json({ success: false, message: 'Medicine not found' });
@@ -46,9 +62,10 @@ router.put('/:id', verifyAdminOrSuperAdmin, async (req, res) => {
 });
 
 // Delete a medicine
-router.delete('/:id', verifyAdminOrSuperAdmin, async (req, res) => {
+router.delete('/:id', verifyAdminOrSuperAdmin, resolveTenant, async (req, res) => {
     try {
         const { id } = req.params;
+        const { Medicine } = getModels(req);
         const medicine = await Medicine.findByIdAndDelete(id);
 
         if (!medicine) return res.status(404).json({ success: false, message: 'Medicine not found' });

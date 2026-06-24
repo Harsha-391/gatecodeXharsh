@@ -60,7 +60,10 @@ const auditLog = (action, getTargetFn, options = {}) => {
                         severity = statusCode >= 500 ? 'critical' : 'warning';
                     }
 
-                    await AuditLog.create({
+                    const { getTenantModels } = require('../db/tenantModels');
+                    const dbModels = req.tenantDb ? getTenantModels(req.tenantDb) : null;
+                    const ActiveAuditLog = dbModels?.AuditLog || AuditLog;
+                    await ActiveAuditLog.create({
                         clinicId:      hospitalId,
                         userId:        user?._id || null,
                         userName:      user?.name || user?.email || 'Unknown',

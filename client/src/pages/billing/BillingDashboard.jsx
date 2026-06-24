@@ -2154,6 +2154,7 @@ const BillingDashboard = ({ tab }) => {
                                         type="number"
                                         value={settings.taxRate}
                                         onChange={e => setSettings({ ...settings, taxRate: Number(e.target.value) })}
+                                        onWheel={(e) => e.target.blur()}
                                         className="staff-input"
                                     />
                                 </div>
@@ -2181,6 +2182,7 @@ const BillingDashboard = ({ tab }) => {
                                     max={activeInvoice.outstandingAmount}
                                     value={payAmount}
                                     onChange={e => setPayAmount(Number(e.target.value))}
+                                    onWheel={(e) => e.target.blur()}
                                     required
                                     className="staff-input"
                                 />
@@ -2392,6 +2394,7 @@ const BillingDashboard = ({ tab }) => {
                                     min="1"
                                     value={refundForm.amount}
                                     onChange={e => setRefundForm({ ...refundForm, amount: Number(e.target.value) })}
+                                    onWheel={(e) => e.target.blur()}
                                     required
                                     className="staff-input"
                                 />

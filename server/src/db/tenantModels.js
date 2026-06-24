@@ -20,6 +20,7 @@ function getTenantModels(tenantDb) {
         LabReport: model('LabReport', require('../models/labReport.model').schema),
         PharmacyOrder: model('PharmacyOrder', require('../models/pharmacyOrder.model').schema),
         FacilityCharge: model('FacilityCharge', require('../models/facilityCharge.model').schema),
+        Facility: model('Facility', require('../models/facility.model').schema),
         Role: model('Role', require('../models/role.model').schema),
         Admission: model('Admission', require('../models/admission.model').schema),
         Transfer: model('Transfer', require('../models/transfer.model').schema),
@@ -48,6 +49,13 @@ function getTenantModels(tenantDb) {
         CollectionTransaction: model('CollectionTransaction', require('../models/collectionTransaction.model').schema),
         Service: model('Service', require('../models/service.model').schema),
         Resource: model('Resource', require('../models/resource.model').schema),
+        TreatmentPlan: model('TreatmentPlan', require('../models/treatmentPlan.model').schema),
+        ClinicSubscription: model('ClinicSubscription', require('../models/clinicSubscription.model').schema),
+        Notification: model('Notification', require('../models/notification.model').schema),
+        Medicine: model('Medicine', require('../models/medicine.model').schema),
+        TestPackage: model('TestPackage', require('../models/testPackage.model').schema),
+        UploadedFile: model('UploadedFile', require('../models/uploadedFile.model').schema),
+        AuditLog: model('AuditLog', require('../models/auditLog.model').schema),
     };
 }
 

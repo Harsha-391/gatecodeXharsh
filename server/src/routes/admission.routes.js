@@ -415,18 +415,15 @@ router.put('/:id/pay', verifyAdmissionAccess, async (req, res) => {
                 collectionTimestamp: new Date()
             };
 
-            const MasterCollectionTransaction = require('../models/collectionTransaction.model');
-            const masterTx = new MasterCollectionTransaction(transactionData);
-            await masterTx.save();
-
             if (req.tenantDb) {
                 const { getTenantModels } = require('../db/tenantModels');
                 const TenantCollectionTransaction = getTenantModels(req.tenantDb).CollectionTransaction;
-                const tenantTx = new TenantCollectionTransaction({
-                    ...transactionData,
-                    _id: masterTx._id
-                });
+                const tenantTx = new TenantCollectionTransaction(transactionData);
                 await tenantTx.save();
+            } else {
+                const MasterCollectionTransaction = require('../models/collectionTransaction.model');
+                const masterTx = new MasterCollectionTransaction(transactionData);
+                await masterTx.save();
             }
         }
 

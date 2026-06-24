@@ -12,6 +12,7 @@ const Pharmacy = require('../models/pharmacy.model');
 const Reception = require('../models/reception.model');
 const Appointment = require('../models/appointment.model');
 const FacilityCharge = require('../models/facilityCharge.model');
+const Facility = require('../models/facility.model');
 const QuestionLibrary = require('../models/questionLibrary.model');
 const jwt = require('jsonwebtoken');
 const { verifyToken } = require('../middleware/auth.middleware');
@@ -26,9 +27,15 @@ const validatePassword = require('../utils/validatePassword');
 const getModels = (req) => {
     if (req.tenantDb) {
         const m = getTenantModels(req.tenantDb);
-        return { LabTest: m.LabTest };
+        return { 
+            LabTest: m.LabTest,
+            Facility: m.Facility
+        };
     }
-    return { LabTest: require('../models/labTest.model') };
+    return { 
+        LabTest: require('../models/labTest.model'),
+        Facility: require('../models/facility.model')
+    };
 };
 
 /**
@@ -629,20 +636,34 @@ router.post('/admin/login', async (req, res) => {
 
         const normalizedEmail = String(email || '').toLowerCase().trim();
         const user = await User.findOne({ email: normalizedEmail });
-        if (!user) {
+
+        // Helper: write AuditLog to the tenant DB of the given hospitalId (or master DB if not resolvable)
+        const writeAuditLog = async (hospitalId, payload) => {
             try {
-                const AuditLogModel = require('../models/auditLog.model');
-                await AuditLogModel.create({
-                    clinicId: new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
-                    userName: normalizedEmail,
-                    action: 'FAILED_LOGIN',
-                    severity: 'warning',
-                    success: false,
-                    reason: 'User not found',
-                    ip: req.ip || '',
-                    userAgent: req.headers['user-agent'] || ''
-                });
+                let AuditLogModel = require('../models/auditLog.model');
+                if (hospitalId) {
+                    try {
+                        const tenantDb = await getTenantConnection(String(hospitalId));
+                        if (tenantDb) {
+                            AuditLogModel = getTenantModels(tenantDb).AuditLog;
+                        }
+                    } catch (_) {}
+                }
+                await AuditLogModel.create(payload);
             } catch (_) {}
+        };
+
+        if (!user) {
+            await writeAuditLog(null, {
+                clinicId: new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
+                userName: normalizedEmail,
+                action: 'FAILED_LOGIN',
+                severity: 'warning',
+                success: false,
+                reason: 'User not found',
+                ip: req.ip || '',
+                userAgent: req.headers['user-agent'] || ''
+            });
             return res.status(401).json({ success: false, message: 'Invalid email or password' });
         }
 
@@ -672,99 +693,84 @@ router.post('/admin/login', async (req, res) => {
 
         const isAllowed = roleName === 'hospitaladmin' || (roleName && ['administrator', 'admin'].includes(roleName.toLowerCase()));
         if (!isAllowed) {
-            try {
-                const AuditLogModel = require('../models/auditLog.model');
-                await AuditLogModel.create({
-                    clinicId: user.hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
-                    userId: user._id,
-                    userName: user.name || normalizedEmail,
-                    role: roleName || '',
-                    action: 'FAILED_LOGIN',
-                    severity: 'warning',
-                    success: false,
-                    reason: 'This login is for Hospital Admins only.',
-                    ip: req.ip || '',
-                    userAgent: req.headers['user-agent'] || ''
-                });
-            } catch (_) {}
+            await writeAuditLog(user.hospitalId, {
+                clinicId: user.hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
+                userId: user._id,
+                userName: user.name || normalizedEmail,
+                role: roleName || '',
+                action: 'FAILED_LOGIN',
+                severity: 'warning',
+                success: false,
+                reason: 'This login is for Hospital Admins only.',
+                ip: req.ip || '',
+                userAgent: req.headers['user-agent'] || ''
+            });
             return res.status(403).json({ success: false, message: 'This login is for Hospital Admins only.' });
         }
 
         if (!user.hospitalId) {
-            try {
-                const AuditLogModel = require('../models/auditLog.model');
-                await AuditLogModel.create({
-                    clinicId: new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
-                    userId: user._id,
-                    userName: user.name || normalizedEmail,
-                    role: roleName,
-                    action: 'FAILED_LOGIN',
-                    severity: 'warning',
-                    success: false,
-                    reason: 'Account not linked to any hospital.',
-                    ip: req.ip || '',
-                    userAgent: req.headers['user-agent'] || ''
-                });
-            } catch (_) {}
+            await writeAuditLog(null, {
+                clinicId: new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
+                userId: user._id,
+                userName: user.name || normalizedEmail,
+                role: roleName,
+                action: 'FAILED_LOGIN',
+                severity: 'warning',
+                success: false,
+                reason: 'Account not linked to any hospital.',
+                ip: req.ip || '',
+                userAgent: req.headers['user-agent'] || ''
+            });
             return res.status(403).json({ success: false, message: 'This account is not linked to any hospital. Contact your Central Admin.' });
         }
 
         const isPasswordValid = await user.comparePassword(password);
         if (!isPasswordValid) {
-            try {
-                const AuditLogModel = require('../models/auditLog.model');
-                await AuditLogModel.create({
-                    clinicId: user.hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
-                    userId: user._id,
-                    userName: user.name || normalizedEmail,
-                    role: roleName,
-                    action: 'FAILED_LOGIN',
-                    severity: 'warning',
-                    success: false,
-                    reason: 'Incorrect password',
-                    ip: req.ip || '',
-                    userAgent: req.headers['user-agent'] || ''
-                });
-            } catch (_) {}
+            await writeAuditLog(user.hospitalId, {
+                clinicId: user.hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
+                userId: user._id,
+                userName: user.name || normalizedEmail,
+                role: roleName,
+                action: 'FAILED_LOGIN',
+                severity: 'warning',
+                success: false,
+                reason: 'Incorrect password',
+                ip: req.ip || '',
+                userAgent: req.headers['user-agent'] || ''
+            });
             return res.status(401).json({ success: false, message: 'Invalid email or password' });
         }
 
         const hospital = await Hospital.findById(user.hospitalId);
         if (!hospital) {
-            try {
-                const AuditLogModel = require('../models/auditLog.model');
-                await AuditLogModel.create({
-                    clinicId: user.hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
-                    userId: user._id,
-                    userName: user.name || normalizedEmail,
-                    role: roleName,
-                    action: 'FAILED_LOGIN',
-                    severity: 'warning',
-                    success: false,
-                    reason: 'Linked hospital not found',
-                    ip: req.ip || '',
-                    userAgent: req.headers['user-agent'] || ''
-                });
-            } catch (_) {}
+            await writeAuditLog(user.hospitalId, {
+                clinicId: user.hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
+                userId: user._id,
+                userName: user.name || normalizedEmail,
+                role: roleName,
+                action: 'FAILED_LOGIN',
+                severity: 'warning',
+                success: false,
+                reason: 'Linked hospital not found',
+                ip: req.ip || '',
+                userAgent: req.headers['user-agent'] || ''
+            });
             return res.status(403).json({ success: false, message: 'Linked hospital not found. Contact your Central Admin.' });
         }
 
         if (!hospital.isActive) {
-            try {
-                const AuditLogModel = require('../models/auditLog.model');
-                await AuditLogModel.create({
-                    clinicId: user.hospitalId,
-                    userId: user._id,
-                    userName: user.name || normalizedEmail,
-                    role: roleName,
-                    action: 'FAILED_LOGIN',
-                    severity: 'warning',
-                    success: false,
-                    reason: 'Hospital account is inactive',
-                    ip: req.ip || '',
-                    userAgent: req.headers['user-agent'] || ''
-                });
-            } catch (_) {}
+            await writeAuditLog(user.hospitalId, {
+                clinicId: user.hospitalId,
+                userId: user._id,
+                userName: user.name || normalizedEmail,
+                role: roleName,
+                action: 'FAILED_LOGIN',
+                severity: 'warning',
+                success: false,
+                reason: 'Hospital account is inactive',
+                ip: req.ip || '',
+                userAgent: req.headers['user-agent'] || ''
+            });
             return res.status(403).json({ success: false, message: 'Hospital account is inactive. Contact your Central Admin.' });
         }
 
@@ -783,21 +789,18 @@ router.post('/admin/login', async (req, res) => {
             { expiresIn: '7d' }
         );
 
-        // Audit successful hospital admin login
-        try {
-            const AuditLogModel = require('../models/auditLog.model');
-            await AuditLogModel.create({
-                clinicId: user.hospitalId,
-                userId: user._id,
-                userName: user.name || normalizedEmail,
-                role: roleName,
-                action: 'STAFF_LOGIN',
-                success: true,
-                sessionId: jti,
-                ip: req.ip || '',
-                userAgent: req.headers['user-agent'] || ''
-            });
-        } catch (_) {}
+        // Audit successful hospital admin login — write to tenant DB
+        await writeAuditLog(user.hospitalId, {
+            clinicId: user.hospitalId,
+            userId: user._id,
+            userName: user.name || normalizedEmail,
+            role: roleName,
+            action: 'STAFF_LOGIN',
+            success: true,
+            sessionId: jti,
+            ip: req.ip || '',
+            userAgent: req.headers['user-agent'] || ''
+        });
 
         res.json({
             success: true,
@@ -821,7 +824,7 @@ router.post('/admin/login', async (req, res) => {
 });
 
 // Get my hospital info (for hospital admins)
-router.get('/my-hospital', verifyHospitalAdmin, async (req, res) => {
+router.get('/my-hospital', verifyHospitalAdmin, resolveTenant, async (req, res) => {
     try {
         if (req.user.role === 'centraladmin' || req.user.role === 'superadmin') {
             return res.json({ success: true, hospital: null, message: 'Central admin manages all hospitals' });
@@ -832,14 +835,23 @@ router.get('/my-hospital', verifyHospitalAdmin, async (req, res) => {
             : null;
 
         if (!hospital) return res.status(404).json({ success: false, message: 'Hospital not found' });
-        res.json({ success: true, hospital });
+
+        // Fetch facilities from the new Facility collection in Tenant DB
+        const { Facility } = getModels(req);
+        const facilities = await Facility.find({ hospitalId: hospital._id }).lean();
+
+        // Convert hospital to a plain object and attach facilities
+        const hospitalObj = hospital.toObject();
+        hospitalObj.facilities = facilities;
+
+        res.json({ success: true, hospital: hospitalObj });
     } catch (err) {
         res.status(500).json({ success: false, message: 'An internal error occurred' });
     }
 });
 
 // Update facilities (Hospital admin specific feature)
-router.put('/my-hospital/facilities', verifyHospitalAdmin, async (req, res) => {
+router.put('/my-hospital/facilities', verifyHospitalAdmin, resolveTenant, async (req, res) => {
     try {
         if (req.user.role === 'centraladmin' || req.user.role === 'superadmin') {
             return res.status(403).json({ success: false, message: 'Only hospital admins manage their facilities this way' });
@@ -851,13 +863,37 @@ router.put('/my-hospital/facilities', verifyHospitalAdmin, async (req, res) => {
         const hospital = await Hospital.findById(req.user.hospitalId);
         if (!hospital) return res.status(404).json({ success: false, message: 'Hospital not found' });
 
+        // Update the new Facility collection in Tenant DB
+        const { Facility } = getModels(req);
+
+        // 1. Delete all existing facilities for this hospital
+        await Facility.deleteMany({ hospitalId: hospital._id });
+
+        // 2. Insert new facilities
+        const newFacilities = facilities.map(f => ({
+            hospitalId: hospital._id,
+            name: f.name,
+            pricePerDay: Number(f.pricePerDay),
+            bedCount: Number(f.bedCount || 0)
+        }));
+
+        let insertedFacilities = [];
+        if (newFacilities.length > 0) {
+            insertedFacilities = await Facility.insertMany(newFacilities);
+        }
+
+        // 3. For backward compatibility, update the embedded facilities in the hospital doc too
         hospital.facilities = facilities;
         await hospital.save();
 
         const { syncToTenant } = require('../utils/tenantSync');
         await syncToTenant('Hospital', hospital, 'save', hospital._id);
 
-        res.json({ success: true, message: 'Facilities updated successfully', hospital });
+        // Return the updated hospital object with the facilities from the collection (which includes _ids)
+        const hospitalObj = hospital.toObject();
+        hospitalObj.facilities = insertedFacilities;
+
+        res.json({ success: true, message: 'Facilities updated successfully', hospital: hospitalObj });
     } catch (err) {
         console.error('Update facilities error:', err);
         res.status(500).json({ success: false, message: err.message || 'An internal error occurred' });
@@ -896,13 +932,24 @@ router.put('/my-hospital/department-fees', verifyHospitalAdmin, async (req, res)
 // Hospital admins manage their own medicine inventory
 // ==========================================
 
+// Helper: resolve tenant Inventory model for the current hospital admin
+const getInventoryModel = async (hospitalId) => {
+    if (!hospitalId) return Inventory;
+    try {
+        const tenantDb = await getTenantConnection(String(hospitalId));
+        if (tenantDb) return getTenantModels(tenantDb).Inventory;
+    } catch (_) {}
+    return Inventory;
+};
+
 // GET hospital inventory
 router.get('/my-hospital/inventory', verifyHospitalAdmin, async (req, res) => {
     try {
         const hospitalId = req.user.hospitalId;
         if (!hospitalId) return res.status(400).json({ success: false, message: 'No hospital linked to this account' });
 
-        const items = await Inventory.find({ hospitalId }).sort({ createdAt: -1 }).lean();
+        const InventoryModel = await getInventoryModel(hospitalId);
+        const items = await InventoryModel.find({ hospitalId }).sort({ createdAt: -1 }).lean();
         res.json({ success: true, data: items });
     } catch (err) {
         res.status(500).json({ success: false, message: 'An internal error occurred' });
@@ -915,7 +962,8 @@ router.post('/my-hospital/inventory', verifyHospitalAdmin, async (req, res) => {
         const hospitalId = req.user.hospitalId;
         if (!hospitalId) return res.status(400).json({ success: false, message: 'No hospital linked to this account' });
 
-        const item = new Inventory({ ...req.body, hospitalId });
+        const InventoryModel = await getInventoryModel(hospitalId);
+        const item = new InventoryModel({ ...req.body, hospitalId });
         await item.save();
         res.status(201).json({ success: true, data: item });
     } catch (err) {
@@ -927,7 +975,8 @@ router.post('/my-hospital/inventory', verifyHospitalAdmin, async (req, res) => {
 router.put('/my-hospital/inventory/:id', verifyHospitalAdmin, async (req, res) => {
     try {
         const hospitalId = req.user.hospitalId;
-        const item = await Inventory.findOne({ _id: req.params.id, hospitalId });
+        const InventoryModel = await getInventoryModel(hospitalId);
+        const item = await InventoryModel.findOne({ _id: req.params.id, hospitalId });
         if (!item) return res.status(404).json({ success: false, message: 'Item not found' });
 
         const allowed = ['name', 'salt', 'category', 'stock', 'unit', 'buyingPrice', 'sellingPrice', 'vendor', 'batchNumber', 'expiryDate'];
@@ -946,7 +995,8 @@ router.put('/my-hospital/inventory/:id', verifyHospitalAdmin, async (req, res) =
 router.delete('/my-hospital/inventory/:id', verifyHospitalAdmin, async (req, res) => {
     try {
         const hospitalId = req.user.hospitalId;
-        const deleted = await Inventory.findOneAndDelete({ _id: req.params.id, hospitalId });
+        const InventoryModel = await getInventoryModel(hospitalId);
+        const deleted = await InventoryModel.findOneAndDelete({ _id: req.params.id, hospitalId });
         if (!deleted) return res.status(404).json({ success: false, message: 'Item not found' });
         res.json({ success: true, message: 'Item deleted' });
     } catch (err) {
@@ -1044,14 +1094,30 @@ router.get('/:id/stats', verifyHospitalAdmin, async (req, res) => {
         const hospital = await Hospital.findById(hospitalId).populate('adminUserId', 'name email');
         if (!hospital) return res.status(404).json({ success: false, message: 'Hospital not found' });
 
-        // Lazy-load models to avoid circular issues
-        const Appointment = require('../models/appointment.model');
-        const Doctor = require('../models/doctor.model');
-        const Lab = require('../models/lab.model');
-        const Pharmacy = require('../models/pharmacy.model');
-        const LabReport = require('../models/labReport.model');
-        const PharmacyOrder = require('../models/pharmacyOrder.model');
-        const Role = require('../models/role.model');
+        // Resolve models from tenant DB to enforce multi-tenant isolation
+        let Appointment, Doctor, Lab, Pharmacy, LabReport, PharmacyOrder, RoleModel;
+        try {
+            const tenantDb = await getTenantConnection(String(hospitalId));
+            if (tenantDb) {
+                const tm = getTenantModels(tenantDb);
+                Appointment = tm.Appointment;
+                Doctor = tm.Doctor;
+                Lab = tm.Lab;
+                Pharmacy = tm.Pharmacy;
+                LabReport = tm.LabReport;
+                PharmacyOrder = tm.PharmacyOrder;
+                RoleModel = tm.Role;
+            }
+        } catch (_) {}
+        // Fallback to master models (should not occur in cloud mode)
+        if (!Appointment) Appointment = require('../models/appointment.model');
+        if (!Doctor)      Doctor      = require('../models/doctor.model');
+        if (!Lab)         Lab         = require('../models/lab.model');
+        if (!Pharmacy)    Pharmacy    = require('../models/pharmacy.model');
+        if (!LabReport)   LabReport   = require('../models/labReport.model');
+        if (!PharmacyOrder) PharmacyOrder = require('../models/pharmacyOrder.model');
+        if (!RoleModel)   RoleModel   = require('../models/role.model');
+        const Role = RoleModel;
 
         // Date filter construction
         let dateFilter = {};

@@ -13,13 +13,15 @@ const getModels = (req) => {
         return {
             PharmacyOrder: m.PharmacyOrder,
             Inventory: m.Inventory,
-            User: m.User
+            User: m.User,
+            Notification: m.Notification
         };
     }
     return {
         PharmacyOrder: require('../models/pharmacyOrder.model'),
         Inventory: require('../models/inventory.model'),
-        User: require('../models/user.model')
+        User: require('../models/user.model'),
+        Notification: require('../models/notification.model')
     };
 };
 
@@ -253,7 +255,7 @@ router.patch('/:id/complete', verifyToken, resolveTenant, auditLog('CONFIRM_PAYM
         await order.save();
 
         const io = req.app.get('io');
-        const Notification = require('../models/notification.model');
+        const { Notification } = getModels(req);
 
         const notificationItem = new Notification({
             senderId: req.user.id,

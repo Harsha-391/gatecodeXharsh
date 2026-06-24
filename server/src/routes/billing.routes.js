@@ -8,6 +8,8 @@ const auditLog = require('../middleware/audit.middleware');
 
 // Master models (fallbacks for single-tenant mode)
 const MasterUser = require('../models/user.model');
+const MasterHospitalPatient = require('../models/hospitalPatient.model');
+const MasterClinicPatient = require('../models/clinicPatient.model');
 const MasterAppointment = require('../models/appointment.model');
 const MasterLabReport = require('../models/labReport.model');
 const MasterPharmacyOrder = require('../models/pharmacyOrder.model');
@@ -54,6 +56,8 @@ const getModels = (req) => {
     }
     return {
         User: MasterUser,
+        HospitalPatient: MasterHospitalPatient,
+        ClinicPatient: MasterClinicPatient,
         Appointment: MasterAppointment,
         LabReport: MasterLabReport,
         PharmacyOrder: MasterPharmacyOrder,
@@ -73,7 +77,7 @@ const getModels = (req) => {
 router.get('/patient/:identifier', verifyBillingAccess, async (req, res) => {
     try {
         const { identifier } = req.params;
-        const { User, Appointment, LabReport, PharmacyOrder, FacilityCharge, Admission, Invoice, LabTest } = getModels(req);
+        const { User, HospitalPatient, ClinicPatient, Appointment, LabReport, PharmacyOrder, FacilityCharge, Admission, Invoice, LabTest } = getModels(req);
 
         const hospitalFilter = req.user.hospitalId ? { hospitalId: req.user.hospitalId } : {};
         let patient = null;
@@ -83,14 +87,16 @@ router.get('/patient/:identifier', verifyBillingAccess, async (req, res) => {
         if (lookup.toUpperCase().startsWith('INV-')) {
             const inv = await Invoice.findOne({ invoiceNumber: lookup, ...hospitalFilter });
             if (inv) {
-                patient = await User.findById(inv.patientId);
+                patient = await HospitalPatient.findById(inv.patientId) ||
+                          (ClinicPatient ? await ClinicPatient.findById(inv.patientId) : null) ||
+                          await User.findById(inv.patientId);
             }
         }
 
         // 2. Fuzzy/Identity Lookup
         if (!patient) {
-            // Try exact MRN, patientId, or phone first
-            patient = await User.findOne({
+            // Try exact MRN, patientId, or phone first in HospitalPatient
+            patient = await HospitalPatient.findOne({
                 ...hospitalFilter,
                 $or: [
                     { mrn: lookup },
@@ -98,17 +104,54 @@ router.get('/patient/:identifier', verifyBillingAccess, async (req, res) => {
                     { phone: lookup }
                 ]
             });
+
+            // Try in ClinicPatient
+            if (!patient && ClinicPatient) {
+                patient = await ClinicPatient.findOne({
+                    clinicId: req.user.hospitalId,
+                    $or: [
+                        { patientUid: lookup },
+                        { phone: lookup }
+                    ]
+                });
+            }
+
+            // Fallback to User
+            if (!patient) {
+                patient = await User.findOne({
+                    ...hospitalFilter,
+                    $or: [
+                        { mrn: lookup },
+                        { patientId: lookup },
+                        { phone: lookup }
+                    ]
+                });
+            }
         }
 
-        // 3. Name search — prefer actual patients (those with a patientId set) over staff
+        // 3. Name search — prefer actual patients (those with a patientId/patientUid set) over staff
         if (!patient) {
             const nameRegex = { $regex: new RegExp(lookup, 'i') };
-            // First try to find a user with patientId (registered patient)
-            patient = await User.findOne({
+            // First try to find a hospital patient
+            patient = await HospitalPatient.findOne({
                 ...hospitalFilter,
-                patientId: { $ne: null, $exists: true },
                 name: nameRegex
             });
+            // Try clinic patient
+            if (!patient && ClinicPatient) {
+                patient = await ClinicPatient.findOne({
+                    clinicId: req.user.hospitalId,
+                    name: nameRegex
+                });
+            }
+            // First try to find a user with patientId (registered patient)
+            if (!patient) {
+                patient = await User.findOne({
+                    ...hospitalFilter,
+                    patientId: { $ne: null, $exists: true },
+                    name: nameRegex
+                });
+            }
             // Fallback: any user with matching name
             if (!patient) {
                 patient = await User.findOne({ ...hospitalFilter, name: nameRegex });
@@ -308,8 +351,10 @@ router.post('/invoice', verifyBillingAccess, auditLog('CREATE_BILL', (req, body)
             return res.status(400).json({ success: false, message: 'Patient ID and billing items are required.' });
         }
 
-        const { User, Invoice, BillingActivityLog } = getModels(req);
-        const patient = await User.findById(patientId);
+        const { User, HospitalPatient, ClinicPatient, Invoice, BillingActivityLog } = getModels(req);
+        const patient = await HospitalPatient.findById(patientId) ||
+                        (ClinicPatient ? await ClinicPatient.findById(patientId) : null) ||
+                        await User.findById(patientId);
         if (!patient) return res.status(404).json({ success: false, message: 'Patient not found.' });
 
         const hospitalId = req.user.hospitalId;
@@ -470,7 +515,9 @@ router.post('/invoice/:id/payment', verifyBillingAccess, auditLog('CONFIRM_PAYME
         await invoice.save();
 
         // Retrieve patient details for CollectionTransaction log
-        const patientUser = await User.findById(invoice.patientId);
+        const patientUser = await HospitalPatient.findById(invoice.patientId) ||
+                            (ClinicPatient ? await ClinicPatient.findById(invoice.patientId) : null) ||
+                            await User.findById(invoice.patientId);
         
         let collectionType = 'Miscellaneous Collection';
         const itemTypes = (invoice.items || []).map(i => i.itemType);
@@ -579,12 +626,32 @@ router.put('/invoice/:id/cancel', verifyBillingAccess, auditLog('UPDATE_BILL', (
 // 5. Get List of Invoices
 router.get('/invoices', verifyBillingAccess, async (req, res) => {
     try {
-        const { Invoice } = getModels(req);
+        const { Invoice, User, HospitalPatient, ClinicPatient } = getModels(req);
         const hFilter = req.user.hospitalId ? { hospitalId: req.user.hospitalId } : {};
         const invoices = await Invoice.find(hFilter)
-            .populate({ path: 'patientId', model: getModels(req).User, select: 'patientId name email phone' })
             .sort({ createdAt: -1 })
             .lean();
+
+        // Manually populate patient details across different collections
+        for (const invoice of invoices) {
+            if (invoice.patientId) {
+                let pDoc = null;
+                if (HospitalPatient) pDoc = await HospitalPatient.findById(invoice.patientId).select('patientId name email phone mrn').lean();
+                if (!pDoc && ClinicPatient) pDoc = await ClinicPatient.findById(invoice.patientId).select('patientUid name email phone').lean();
+                if (!pDoc && User) pDoc = await User.findById(invoice.patientId).select('patientId name email phone mrn').lean();
+
+                if (pDoc) {
+                    invoice.patientId = {
+                        _id: pDoc._id,
+                        patientId: pDoc.patientId || pDoc.patientUid || '',
+                        name: pDoc.name,
+                        email: pDoc.email,
+                        phone: pDoc.phone,
+                        mrn: pDoc.mrn || pDoc.patientId || ''
+                    };
+                }
+            }
+        }
         res.json({ success: true, invoices });
     } catch (error) {
         console.error('Get invoices error:', error);
@@ -642,30 +709,32 @@ router.post('/refunds', verifyBillingAccess, auditLog('UPDATE_BILL', (req, body)
         await refund.save();
 
         // Also save a copy to the Master DB (HSM) refunds collection for global database verification
-        try {
-            const masterRefund = new MasterRefund({
-                _id: refund._id, // Match the ID
-                hospitalId,
-                patientId,
-                patientName,
-                invoiceNumber: invoiceNumber || '',
-                refundType,
-                itemId: itemId || null,
-                amount: Number(amount),
-                reason,
-                status: 'Refund Pending',
-                requestedBy: req.user._id,
-                requestedByName: req.user.name || 'Staff',
-                history: [{
+        if (!req.tenantDb) {
+            try {
+                const masterRefund = new MasterRefund({
+                    _id: refund._id, // Match the ID
+                    hospitalId,
+                    patientId,
+                    patientName,
+                    invoiceNumber: invoiceNumber || '',
+                    refundType,
+                    itemId: itemId || null,
+                    amount: Number(amount),
+                    reason,
                     status: 'Refund Pending',
-                    performedBy: req.user._id,
-                    performedByName: req.user.name || 'Staff',
-                    notes: 'Refund request created'
-                }]
-            });
-            await masterRefund.save();
-        } catch (masterErr) {
-            console.error('Failed to save refund copy to master DB:', masterErr.message);
+                    requestedBy: req.user._id,
+                    requestedByName: req.user.name || 'Staff',
+                    history: [{
+                        status: 'Refund Pending',
+                        performedBy: req.user._id,
+                        performedByName: req.user.name || 'Staff',
+                        notes: 'Refund request created'
+                    }]
+                });
+                await masterRefund.save();
+            } catch (masterErr) {
+                console.error('Failed to save refund copy to master DB:', masterErr.message);
+            }
         }
 
         await new BillingActivityLog({
@@ -724,23 +793,25 @@ router.put('/refunds/:id/approve', verifyBillingAccess, auditLog('UPDATE_BILL', 
         await refund.save();
 
         // Also update the copy in the Master DB (HSM)
-        try {
-            const masterRefund = await MasterRefund.findById(id);
-            if (masterRefund) {
-                masterRefund.status = 'Refunded';
-                masterRefund.approvedBy = req.user._id;
-                masterRefund.approvedByName = req.user.name || 'Staff';
-                masterRefund.actionDate = refund.actionDate;
-                masterRefund.history.push({
-                    status: 'Refunded',
-                    performedBy: req.user._id,
-                    performedByName: req.user.name || 'Staff',
-                    notes: notes || 'Refund request approved and processed.'
-                });
-                await masterRefund.save();
+        if (!req.tenantDb) {
+            try {
+                const masterRefund = await MasterRefund.findById(id);
+                if (masterRefund) {
+                    masterRefund.status = 'Refunded';
+                    masterRefund.approvedBy = req.user._id;
+                    masterRefund.approvedByName = req.user.name || 'Staff';
+                    masterRefund.actionDate = refund.actionDate;
+                    masterRefund.history.push({
+                        status: 'Refunded',
+                        performedBy: req.user._id,
+                        performedByName: req.user.name || 'Staff',
+                        notes: notes || 'Refund request approved and processed.'
+                    });
+                    await masterRefund.save();
+                }
+            } catch (masterErr) {
+                console.error('Failed to update refund copy in master DB:', masterErr.message);
             }
-        } catch (masterErr) {
-            console.error('Failed to update refund copy in master DB:', masterErr.message);
         }
 
         await new BillingActivityLog({
@@ -804,23 +875,25 @@ router.put('/refunds/:id/reject', verifyBillingAccess, auditLog('UPDATE_BILL', (
         await refund.save();
 
         // Update the copy in the Master DB (HSM) if present
-        try {
-            const masterRefund = await MasterRefund.findById(id);
-            if (masterRefund) {
-                masterRefund.status = 'Rejected';
-                masterRefund.approvedBy = req.user._id;
-                masterRefund.approvedByName = req.user.name || 'Staff';
-                masterRefund.actionDate = refund.actionDate;
-                masterRefund.history.push({
-                    status: 'Rejected',
-                    performedBy: req.user._id,
-                    performedByName: req.user.name || 'Staff',
-                    notes: notes || 'Refund request rejected.'
-                });
-                await masterRefund.save();
+        if (!req.tenantDb) {
+            try {
+                const masterRefund = await MasterRefund.findById(id);
+                if (masterRefund) {
+                    masterRefund.status = 'Rejected';
+                    masterRefund.approvedBy = req.user._id;
+                    masterRefund.approvedByName = req.user.name || 'Staff';
+                    masterRefund.actionDate = refund.actionDate;
+                    masterRefund.history.push({
+                        status: 'Rejected',
+                        performedBy: req.user._id,
+                        performedByName: req.user.name || 'Staff',
+                        notes: notes || 'Refund request rejected.'
+                    });
+                    await masterRefund.save();
+                }
+            } catch (masterErr) {
+                console.error('Failed to update refund copy in master DB:', masterErr.message);
             }
-        } catch (masterErr) {
-            console.error('Failed to update refund copy in master DB:', masterErr.message);
         }
 
         await new BillingActivityLog({

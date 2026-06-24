@@ -24,9 +24,9 @@ const checkAccess = (user, legacyRoles = [], requiredPermission = '') => {
 const getModels = (req) => {
     if (req.tenantDb) {
         const m = getTenantModels(req.tenantDb);
-        return { Appointment: m.Appointment, User: m.User };
+        return { Appointment: m.Appointment, User: m.User, Doctor: m.Doctor };
     }
-    return { Appointment: MasterAppointment, User: MasterUser };
+    return { Appointment: MasterAppointment, User: MasterUser, Doctor: require('../models/doctor.model') };
 };
 
 // ==========================================
@@ -67,7 +67,7 @@ router.patch('/reception/reschedule/:id', verifyToken, resolveTenant, auditLog('
         const { date, time } = req.body;
         if (!date || !time) return res.status(400).json({ success: false, message: 'Date and time are required' });
 
-        const { Appointment } = getModels(req);
+        const { Appointment, Doctor } = getModels(req);
         const appointment = await Appointment.findById(id);
         if (!appointment) return res.status(404).json({ success: false, message: 'Appointment not found' });
 
@@ -194,7 +194,7 @@ router.post('/create', verifyToken, resolveTenant, auditLog('CREATE_APPOINTMENT'
             return res.status(400).json({ success: false, message: 'Missing required fields (doctorId or date)' });
         }
 
-        const { User, Appointment } = getModels(req);
+        const { User, Appointment, Doctor } = getModels(req);
         const user = await User.findById(userId);
         if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 

@@ -3,8 +3,21 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const { verifyToken } = require('../middleware/auth.middleware');
+const { resolveTenant } = require('../middleware/tenantMiddleware');
+const { getTenantModels } = require('../db/tenantModels');
 const imagekit = require('../utils/imagekit');
-const UploadedFile = require('../models/uploadedFile.model');
+const MasterUploadedFile = require('../models/uploadedFile.model');
+
+const getModels = (req) => {
+  if (req.tenantDb) {
+    return {
+      UploadedFile: getTenantModels(req.tenantDb).UploadedFile
+    };
+  }
+  return {
+    UploadedFile: MasterUploadedFile
+  };
+};
 
 // Configure Multer for memory storage (Required for ImageKit)
 const upload = multer({
@@ -22,7 +35,7 @@ const upload = multer({
 });
 
 // Route: POST /api/upload/images
-router.post('/images', verifyToken, upload.array("images", 10), async (req, res) => {
+router.post('/images', verifyToken, resolveTenant, upload.array("images", 10), async (req, res) => {
   try {
     const files = req.files;
     
@@ -31,6 +44,7 @@ router.post('/images', verifyToken, upload.array("images", 10), async (req, res)
     }
 
     const uploadedResults = [];
+    const { UploadedFile } = getModels(req);
 
     for (const file of files) {
       try {

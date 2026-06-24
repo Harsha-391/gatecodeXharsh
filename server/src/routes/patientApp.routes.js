@@ -122,9 +122,18 @@ router.post('/auth/verify-otp', async (req, res) => {
         const valid = await verifyOTP(otp, session.otp);
         if (!valid) {
             try {
-                const AuditLogModel = require('../models/auditLog.model');
+                const { getTenantConnection } = require('../db/tenantDb');
+                const { getTenantModels } = require('../db/tenantModels');
+                let AuditLogModel = require('../models/auditLog.model');
+                const targetClinicId = clinicId || session.clinicId;
+                if (targetClinicId) {
+                    const tenantDb = await getTenantConnection(targetClinicId.toString());
+                    if (tenantDb) {
+                        AuditLogModel = getTenantModels(tenantDb).AuditLog;
+                    }
+                }
                 await AuditLogModel.create({
-                    clinicId: clinicId || session.clinicId || null,
+                    clinicId: targetClinicId || null,
                     userName: cleanPhone,
                     role: 'patient',
                     action: 'FAILED_LOGIN',
@@ -177,7 +186,15 @@ router.post('/auth/verify-otp', async (req, res) => {
 
         // Audit patient successful login
         try {
-            const AuditLogModel = require('../models/auditLog.model');
+            const { getTenantConnection } = require('../db/tenantDb');
+            const { getTenantModels } = require('../db/tenantModels');
+            let AuditLogModel = require('../models/auditLog.model');
+            if (effectiveClinicId) {
+                const tenantDb = await getTenantConnection(effectiveClinicId.toString());
+                if (tenantDb) {
+                    AuditLogModel = getTenantModels(tenantDb).AuditLog;
+                }
+            }
             await AuditLogModel.create({
                 clinicId: effectiveClinicId,
                 userId: session.patientId || null,
@@ -217,7 +234,15 @@ router.post('/auth/logout', verifyPatientToken, async (req, res) => {
 
         // Audit patient logout
         try {
-            const AuditLogModel = require('../models/auditLog.model');
+            const { getTenantConnection } = require('../db/tenantDb');
+            const { getTenantModels } = require('../db/tenantModels');
+            let AuditLogModel = require('../models/auditLog.model');
+            if (req.patient.clinicId) {
+                const tenantDb = await getTenantConnection(req.patient.clinicId.toString());
+                if (tenantDb) {
+                    AuditLogModel = getTenantModels(tenantDb).AuditLog;
+                }
+            }
             await AuditLogModel.create({
                 clinicId: req.patient.clinicId,
                 userId: req.patient.patientId || null,

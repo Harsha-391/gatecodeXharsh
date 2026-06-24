@@ -27,7 +27,8 @@ const getModels = (req) => {
             PharmacyOrder: m.PharmacyOrder,
             Inventory: m.Inventory,
             HospitalPatient: m.HospitalPatient,
-            LabTest: m.LabTest
+            LabTest: m.LabTest,
+            Notification: m.Notification
         };
     }
     return {
@@ -37,7 +38,8 @@ const getModels = (req) => {
         PharmacyOrder: MasterPharmacyOrder,
         Inventory: MasterInventory,
         HospitalPatient: MasterHospitalPatient,
-        LabTest: require('../models/labTest.model')
+        LabTest: require('../models/labTest.model'),
+        Notification: require('../models/notification.model')
     };
 };
 
@@ -108,7 +110,21 @@ router.get('/', async (req, res) => {
             query.hospitalId = hospitalIdFilter;
         }
 
-        const doctors = await Doctor.find(query)
+        let DoctorModel = Doctor;
+        if (hospitalIdFilter) {
+            const { getTenantConnection } = require('../db/tenantDb');
+            const { getTenantModels } = require('../db/tenantModels');
+            try {
+                const tenantDb = await getTenantConnection(String(hospitalIdFilter));
+                if (tenantDb) {
+                    DoctorModel = getTenantModels(tenantDb).Doctor;
+                }
+            } catch (err) {
+                console.error('Tenant DB resolution failed, falling back to Master:', err.message);
+            }
+        }
+
+        const doctors = await DoctorModel.find(query)
             .populate('userId', 'name email phone role')
             .select('name specialty services availability consultationFee image bio userId departments')
             .sort({ name: 1 })
@@ -178,7 +194,7 @@ router.get('/patients/:patientId/full-profile', verifyToken, resolveTenant, asyn
         }
 
         const [appointments, labReports, pharmacyOrders] = await Promise.all([
-            Appointment.find(apptQ).populate({ path: 'doctorId', model: Doctor, select: 'name specialty' }).sort({ appointmentDate: -1 }).lean(),
+            Appointment.find(apptQ).populate({ path: 'doctorId', model: 'Doctor', select: 'name specialty' }).sort({ appointmentDate: -1 }).lean(),
             LabReport.find(labQ).populate('labId', 'name').sort({ createdAt: -1 }).lean(),
             PharmacyOrder.find(rxQ).sort({ createdAt: -1 }).lean()
         ]);
@@ -321,7 +337,7 @@ router.get('/appointments/:id', verifyToken, resolveTenant, async (req, res) => 
             }
         }
         appointment.admissionStatus = admissionStatus;
-        
+
         // Fetch doctor's specific departments, fallback to hospital departments
         const doctorUser = await User.findById(req.user.id || req.user.userId).populate('hospitalId');
         let departments = [];
@@ -419,7 +435,7 @@ router.get('/all-appointments', verifyToken, resolveTenant, async (req, res) => 
 
         const appointments = await Appointment.find(query)
             .populate('userId', 'name email phone patientId fertilityProfile')
-            .populate({ path: 'doctorId', model: Doctor, select: 'name specialty departments' })
+            .populate({ path: 'doctorId', model: 'Doctor', select: 'name specialty departments' })
             .populate('doctorUserId', 'name')
             .sort({ appointmentDate: -1, appointmentTime: 1 })
             .lean();
@@ -519,13 +535,13 @@ router.patch('/appointments/:id/prescription', verifyToken, resolveTenant, uploa
                     for (const item of appointment.pharmacy) {
                         const medName = item.medicineName;
                         if (!medName) continue;
-                        
+
                         // 1. Check if it exists in the hospital's tenant Inventory
                         let invItem = await Inventory.findOne({
                             hospitalId: targetHospitalId,
                             name: { $regex: new RegExp('^' + medName.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i') }
                         });
-                        
+
                         if (!invItem) {
                             // 2. Check/add to the global Medicine catalog
                             let globalMed = await Medicine.findOne({
@@ -544,7 +560,7 @@ router.patch('/appointments/:id/prescription', verifyToken, resolveTenant, uploa
                                     console.error('[Prescription] Error saving to global Medicine catalog:', err);
                                 }
                             }
-                            
+
                             // 3. Add to the hospital's tenant Inventory collection
                             try {
                                 invItem = await Inventory.create({
@@ -609,7 +625,7 @@ router.patch('/appointments/:id/prescription', verifyToken, resolveTenant, uploa
         if (appointment.labTests && appointment.labTests.length > 0) {
             const existingReport = await LabReport.findOne({ appointmentId: appointment._id });
             let reportId;
-            
+
             // Dynamically calculate total amount for these lab tests
             const { LabTest } = getModels(req);
             const isTenant = !!req.tenantDb;
@@ -657,7 +673,8 @@ router.patch('/appointments/:id/prescription', verifyToken, resolveTenant, uploa
             }
 
             // --- Dispatch Lab Notification ---
-            await Notification.create({
+            const { Notification: NotificationModel } = getModels(req);
+            await NotificationModel.create({
                 senderId: req.user.id,
                 recipientRole: 'lab',
                 message: `New lab tests prescribed for ${pName} (${pId || 'N/A'})`,
@@ -679,7 +696,7 @@ router.patch('/appointments/:id/prescription', verifyToken, resolveTenant, uploa
         // --- NEW: Create Pharmacy Order ---
         if (appointment.pharmacy && appointment.pharmacy.length > 0) {
             const existingOrder = await PharmacyOrder.findOne({ appointmentId: appointment._id });
-            
+
             // Look up inventory prices
             const targetHospitalId = req.user.hospitalId || appointment.hospitalId;
             let allInventory = [];
@@ -765,7 +782,8 @@ router.patch('/appointments/:id/prescription', verifyToken, resolveTenant, uploa
             }
 
             // --- Dispatch Pharmacy Notification ---
-            await Notification.create({
+            const { Notification: NotificationModel } = getModels(req);
+            await NotificationModel.create({
                 senderId: req.user.id,
                 recipientRole: 'pharmacy',
                 message: `New pharmacy order prescribed for ${pName} (${pId || 'N/A'})`,
@@ -977,8 +995,8 @@ router.post('/appointments/:id/recommend-admission', verifyToken, resolveTenant,
         const doctorName = appointment.doctorName || 'Doctor';
 
         // Create notification for receptionist
-        const Notification = require('../models/notification.model');
-        const notif = await Notification.create({
+        const { Notification: NotificationModel } = getModels(req);
+        const notif = await NotificationModel.create({
             senderId: req.user.id,
             hospitalId: req.user.hospitalId || appointment.hospitalId,
             recipientRole: 'receptionist',
@@ -1080,8 +1098,8 @@ router.delete('/appointments/:id/recommend-admission', verifyToken, resolveTenan
             }
         }
 
-        const Notification = require('../models/notification.model');
-        const notif = await Notification.create({
+        const { Notification: NotificationModel } = getModels(req);
+        const notif = await NotificationModel.create({
             senderId: req.user.id,
             hospitalId: req.user.hospitalId || appointment.hospitalId,
             recipientRole: 'receptionist',

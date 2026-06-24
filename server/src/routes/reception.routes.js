@@ -17,12 +17,14 @@ const getModels = (req) => {
         const tenantModels = getTenantModels(req.tenantDb);
         return {
             ...tenantModels,
-            User: tenantModels.HospitalPatient
+            User: tenantModels.HospitalPatient,
+            Doctor: tenantModels.Doctor
         };
     }
     return { 
         Appointment: MasterAppointment, 
         User: MasterHospitalPatient,
+        Doctor: Doctor,
         ClinicalVisit: require('../models/clinicalVisit.model'),
         CollectionTransaction: require('../models/collectionTransaction.model')
     };
@@ -82,7 +84,8 @@ router.post('/register', verifyToken, verifyReception, async (req, res) => {
             userQuery.hospitalId = req.user.hospitalId;
         }
 
-        let user = await MasterHospitalPatient.findOne(userQuery);
+        const { User, Appointment, Doctor } = getModels(req);
+        let user = await User.findOne(userQuery);
 
         if (user) {
             // Update name if changed
@@ -104,31 +107,6 @@ router.post('/register', verifyToken, verifyReception, async (req, res) => {
             }
 
             await user.save();
-
-            // Sync/update in tenant DB
-            if (req.tenantDb) {
-                const TenantHospitalPatient = getTenantModels(req.tenantDb).HospitalPatient;
-                let tenantUser = await TenantHospitalPatient.findById(user._id);
-                if (!tenantUser) {
-                    tenantUser = new TenantHospitalPatient({
-                        ...user.toObject(),
-                        _id: user._id
-                    });
-                } else {
-                    tenantUser.name = user.name;
-                    if (user.email) tenantUser.email = user.email;
-                    tenantUser.phone = user.phone;
-                    if (req.body.gender) tenantUser.gender = req.body.gender;
-                    if (req.body.parentName) tenantUser.parentName = req.body.parentName;
-                    if (req.body.parentPhone) tenantUser.parentPhone = req.body.parentPhone;
-                    if (req.body.doctorId) {
-                        tenantUser.doctorId = req.body.doctorId;
-                        tenantUser.doctorName = user.doctorName;
-                    }
-                }
-                await tenantUser.save();
-            }
-
             return res.status(200).json({ success: true, message: 'Patient record updated!', user });
         }
 
@@ -158,13 +136,13 @@ router.post('/register', verifyToken, verifyReception, async (req, res) => {
         // Only attach email if it actually exists, to prevent duplicate sparse index errors
         if (email) userData.email = email;
 
-        const newUser = new MasterHospitalPatient(userData);
+        const newUser = new User(userData);
         await newUser.save();
 
         let newAppointment = null;
 
         if (autoCreateAppointment !== false) {
-            // Create corresponding Appointment record in Master DB (Appointment table)
+            // Create corresponding Appointment record
             const appointmentData = {
                 userId: newUser._id,
                 patientId: patientId,
@@ -185,35 +163,8 @@ router.post('/register', verifyToken, verifyReception, async (req, res) => {
                 notes: 'Walk-in patient registered'
             };
 
-            newAppointment = new MasterAppointment(appointmentData);
+            newAppointment = new Appointment(appointmentData);
             await newAppointment.save();
-
-            // Save to tenant DB as well
-            if (req.tenantDb) {
-                const TenantHospitalPatient = getTenantModels(req.tenantDb).HospitalPatient;
-                const newTenantUser = new TenantHospitalPatient({
-                    ...userData,
-                    _id: newUser._id
-                });
-                await newTenantUser.save();
-
-                const TenantAppointment = getTenantModels(req.tenantDb).Appointment;
-                const newTenantAppointment = new TenantAppointment({
-                    ...appointmentData,
-                    _id: newAppointment._id
-                });
-                await newTenantAppointment.save();
-            }
-        } else {
-            // Save to tenant DB as well (User only)
-            if (req.tenantDb) {
-                const TenantHospitalPatient = getTenantModels(req.tenantDb).HospitalPatient;
-                const newTenantUser = new TenantHospitalPatient({
-                    ...userData,
-                    _id: newUser._id
-                });
-                await newTenantUser.save();
-            }
         }
 
         res.status(201).json({ success: true, message: 'Patient registered successfully!', user: newUser, appointment: newAppointment });
@@ -276,15 +227,8 @@ router.get('/search-patients', verifyToken, verifyReception, async (req, res) =>
             ]
         };
 
-        // Use tenant DB if available (tenant DB is already hospital-scoped, no hospitalId filter needed)
         const { User } = getModels(req);
-        let patients = await User.find(namePhoneFilter).select('name phone email patientId fertilityProfile gender parentName parentPhone doctorId doctorName').limit(10);
-
-        // If tenant DB returned nothing (or no tenant DB), fall back to master DB
-        if (patients.length === 0) {
-            // Note: no hospitalId filter here — master DB patients may not have hospitalId set
-            patients = await MasterHospitalPatient.find(namePhoneFilter).select('name phone email patientId fertilityProfile gender parentName parentPhone doctorId doctorName').limit(10);
-        }
+        const patients = await User.find(namePhoneFilter).select('name phone email patientId fertilityProfile gender parentName parentPhone doctorId doctorName').limit(10);
 
         res.json({ success: true, patients });
     } catch (error) { 
@@ -303,7 +247,7 @@ router.put('/intake/:userId', verifyToken, verifyReception, async (req, res) => 
         const updates = req.body;
         const updateQuery = {};
 
-        const { User } = getModels(req);
+        const { User, Doctor } = getModels(req);
 
         // Map Root fields
         if (updates.firstName || updates.lastName) updateQuery.name = `${updates.firstName || ''} ${updates.lastName || ''}`.trim();
@@ -370,10 +314,6 @@ router.put('/intake/:userId', verifyToken, verifyReception, async (req, res) => 
         const updatedUser = await User.findByIdAndUpdate(userId, { $set: updateQuery }, { new: true, runValidators: false });
         if (!updatedUser) return res.status(404).json({ success: false, message: 'Patient not found' });
 
-        if (req.tenantDb) {
-            await MasterHospitalPatient.findByIdAndUpdate(userId, { $set: updateQuery }, { runValidators: false });
-        }
-
         res.json({ success: true, message: 'Updated', user: updatedUser });
     } catch (error) { 
         console.error('[update-intake] error:', error);
@@ -420,7 +360,7 @@ router.get('/appointments', verifyToken, verifyReception, async (req, res) => {
             }
         }
 
-        const { Appointment, ClinicalVisit } = getModels(req);
+        const { Appointment, ClinicalVisit, Doctor } = getModels(req);
         const appointments = await Appointment.find(queryFilter)
             .populate('userId', 'name email phone patientId')
             .populate({ path: 'doctorId', model: Doctor, select: 'name' })
@@ -455,7 +395,7 @@ router.patch('/appointments/:id/reschedule', verifyToken, verifyReception, async
     const { date, time, doctorId } = req.body;
     const reschQuery = { _id: id };
     if (req.user.hospitalId) reschQuery.hospitalId = req.user.hospitalId;
-    const { Appointment } = getModels(req);
+    const { Appointment, Doctor } = getModels(req);
     const appt = await Appointment.findOne(reschQuery);
     if (!appt) return res.status(404).json({ success: false, message: 'Appointment not found or unauthorized' });
 
@@ -527,25 +467,12 @@ router.patch('/appointments/:id/reschedule', verifyToken, verifyReception, async
             bookedBy: req.user.id || req.user.userId
         };
 
-        const newMasterAppointment = new MasterAppointment(appointmentData);
-        await newMasterAppointment.save();
+        const newAppointment = new Appointment(appointmentData);
+        await newAppointment.save();
 
-        if (req.tenantDb) {
-            const TenantAppointment = getTenantModels(req.tenantDb).Appointment;
-            const newTenantAppointment = new TenantAppointment({
-                ...appointmentData,
-                _id: newMasterAppointment._id
-            });
-            await newTenantAppointment.save();
-        }
-
-        // Set followUpScheduled to true on the old completed appointment in both DBs
+        // Set followUpScheduled to true on the old completed appointment
         appt.followUpScheduled = true;
         await appt.save();
-
-        if (req.tenantDb) {
-            await MasterAppointment.findByIdAndUpdate(appt._id, { $set: { followUpScheduled: true } });
-        }
 
         const io = req.app.get('io');
         if (io) {
@@ -553,22 +480,22 @@ router.patch('/appointments/:id/reschedule', verifyToken, verifyReception, async
             const docIdStr = finalDoctorId ? finalDoctorId.toString() : '';
             const docUserIdStr = finalDoctorUserId ? finalDoctorUserId.toString() : '';
 
-            io.to('receptionist').to('reception').to('receptiondeskmanager').emit('appointment_created', newMasterAppointment);
-            if (docIdStr) io.to(docIdStr).emit('appointment_created', newMasterAppointment);
-            if (docUserIdStr) io.to(docUserIdStr).emit('appointment_created', newMasterAppointment);
-            io.to('doctor').emit('appointment_created', newMasterAppointment);
+            io.to('receptionist').to('reception').to('receptiondeskmanager').emit('appointment_created', newAppointment);
+            if (docIdStr) io.to(docIdStr).emit('appointment_created', newAppointment);
+            if (docUserIdStr) io.to(docUserIdStr).emit('appointment_created', newAppointment);
+            io.to('doctor').emit('appointment_created', newAppointment);
 
             if (hId) {
                 const hospRoom = `hospital_${hId}`;
-                io.to(hospRoom).emit('appointment_created', newMasterAppointment);
-                io.to(`${hospRoom}_receptionist`).to(`${hospRoom}_reception`).to(`${hospRoom}_receptiondeskmanager`).emit('appointment_created', newMasterAppointment);
-                if (docIdStr) io.to(`${hospRoom}_${docIdStr}`).emit('appointment_created', newMasterAppointment);
-                if (docUserIdStr) io.to(`${hospRoom}_${docUserIdStr}`).emit('appointment_created', newMasterAppointment);
-                io.to(`${hospRoom}_doctor`).emit('appointment_created', newMasterAppointment);
+                io.to(hospRoom).emit('appointment_created', newAppointment);
+                io.to(`${hospRoom}_receptionist`).to(`${hospRoom}_reception`).to(`${hospRoom}_receptiondeskmanager`).emit('appointment_created', newAppointment);
+                if (docIdStr) io.to(`${hospRoom}_${docIdStr}`).emit('appointment_created', newAppointment);
+                if (docUserIdStr) io.to(`${hospRoom}_${docUserIdStr}`).emit('appointment_created', newAppointment);
+                io.to(`${hospRoom}_doctor`).emit('appointment_created', newAppointment);
             }
         }
 
-        return res.json({ success: true, message: 'Follow-up scheduled successfully', appointment: newMasterAppointment });
+        return res.json({ success: true, message: 'Follow-up scheduled successfully', appointment: newAppointment });
     }
 
     appt.appointmentDate = new Date(date);
@@ -579,23 +506,6 @@ router.patch('/appointments/:id/reschedule', verifyToken, verifyReception, async
     appt.appointmentTime = finalTime;
     appt.status = 'pending';
     await appt.save();
-
-    if (req.tenantDb) {
-        try {
-            const updateQuery = {
-                appointmentDate: appt.appointmentDate,
-                doctorId: appt.doctorId,
-                doctorUserId: appt.doctorUserId,
-                doctorName: appt.doctorName,
-                tokenNumber: appt.tokenNumber,
-                appointmentTime: appt.appointmentTime,
-                status: 'pending'
-            };
-            await MasterAppointment.findByIdAndUpdate(appt._id, { $set: updateQuery });
-        } catch (syncErr) {
-            console.error('[reschedule] Master DB sync failed:', syncErr.message);
-        }
-    }
 
     const io = req.app.get('io');
     if (io) {
@@ -670,7 +580,7 @@ router.post('/book-appointment', verifyToken, verifyReception, async (req, res) 
             return res.status(400).json({ success: false, message: 'Cannot book appointments in the past' });
         }
 
-        const { User, Appointment } = getModels(req);
+        const { User, Appointment, Doctor, CollectionTransaction } = getModels(req);
         const patient = await User.findById(patientId);
         if (!patient) return res.status(404).json({ success: false, message: 'Patient not found' });
 
@@ -744,17 +654,8 @@ router.post('/book-appointment', verifyToken, verifyReception, async (req, res) 
             bookedBy: req.user._id
         };
 
-        const newMasterAppointment = new MasterAppointment(appointmentData);
-        await newMasterAppointment.save();
-
-        if (req.tenantDb) {
-            const TenantAppointment = getTenantModels(req.tenantDb).Appointment;
-            const newTenantAppointment = new TenantAppointment({
-                ...appointmentData,
-                _id: newMasterAppointment._id
-            });
-            await newTenantAppointment.save();
-        }
+        const newAppointment = new Appointment(appointmentData);
+        await newAppointment.save();
 
         // Record CollectionTransaction if paid amount > 0
         const finalAmount = parentAppointmentId ? 0 : (Number(amount) || doctor.consultationFee || 0);
@@ -769,7 +670,7 @@ router.post('/book-appointment', verifyToken, verifyReception, async (req, res) 
                 patientName: patient.name,
                 patientPhone: patient.phone || '',
                 patientIdStr: patient.patientId || patient.mrn || 'WALK-IN',
-                appointmentId: newMasterAppointment._id,
+                appointmentId: newAppointment._id,
                 amount: finalAmount,
                 paymentMethod: paymentMethod || 'Cash',
                 collectedByUserId: req.user._id,
@@ -779,26 +680,12 @@ router.post('/book-appointment', verifyToken, verifyReception, async (req, res) 
                 collectionTimestamp: new Date()
             };
 
-            const MasterCollectionTransaction = require('../models/collectionTransaction.model');
-            const masterTx = new MasterCollectionTransaction(transactionData);
-            await masterTx.save();
-
-            if (req.tenantDb) {
-                const TenantCollectionTransaction = getTenantModels(req.tenantDb).CollectionTransaction;
-                const tenantTx = new TenantCollectionTransaction({
-                    ...transactionData,
-                    _id: masterTx._id
-                });
-                await tenantTx.save();
-            }
+            const tx = new CollectionTransaction(transactionData);
+            await tx.save();
         }
 
         if (parentAppointmentId) {
-            await MasterAppointment.findByIdAndUpdate(parentAppointmentId, { $set: { followUpScheduled: true } });
-            if (req.tenantDb) {
-                const TenantAppointment = getTenantModels(req.tenantDb).Appointment;
-                await TenantAppointment.findByIdAndUpdate(parentAppointmentId, { $set: { followUpScheduled: true } });
-            }
+            await Appointment.findByIdAndUpdate(parentAppointmentId, { $set: { followUpScheduled: true } });
         }
 
         const io = req.app.get('io');
@@ -808,23 +695,23 @@ router.post('/book-appointment', verifyToken, verifyReception, async (req, res) 
             const docUserIdStr = doctor.userId ? doctor.userId.toString() : '';
 
             // Emit to global role rooms
-            io.to('receptionist').to('reception').to('receptiondeskmanager').emit('appointment_created', newMasterAppointment);
-            if (docIdStr) io.to(docIdStr).emit('appointment_created', newMasterAppointment);
-            if (docUserIdStr) io.to(docUserIdStr).emit('appointment_created', newMasterAppointment);
-            io.to('doctor').emit('appointment_created', newMasterAppointment);
+            io.to('receptionist').to('reception').to('receptiondeskmanager').emit('appointment_created', newAppointment);
+            if (docIdStr) io.to(docIdStr).emit('appointment_created', newAppointment);
+            if (docUserIdStr) io.to(docUserIdStr).emit('appointment_created', newAppointment);
+            io.to('doctor').emit('appointment_created', newAppointment);
 
             // Emit to hospital-scoped rooms
             if (hId) {
                 const hospRoom = `hospital_${hId}`;
-                io.to(hospRoom).emit('appointment_created', newMasterAppointment);
-                io.to(`${hospRoom}_receptionist`).to(`${hospRoom}_reception`).to(`${hospRoom}_receptiondeskmanager`).emit('appointment_created', newMasterAppointment);
-                if (docIdStr) io.to(`${hospRoom}_${docIdStr}`).emit('appointment_created', newMasterAppointment);
-                if (docUserIdStr) io.to(`${hospRoom}_${docUserIdStr}`).emit('appointment_created', newMasterAppointment);
-                io.to(`${hospRoom}_doctor`).emit('appointment_created', newMasterAppointment);
+                io.to(hospRoom).emit('appointment_created', newAppointment);
+                io.to(`${hospRoom}_receptionist`).to(`${hospRoom}_reception`).to(`${hospRoom}_receptiondeskmanager`).emit('appointment_created', newAppointment);
+                if (docIdStr) io.to(`${hospRoom}_${docIdStr}`).emit('appointment_created', newAppointment);
+                if (docUserIdStr) io.to(`${hospRoom}_${docUserIdStr}`).emit('appointment_created', newAppointment);
+                io.to(`${hospRoom}_doctor`).emit('appointment_created', newAppointment);
             }
         }
 
-        res.json({ success: true, message: 'Appointment booked successfully!', appointment: newMasterAppointment, tokenNumber });
+        res.json({ success: true, message: 'Appointment booked successfully!', appointment: newAppointment, tokenNumber });
 
     } catch (error) {
         console.error("Reception Booking Error:", error);
@@ -881,18 +768,9 @@ router.patch('/appointments/:id/confirm-payment', verifyToken, verifyReception, 
                 collectionTimestamp: new Date()
             };
 
-            const MasterCollectionTransaction = require('../models/collectionTransaction.model');
-            const masterTx = new MasterCollectionTransaction(transactionData);
-            await masterTx.save();
-
-            if (req.tenantDb) {
-                const TenantCollectionTransaction = getTenantModels(req.tenantDb).CollectionTransaction;
-                const tenantTx = new TenantCollectionTransaction({
-                    ...transactionData,
-                    _id: masterTx._id
-                });
-                await tenantTx.save();
-            }
+            const { CollectionTransaction } = getModels(req);
+            const tx = new CollectionTransaction(transactionData);
+            await tx.save();
         }
 
         res.json({ success: true, appointment: appt });
@@ -920,32 +798,12 @@ router.post('/check-in', verifyToken, verifyReception, async (req, res) => {
             hospitalId: req.user.hospitalId || undefined
         };
 
-        let visit;
-        if (req.tenantDb) {
-            // Dual-write: write to master DB first
-            const MasterClinicalVisit = require('../models/clinicalVisit.model');
-            const masterVisit = new MasterClinicalVisit(visitData);
-            await masterVisit.save();
-
-            // Write to tenant DB
-            const TenantClinicalVisit = getTenantModels(req.tenantDb).ClinicalVisit;
-            visit = new TenantClinicalVisit({
-                ...visitData,
-                _id: masterVisit._id
-            });
-            await visit.save();
-        } else {
-            visit = new ClinicalVisit(visitData);
-            await visit.save();
-        }
+        const visit = new ClinicalVisit(visitData);
+        await visit.save();
 
         if (appointmentId) {
             // Update appointment status - set to confirmed so it remains in the active queue until completed by the doctor
             await Appointment.findByIdAndUpdate(appointmentId, { status: 'confirmed' });
-            if (req.tenantDb) {
-                const MasterAppointment = require('../models/appointment.model');
-                await MasterAppointment.findByIdAndUpdate(appointmentId, { status: 'confirmed' });
-            }
         }
 
         // Emit socket event to update Reception/Doctor grids
@@ -976,7 +834,7 @@ router.get('/transactions', verifyToken, verifyReception, async (req, res) => {
         if (req.user.hospitalId) {
             queryFilter.hospitalId = req.user.hospitalId;
         }
-        const { Appointment } = getModels(req);
+        const { Appointment, Doctor } = getModels(req);
         const transactions = await Appointment.find(queryFilter)
             .populate('userId', 'name phone patientId email')
             .populate({ path: 'doctorId', model: Doctor, select: 'name' })
@@ -1039,18 +897,6 @@ router.post('/patients/:id/reports', verifyToken, verifyReception, uploadReport.
         patient.pastReports.push(entry);
         await patient.save();
 
-        // Dual-write to master database User document if req.tenantDb exists
-        if (req.tenantDb) {
-            const masterPatient = await MasterUser.findOne({ _id: req.params.id });
-            if (masterPatient) {
-                if (!masterPatient.pastReports) {
-                    masterPatient.pastReports = [];
-                }
-                masterPatient.pastReports.push(entry);
-                await masterPatient.save();
-            }
-        }
-
         res.json({
             success: true,
             report: patient.pastReports[patient.pastReports.length - 1],
@@ -1080,15 +926,6 @@ router.delete('/patients/:id/reports/:reportId', verifyToken, verifyReception, a
         const filename = report.filename;
         patient.pastReports.pull(req.params.reportId);
         await patient.save();
-
-        // Dual-write deletion to master database
-        if (req.tenantDb) {
-            const masterPatient = await MasterUser.findOne({ _id: req.params.id });
-            if (masterPatient) {
-                masterPatient.pastReports.pull(req.params.reportId);
-                await masterPatient.save();
-            }
-        }
 
         // Delete from local disk
         const filePath = path.join(reportsDir, filename);

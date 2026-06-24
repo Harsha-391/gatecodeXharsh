@@ -72,7 +72,9 @@ const getModels = (req) => {
         InsuranceClaim: MasterInsuranceClaim,
         Doctor: MasterDoctor,
         Service: MasterService,
-        Resource: MasterResource
+        Resource: MasterResource,
+        Facility: require('../models/facility.model'),
+        AuditLog: require('../models/auditLog.model')
     };
 };
 
@@ -83,7 +85,7 @@ router.get('/stats', verifyAdministratorAccess, async (req, res) => {
         if (!hospitalId) return res.status(400).json({ success: false, message: 'Hospital context required' });
 
         const models = getModels(req);
-        const { User, Appointment, LabReport, PharmacyOrder, Admission, Invoice } = models;
+        const { User, Appointment, LabReport, PharmacyOrder, Admission, Invoice, Facility, AuditLog } = models;
 
         const todayStart = new Date();
         todayStart.setHours(0, 0, 0, 0);
@@ -114,8 +116,7 @@ router.get('/stats', verifyAdministratorAccess, async (req, res) => {
         let totalICUBeds = 10;
         let totalWardBeds = 40;
 
-        const hosp = await MasterHospital.findById(hospitalId).select('facilities');
-        const facilities = hosp ? (hosp.facilities || []) : [];
+        const facilities = await Facility.find({ hospitalId }).lean();
 
         if (facilities.length > 0) {
             let icuTotal = 0;
@@ -629,7 +630,7 @@ router.get('/admissions/oversight/dashboard', verifyAdministratorAccess, auditLo
         }
 
         const models = getModels(req);
-        const { Admission, User, Appointment } = models;
+        const { Admission, User, Appointment, Facility } = models;
 
         // Multi-tenant check
         let query = {};
@@ -656,20 +657,14 @@ router.get('/admissions/oversight/dashboard', verifyAdministratorAccess, auditLo
         let totalBedsCount = 50; // default fallback
         
         if (activeHospitalId) {
-            const hosp = await MasterHospital.findById(activeHospitalId).select('facilities');
-            if (hosp && hosp.facilities && hosp.facilities.length > 0) {
-                totalBedsCount = hosp.facilities.reduce((sum, f) => sum + (f.bedCount || 0), 0);
+            const facilities = await Facility.find({ hospitalId: activeHospitalId }).lean();
+            if (facilities && facilities.length > 0) {
+                totalBedsCount = facilities.reduce((sum, f) => sum + (f.bedCount || 0), 0);
             }
         } else {
-            const hospitals = await MasterHospital.find({ isActive: true }).select('facilities');
-            let computedBeds = 0;
-            hospitals.forEach(h => {
-                if (h.facilities && h.facilities.length > 0) {
-                    computedBeds += h.facilities.reduce((sum, f) => sum + (f.bedCount || 0), 0);
-                }
-            });
-            if (computedBeds > 0) {
-                totalBedsCount = computedBeds;
+            const facilities = await Facility.find({}).lean();
+            if (facilities && facilities.length > 0) {
+                totalBedsCount = facilities.reduce((sum, f) => sum + (f.bedCount || 0), 0);
             }
         }
 
@@ -825,14 +820,13 @@ router.get('/admissions/oversight/occupancy', verifyAdministratorAccess, auditLo
         }
 
         const models = getModels(req);
-        const { Admission } = models;
+        const { Admission, Facility } = models;
 
         const currentAdmissions = await Admission.find({ hospitalId, status: { $ne: 'Discharged' } });
         const occupiedBedNumbers = currentAdmissions.map(a => a.bedNumber).filter(Boolean);
         const occupiedICUBeds = currentAdmissions.filter(a => a.ward === 'ICU').map(a => a.bedNumber).filter(Boolean);
 
-        const hosp = await MasterHospital.findById(hospitalId).select('facilities');
-        const facilities = hosp ? (hosp.facilities || []) : [];
+        const facilities = await Facility.find({ hospitalId }).lean();
 
         let icuTotal = 0;
         let wardTotal = 0;
@@ -1295,7 +1289,7 @@ router.get('/reports', verifyAdministratorAccess, auditLog('DATA_EXPORT', null, 
 
         const hospitalId = req.hospitalId || req.user.hospitalId;
         const models = getModels(req);
-        const { User, Appointment, Admission, Invoice, LabReport, PharmacyOrder, Doctor, InsuranceClaim, Service } = models;
+        const { User, Appointment, Admission, Invoice, LabReport, PharmacyOrder, Doctor, InsuranceClaim, Service, AuditLog } = models;
 
         // Optional date range filter
         const { startDate, endDate } = req.query;
@@ -1599,6 +1593,8 @@ router.get('/audit-logs', verifyAdministratorAccess, async (req, res) => {
         }
 
         const hospitalId = req.hospitalId || req.user.hospitalId;
+        const models = getModels(req);
+        const { AuditLog } = models;
 
         // ── Filters ────────────────────────────────────────────────────────────
         const isExport = req.query.export === 'true';
