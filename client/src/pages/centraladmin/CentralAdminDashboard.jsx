@@ -1227,6 +1227,10 @@ const CentralAdminDashboard = () => {
                                                 {h.city && <span>📍 {h.city}{h.state ? `, ${h.state}` : ''}</span>}
                                                 {h.phone && <span>📞 {h.phone}</span>}
                                                 {h.email && <span>✉️ {h.email}</span>}
+                                                <div style={{ marginTop: '8px', padding: '6px 10px', background: '#f8fafc', borderRadius: '6px', fontSize: '11px', border: '1px solid #e2e8f0', color: '#475569' }}>
+                                                    <div><strong>Subdomain:</strong> {h.slug}</div>
+                                                    <div style={{ marginTop: '2px' }}><strong>TenantKey:</strong> <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{h.tenantKey || 'N/A'}</span></div>
+                                                </div>
                                                 {h.slug && <a href={`${window.location.protocol}//${h.slug}.${getBaseHost()}`} target="_blank" rel="noreferrer" style={{ display: 'inline-block', marginTop: '6px', background: 'var(--brand-pink)', color: 'white', padding: '2px 6px', fontSize: '10px', borderRadius: '4px', textDecoration: 'none', marginRight: '6px' }}>🌐 {h.slug}.{getBaseHost()}</a>}
                                                 {h.customDomain && <a href={`http://${h.customDomain}`} target="_blank" rel="noreferrer" style={{ display: 'inline-block', marginTop: '6px', background: '#3b82f6', color: 'white', padding: '2px 6px', fontSize: '10px', borderRadius: '4px', textDecoration: 'none' }}>🌐 {h.customDomain}</a>}
                                                 {(h.departments && h.departments.length > 0) && (
@@ -1510,6 +1514,10 @@ const CentralAdminDashboard = () => {
                                                 {clinic.phone && <div>📞 {clinic.phone}</div>}
                                                 {clinic.email && <div>✉️ {clinic.email}</div>}
                                                 <div style={{ marginTop: '6px' }}>💰 Fee: {formatCurrency(clinic.appointmentFee)}</div>
+                                                <div style={{ marginTop: '8px', padding: '6px 10px', background: '#f8fafc', borderRadius: '6px', fontSize: '11px', border: '1px solid #e2e8f0', color: '#475569' }}>
+                                                    <div><strong>Subdomain:</strong> {clinic.slug}</div>
+                                                    <div style={{ marginTop: '2px' }}><strong>TenantKey:</strong> <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{clinic.tenantKey || 'N/A'}</span></div>
+                                                </div>
                                                 {clinic.slug && <div style={{ marginTop: '4px', fontFamily: 'monospace', fontSize: '11px', color: '#94a3b8' }}>🔗 /{clinic.slug}</div>}
                                                 <div style={{ marginTop: '8px', padding: '6px 10px', borderRadius: '6px', background: clinic.adminUserId ? '#f0fdf4' : '#fff7ed', border: `1px solid ${clinic.adminUserId ? '#bbf7d0' : '#fed7aa'}` }}>
                                                     {clinic.adminUserId

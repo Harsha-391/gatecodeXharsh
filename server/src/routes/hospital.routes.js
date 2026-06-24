@@ -98,9 +98,18 @@ router.get('/', verifyCentralAdmin, async (req, res) => {
 // ==========================================
 router.get('/resolve/:slug', async (req, res) => {
     try {
+        const identifier = req.params.slug;
+        const mongoose = require('mongoose');
+        const conditions = [];
+        if (mongoose.Types.ObjectId.isValid(identifier)) {
+            conditions.push({ _id: identifier });
+        }
+        conditions.push({ tenantKey: identifier });
+        conditions.push({ slug: identifier.toLowerCase() });
+
         const hospital = await Hospital.findOne(
-            { slug: req.params.slug.toLowerCase(), isActive: true },
-            'name slug city logo departments departmentFees appointmentFee appointmentMode facilities isActive _id'
+            { $or: conditions, isActive: true },
+            'name slug city logo departments departmentFees appointmentFee appointmentMode facilities isActive tenantKey originalSubdomain _id'
         );
         if (!hospital) {
             return res.status(404).json({ success: false, message: 'Hospital not found. Check the URL and try again.' });
@@ -267,26 +276,28 @@ router.post('/', verifyCentralAdmin, auditLog('HOSPITAL_UPDATE', null, { severit
         const RESERVED_SLUGS = ['api', 'admin', 'login', 'logout', 'signup', 'register', 'uploads',
             'static', 'health', 'public', 'www', 'mail', 'ftp', 'app', 'dashboard', 'root', 'support'];
 
-        // Auto-generate URL slug from hospital name: "AKG Hospital" -> "akg-hospital"
-        const baseSlug = (customSlug || name)
+        // Validate & process subdomain/slug
+        const targetSlug = (customSlug || name || '')
             .toLowerCase()
             .trim()
-            .replace(/[^a-z0-9\s-]/g, '')
             .replace(/\s+/g, '-')
-            .replace(/-+/g, '-')
-            .slice(0, 60); // max length
+            .replace(/-+/g, '-');
 
-        if (!baseSlug) return res.status(400).json({ success: false, message: 'Could not generate a valid slug from the hospital name' });
-        if (RESERVED_SLUGS.includes(baseSlug)) {
-            return res.status(400).json({ success: false, message: `Slug "${baseSlug}" is reserved. Use a different hospital name.` });
+        if (!/^[a-z0-9-]+$/.test(targetSlug)) {
+            return res.status(400).json({ success: false, message: 'Subdomain must contain lowercase letters, numbers, and hyphens only.' });
+        }
+        if (targetSlug.length < 3 || targetSlug.length > 60) {
+            return res.status(400).json({ success: false, message: 'Subdomain must be between 3 and 60 characters long.' });
+        }
+        if (RESERVED_SLUGS.includes(targetSlug)) {
+            return res.status(400).json({ success: false, message: `Slug "${targetSlug}" is reserved. Use a different subdomain.` });
+        }
+        const duplicate = await Hospital.findOne({ slug: { $regex: new RegExp(`^${targetSlug}$`, 'i') } });
+        if (duplicate) {
+            return res.status(400).json({ success: false, message: 'Subdomain already exists. Please choose another subdomain.' });
         }
 
-        // Ensure slug uniqueness by appending number if needed
-        let slug = baseSlug;
-        let counter = 1;
-        while (await Hospital.findOne({ slug })) {
-            slug = `${baseSlug}-${counter++}`;
-        }
+        const slug = targetSlug;
 
         const hospital = new Hospital({ name, slug, address, city, state, phone, email, website, logo, departments: departments || [], appointmentFee: appointmentFee || 500 });
         await hospital.save();
@@ -312,28 +323,7 @@ router.post('/', verifyCentralAdmin, auditLog('HOSPITAL_UPDATE', null, { severit
                 _type: 'tenant_init',
             });
 
-            // Seed default lab tests for this hospital tenant database
-            const { LabTest: TenantLabTest } = getTenantModels(tenantConn);
-            const dummyTests = [
-                { name: 'Complete Blood Count (CBC)', code: 'CBC', category: 'Hematology', price: 350, description: 'Measures red and white blood cells, platelets, and hemoglobin. Useful for checking anemia and infection. No fasting required.' },
-                { name: 'Lipid Profile', code: 'LIPID', category: 'Biochemistry', price: 600, description: 'Measures total cholesterol, HDL, LDL, and triglycerides. Fasting of 10-12 hours is strictly required.' },
-                { name: 'Liver Function Test (LFT)', code: 'LFT', category: 'Biochemistry', price: 750, description: 'Evaluates protein, bilirubin, and liver enzymes (SGOT, SGPT, ALP) in the blood to assess liver health.' },
-                { name: 'Kidney Function Test (KFT)', code: 'KFT', category: 'Biochemistry', price: 700, description: 'Tests blood levels of urea, creatinine, uric acid, and electrolytes to check how well kidneys filter waste.' },
-                { name: 'Thyroid Profile (T3, T4, TSH)', code: 'THYROID', category: 'Endocrinology', price: 850, description: 'Screening test for hyperthyroidism and hypothyroidism. TSH is highly sensitive.' },
-                { name: 'HbA1c (Glycated Hemoglobin)', code: 'HBA1C', category: 'Diabetology', price: 450, description: 'Reflects your average blood sugar levels over the past 3 months. Essential for diabetes management. No fasting required.' },
-                { name: 'Blood Glucose (Fasting & PP)', code: 'GLUCOSE', category: 'Diabetology', price: 150, description: 'Measures glucose levels before and 2 hours after a meal. Used to diagnose and monitor diabetes.' },
-                { name: 'Urine Routine & Microscopy', code: 'URINE', category: 'Pathology', price: 200, description: 'Analysis of urine sample for color, pH, protein, glucose, and microscopic elements like cells or bacteria.' },
-                { name: 'Vitamin D3 (25-Hydroxy)', code: 'VITD3', category: 'Vitamins', price: 1200, description: 'Measures levels of Vitamin D to assess bone strength, calcium absorption, and immune function.' },
-                { name: 'Vitamin B12', code: 'VITB12', category: 'Vitamins', price: 900, description: 'Measures Vitamin B12 levels. Vital for nerve health and red blood cell production.' },
-                { name: 'Iron Profile', code: 'IRON', category: 'Hematology', price: 800, description: 'Measures serum iron, ferritin, and total iron-binding capacity (TIBC) to diagnose iron-deficiency anemia.' },
-                { name: 'Electrolytes Panel', code: 'ELECTROLYTES', category: 'Biochemistry', price: 400, description: 'Measures blood sodium, potassium, and chloride levels. Vital for nerve and muscle function.' },
-                { name: 'Dengue NS1 Antigen & Antibody', code: 'DENGUE', category: 'Serology', price: 1100, description: 'Rapid antigen and antibody test for early detection of Dengue viral infection.' },
-                { name: 'Widal Test (Typhoid)', code: 'WIDAL', category: 'Serology', price: 300, description: 'Slide agglutination test to screen for enteric fever (Typhoid).' },
-                { name: 'C-Reactive Protein (CRP)', code: 'CRP', category: 'Immunology', price: 450, description: 'Measures general level of inflammation in the body. Useful in diagnosing infectious or chronic inflammatory conditions.' }
-            ];
-            await TenantLabTest.insertMany(dummyTests.map(t => ({ ...t, hospitalId: hospital._id, isActive: true })));
-
-            console.log(`✅ Tenant DB created and seeded with meta & default lab tests: ${dbName}`);
+            console.log(`✅ Tenant DB created and initialized with metadata: ${dbName}`);
         } catch (dbErr) {
             // Non-fatal: hospital is created, DB will be provisioned on first login
             console.warn(`⚠️  Could not pre-provision tenant DB for ${hospital.name}:`, dbErr.message);
@@ -361,12 +351,12 @@ router.post('/', verifyCentralAdmin, auditLog('HOSPITAL_UPDATE', null, { severit
 router.get('/tenant-status', verifyCentralAdmin, async (req, res) => {
     try {
         const { getActiveConnections, getTenantDbName } = require('../db/tenantDb');
-        const hospitals = await Hospital.find({}, 'name city isActive').lean();
+        const hospitals = await Hospital.find({}, 'name city isActive tenantKey').lean();
 
         const activeConns = getActiveConnections();
 
         const report = hospitals.map(h => {
-            const dbName = getTenantDbName(String(h._id));
+            const dbName = getTenantDbName(String(h._id), h.tenantKey);
             const connInfo = activeConns.find(c => c.dbName === dbName);
             return {
                 hospitalId: h._id,
@@ -398,7 +388,25 @@ router.put('/:id', verifyCentralAdmin, auditLog('HOSPITAL_UPDATE', (req) => ({ m
         if (!hospital) return res.status(404).json({ success: false, message: 'Hospital not found' });
 
         if (name !== undefined) hospital.name = name;
-        if (slug !== undefined) hospital.slug = slug.toLowerCase().trim().replace(/[^a-z0-9-]/g, '');
+        if (slug !== undefined) {
+            const targetSlug = slug.toLowerCase().trim().replace(/\s+/g, '-').replace(/-+/g, '-');
+            if (!/^[a-z0-9-]+$/.test(targetSlug)) {
+                return res.status(400).json({ success: false, message: 'Subdomain must contain lowercase letters, numbers, and hyphens only.' });
+            }
+            if (targetSlug.length < 3 || targetSlug.length > 60) {
+                return res.status(400).json({ success: false, message: 'Subdomain must be between 3 and 60 characters long.' });
+            }
+            const RESERVED_SLUGS = ['api', 'admin', 'login', 'logout', 'signup', 'register', 'uploads',
+                'static', 'health', 'public', 'www', 'mail', 'ftp', 'app', 'dashboard', 'root', 'support'];
+            if (RESERVED_SLUGS.includes(targetSlug)) {
+                return res.status(400).json({ success: false, message: `Slug "${targetSlug}" is reserved. Use a different subdomain.` });
+            }
+            const duplicate = await Hospital.findOne({ slug: { $regex: new RegExp(`^${targetSlug}$`, 'i') }, _id: { $ne: req.params.id } });
+            if (duplicate) {
+                return res.status(400).json({ success: false, message: 'Subdomain already exists. Please choose another subdomain.' });
+            }
+            hospital.slug = targetSlug;
+        }
         if (customDomain !== undefined) {
             // strip protocol, trailing slash, and leading www.
             let clean = customDomain ? customDomain.replace(/^https?:\/\//, '').replace(/\/$/, '').toLowerCase() : null;
@@ -774,6 +782,10 @@ router.post('/admin/login', async (req, res) => {
             return res.status(403).json({ success: false, message: 'Hospital account is inactive. Contact your Central Admin.' });
         }
 
+        const hosp = await Hospital.findById(user.hospitalId).select('tenantKey slug');
+        const tenantKey = hosp?.tenantKey || null;
+        const subdomain = hosp?.slug || null;
+
         const { v4: uuidv4 } = require('uuid');
         const jti = uuidv4();
         // Embed hospitalId in the JWT so all downstream middleware can scope data
@@ -783,7 +795,9 @@ router.post('/admin/login', async (req, res) => {
                 userId: user._id,
                 email: user.email,
                 roleId: String(user.role),
-                hospitalId: String(user.hospitalId)   // ← scoped in token
+                hospitalId: String(user.hospitalId),   // ← scoped in token
+                tenantKey,
+                subdomain
             },
             JWT_SECRET,
             { expiresIn: '7d' }

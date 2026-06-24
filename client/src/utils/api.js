@@ -587,8 +587,7 @@ export const labTestAPI = {
     createLabTest: async (data) => (await apiClient.post('/api/lab-tests', data)).data,
     updateLabTest: async (id, data) => (await apiClient.put(`/api/lab-tests/${id}`, data)).data,
     setHospitalPrice: async (id, hospitalId, price) => (await apiClient.put(`/api/lab-tests/${id}/hospital-price`, { hospitalId, price })).data,
-    deleteLabTest: async (id) => (await apiClient.delete(`/api/lab-tests/${id}`)).data,
-    seedDummyLabTests: async () => (await apiClient.post('/api/lab-tests/seed-dummy')).data
+    deleteLabTest: async (id) => (await apiClient.delete(`/api/lab-tests/${id}`)).data
 };
 
 export const medicineAPI = {

@@ -144,6 +144,17 @@ router.post('/signup', signupLimiter, async (req, res) => {
     await user.save();
 
     // Generate JWT token — include hospitalId for tenant DB routing
+    let tenantKey = null;
+    let subdomain = null;
+    if (user.hospitalId) {
+      const Hospital = require('../models/hospital.model');
+      const hosp = await Hospital.findById(user.hospitalId).select('tenantKey slug');
+      if (hosp) {
+        tenantKey = hosp.tenantKey;
+        subdomain = hosp.slug;
+      }
+    }
+
     const token = jwt.sign(
       {
         jti: uuidv4(),
@@ -151,6 +162,8 @@ router.post('/signup', signupLimiter, async (req, res) => {
         email: user.email,
         roleId: String(defaultRole._id),
         hospitalId: user.hospitalId ? String(user.hospitalId) : null,
+        tenantKey,
+        subdomain,
         tv: user.tokenVersion ?? 0,
       },
       JWT_SECRET,
@@ -390,6 +403,17 @@ router.post('/login', loginLimiter, async (req, res) => {
       return res.json({ success: true, mfaRequired: true, preAuthToken });
     }
 
+    let tenantKey = null;
+    let subdomain = null;
+    if (user.hospitalId) {
+      const Hospital = require('../models/hospital.model');
+      const hosp = await Hospital.findById(user.hospitalId).select('tenantKey slug');
+      if (hosp) {
+        tenantKey = hosp.tenantKey;
+        subdomain = hosp.slug;
+      }
+    }
+
     const jti = uuidv4();
     const token = jwt.sign(
       {
@@ -398,6 +422,8 @@ router.post('/login', loginLimiter, async (req, res) => {
         email: user.email,
         roleId: String(user.role),
         hospitalId: user.hospitalId ? String(user.hospitalId) : null,
+        tenantKey,
+        subdomain,
         tv: user.tokenVersion ?? 0,
       },
       JWT_SECRET,
@@ -519,10 +545,14 @@ router.get('/me', verifyToken, async (req, res) => {
     }
     
     let clinicType = null;
+    let tenantKey = null;
+    let subdomain = null;
     if (user.hospitalId) {
       try {
-        const hosp = await Hospital.findById(user.hospitalId).select('clinicType');
+        const hosp = await Hospital.findById(user.hospitalId).select('clinicType tenantKey slug');
         clinicType = hosp?.clinicType || 'hospital';
+        tenantKey = hosp?.tenantKey || null;
+        subdomain = hosp?.slug || null;
       } catch (_) {}
     }
     
@@ -535,6 +565,8 @@ router.get('/me', verifyToken, async (req, res) => {
       roleId: String(user.role),
       patientId: user.patientId || null,
       hospitalId: user.hospitalId ? String(user.hospitalId) : null,
+      tenantKey,
+      subdomain,
       clinicType,
       permissions: roleData ? roleData.permissions : [],
       customPermissions: user.customPermissions || [],

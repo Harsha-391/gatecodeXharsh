@@ -14,6 +14,9 @@ const mongoose = require('mongoose');
 // In-memory cache: { hospitalDbName -> Mongoose Connection }
 const connectionCache = new Map();
 
+// In-memory cache: { hospitalId -> tenantKey }
+const idToTenantKeyCache = new Map();
+
 /**
  * Extract the base cluster URI (strip the database name from the URL).
  * e.g. "mongodb+srv://user:pass@cluster0.xyz.mongodb.net/IVF_CRM_TEST?retryWrites=true"
@@ -32,21 +35,47 @@ function getBaseClusterUri() {
 }
 
 /**
- * Sanitize a hospitalId string to be safe for use as a MongoDB database name.
- * MongoDB database names cannot contain: / \ . " $ * < > : | ?
+ * Sanitize a tenantKey string to be safe for use as a MongoDB database name.
+ * Ensured to stay under MongoDB Atlas's 38-byte limit on M0/Flex tiers.
  */
-function sanitizeDbName(hospitalId) {
-    return `hms_hospital_${String(hospitalId).replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+function sanitizeDbName(tenantKey) {
+    let dbName = tenantKey;
+    if (tenantKey.includes('-')) {
+        const parts = tenantKey.split('-');
+        const id = parts[parts.length - 1]; // last part is the 24-character hospitalId
+        const subdomain = parts.slice(0, -1).join('-');
+        const slicedSubdomain = subdomain.slice(0, 11);
+        dbName = `${slicedSubdomain}-${id}`;
+    }
+    return `h_${String(dbName).replace(/[^a-zA-Z0-9_-]/g, '_')}`;
 }
 
 /**
  * Get (or create and cache) a Mongoose connection for a specific hospital.
  *
- * @param {string} hospitalId - The MongoDB ObjectId string of the hospital
+ * @param {string} hospitalIdOrKey - The MongoDB ObjectId string or the tenantKey of the hospital
  * @returns {Promise<mongoose.Connection>}
  */
-async function getTenantConnection(hospitalId) {
-    const dbName = sanitizeDbName(hospitalId);
+async function getTenantConnection(hospitalIdOrKey) {
+    let tenantKey = hospitalIdOrKey;
+
+    // If it is a 24-character hex ObjectId, it is a hospitalId. We must resolve its tenantKey.
+    if (/^[0-9a-fA-F]{24}$/.test(hospitalIdOrKey)) {
+        if (idToTenantKeyCache.has(hospitalIdOrKey)) {
+            tenantKey = idToTenantKeyCache.get(hospitalIdOrKey);
+        } else {
+            const Hospital = require('../models/hospital.model');
+            const hospital = await Hospital.findById(hospitalIdOrKey).lean();
+            if (hospital) {
+                tenantKey = hospital.tenantKey || `${hospital.originalSubdomain || hospital.slug}-${hospital._id.toString()}`;
+                idToTenantKeyCache.set(hospitalIdOrKey, tenantKey);
+            } else {
+                tenantKey = hospitalIdOrKey; // Fallback
+            }
+        }
+    }
+
+    const dbName = sanitizeDbName(tenantKey);
 
     // If there is a cached connection promise, check if it's resolved and still open/active
     if (connectionCache.has(dbName)) {
@@ -116,9 +145,15 @@ function getMasterConnection() {
 }
 
 /**
- * Get the friendly database name for a hospitalId (for logging/display).
+ * Get the friendly database name for a hospitalId or tenantKey (for logging/display).
  */
-function getTenantDbName(hospitalId) {
+function getTenantDbName(hospitalId, tenantKey) {
+    if (tenantKey) {
+        return sanitizeDbName(tenantKey);
+    }
+    if (idToTenantKeyCache.has(hospitalId)) {
+        return sanitizeDbName(idToTenantKeyCache.get(hospitalId));
+    }
     return sanitizeDbName(hospitalId);
 }
 
@@ -127,7 +162,20 @@ function getTenantDbName(hospitalId) {
  * Used when deleting a hospital to clean up resources.
  */
 async function removeTenantConnection(hospitalId) {
-    const dbName = sanitizeDbName(hospitalId);
+    let tenantKey = hospitalId;
+    if (/^[0-9a-fA-F]{24}$/.test(hospitalId)) {
+        if (idToTenantKeyCache.has(hospitalId)) {
+            tenantKey = idToTenantKeyCache.get(hospitalId);
+        } else {
+            const Hospital = require('../models/hospital.model');
+            const hospital = await Hospital.findById(hospitalId).lean();
+            if (hospital) {
+                tenantKey = hospital.tenantKey || `${hospital.originalSubdomain || hospital.slug}-${hospital._id.toString()}`;
+                idToTenantKeyCache.set(hospitalId, tenantKey);
+            }
+        }
+    }
+    const dbName = sanitizeDbName(tenantKey);
     if (connectionCache.has(dbName)) {
         const promise = connectionCache.get(dbName);
         try {

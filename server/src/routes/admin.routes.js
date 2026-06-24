@@ -298,7 +298,7 @@ router.post('/signup', async (req, res) => {
         await admin.save();
 
         const token = jwt.sign(
-            { userId: admin._id, email: admin.email, role: 'centraladmin' },
+            { userId: admin._id, email: admin.email, role: 'centraladmin', tenantKey: null, subdomain: null },
             JWT_SECRET,
             { expiresIn: '7d' }
         );
@@ -396,7 +396,7 @@ router.post('/login', async (req, res) => {
         const { v4: uuidv4 } = require('uuid');
         const jti = uuidv4();
         const token = jwt.sign(
-            { jti, userId: user._id, email: user.email, roleId: String(user.role) },
+            { jti, userId: user._id, email: user.email, roleId: String(user.role), tenantKey: null, subdomain: null },
             JWT_SECRET,
             { expiresIn: '7d' }
         );

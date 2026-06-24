@@ -11,7 +11,7 @@ if (!fs.existsSync(BACKUP_DIR)) fs.mkdirSync(BACKUP_DIR, { recursive: true });
 async function getTenantDbNames() {
     const admin = mongoose.connection.db.admin();
     const dbs = await admin.listDatabases();
-    return dbs.databases.filter(d => d.name.startsWith('hms_hospital_')).map(d => d.name);
+    return dbs.databases.filter(d => d.name.startsWith('hms_hospital_') || d.name.startsWith('h_')).map(d => d.name);
 }
 
 // Programmatic Backup

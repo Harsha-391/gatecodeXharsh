@@ -18,7 +18,15 @@ router.get('/services', async (req, res) => {
     let hospitalId = req.query.hospitalId;
 
     if (!hospitalId && req.query.slug) {
-      const hospital = await Hospital.findOne({ slug: req.query.slug.toLowerCase() }).select('_id').lean();
+      const identifier = req.query.slug;
+      const mongoose = require('mongoose');
+      const conditions = [];
+      if (mongoose.Types.ObjectId.isValid(identifier)) {
+        conditions.push({ _id: identifier });
+      }
+      conditions.push({ tenantKey: identifier });
+      conditions.push({ slug: identifier.toLowerCase() });
+      const hospital = await Hospital.findOne({ $or: conditions }).select('_id').lean();
       if (hospital) {
         hospitalId = hospital._id;
       }
@@ -32,16 +40,29 @@ router.get('/services', async (req, res) => {
           const url = new URL(referer);
           const cleanDomain = url.hostname.toLowerCase();
           let query = {};
+          let identifier = null;
           if (cleanDomain.endsWith('.medicalhms.in')) {
-            query.slug = cleanDomain.replace('.medicalhms.in', '');
+            identifier = cleanDomain.replace('.medicalhms.in', '');
           } else if (cleanDomain.endsWith('.boonkies.com')) {
-            query.slug = cleanDomain.replace('.boonkies.com', '');
+            identifier = cleanDomain.replace('.boonkies.com', '');
           } else if (cleanDomain.endsWith('.localhost')) {
-            query.slug = cleanDomain.replace('.localhost', '');
+            identifier = cleanDomain.replace('.localhost', '');
           } else {
             const domainName = cleanDomain.startsWith('www.') ? cleanDomain.slice(4) : cleanDomain;
             query.customDomain = { $in: [domainName, `www.${domainName}`] };
           }
+          
+          if (identifier) {
+            const mongoose = require('mongoose');
+            const conditions = [];
+            if (mongoose.Types.ObjectId.isValid(identifier)) {
+              conditions.push({ _id: identifier });
+            }
+            conditions.push({ tenantKey: identifier });
+            conditions.push({ slug: identifier.toLowerCase() });
+            query = { $or: conditions };
+          }
+          
           const hospital = await Hospital.findOne(query).select('_id').lean();
           if (hospital) {
             hospitalId = hospital._id;
@@ -92,27 +113,38 @@ router.get('/tenant-config', async (req, res) => {
 
         const Hospital = require('../models/hospital.model');
         let query = {};
-        
+        let identifier = null;
         if (domain) {
             // Remove protocol and trailing slash if mistakenly sent
             const cleanDomain = domain.replace(/^https?:\/\//, '').replace(/\/$/, '').toLowerCase();
             // Try to match customDomain directly. If it ends with .medicalhms.in, we can extract the slug.
             if (cleanDomain.endsWith('.medicalhms.in')) {
-                query.slug = cleanDomain.replace('.medicalhms.in', '');
+                identifier = cleanDomain.replace('.medicalhms.in', '');
             } else if (cleanDomain.endsWith('.boonkies.com')) {
-                query.slug = cleanDomain.replace('.boonkies.com', '');
+                identifier = cleanDomain.replace('.boonkies.com', '');
             } else if (cleanDomain.endsWith('.localhost')) {
-                query.slug = cleanDomain.replace('.localhost', '');
+                identifier = cleanDomain.replace('.localhost', '');
             } else {
                 const domainName = cleanDomain.startsWith('www.') ? cleanDomain.slice(4) : cleanDomain;
                 query.customDomain = { $in: [domainName, `www.${domainName}`] };
             }
         } else if (slug) {
-            query.slug = slug.toLowerCase();
+            identifier = slug;
+        }
+
+        if (identifier) {
+            const mongoose = require('mongoose');
+            const conditions = [];
+            if (mongoose.Types.ObjectId.isValid(identifier)) {
+                conditions.push({ _id: identifier });
+            }
+            conditions.push({ tenantKey: identifier });
+            conditions.push({ slug: identifier.toLowerCase() });
+            query = { $or: conditions };
         }
 
         const hospital = await Hospital.findOne(query)
-            .select('name slug customDomain branding')
+            .select('name slug customDomain branding tenantKey')
             .lean();
 
         if (!hospital) {
@@ -131,6 +163,7 @@ router.get('/tenant-config', async (req, res) => {
                 id: hospital._id,
                 name: hospital.name,
                 slug: hospital.slug,
+                tenantKey: hospital.tenantKey,
                 customDomain: hospital.customDomain,
                 branding: hospital.branding || {}
             }

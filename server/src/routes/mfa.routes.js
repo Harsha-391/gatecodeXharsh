@@ -141,10 +141,14 @@ router.post('/complete-login', otpLimiter, async (req, res) => {
         }
 
         let clinicType = null;
+        let tenantKey = null;
+        let subdomain = null;
         if (user.hospitalId) {
             try {
-                const hosp = await Hospital.findById(user.hospitalId).select('clinicType');
+                const hosp = await Hospital.findById(user.hospitalId).select('clinicType tenantKey slug');
                 clinicType = hosp?.clinicType || 'hospital';
+                tenantKey = hosp?.tenantKey || null;
+                subdomain = hosp?.slug || null;
             } catch (_) {}
         }
 
@@ -156,6 +160,8 @@ router.post('/complete-login', otpLimiter, async (req, res) => {
                 email: user.email,
                 roleId: String(user.role),
                 hospitalId: user.hospitalId ? String(user.hospitalId) : null,
+                tenantKey,
+                subdomain,
                 tv: user.tokenVersion ?? 0,
             },
             JWT_SECRET,

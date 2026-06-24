@@ -59,12 +59,25 @@ router.post('/', verifyCentralAdmin, async (req, res) => {
         const { name, slug, address, city, state, phone, email, website, appointmentFee } = req.body;
         if (!name) return res.status(400).json({ success: false, message: 'Clinic name is required' });
 
-        const finalSlug = slug
-            ? slug.toLowerCase().replace(/[^a-z0-9-]/g, '')
-            : name.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+        const targetSlug = slug
+            ? slug.toLowerCase().trim().replace(/\s+/g, '-').replace(/-+/g, '-')
+            : name.toLowerCase().trim().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
 
-        const existing = await Hospital.findOne({ slug: finalSlug });
-        if (existing) return res.status(400).json({ success: false, message: 'Slug already in use. Try a different clinic name or slug.' });
+        if (!/^[a-z0-9-]+$/.test(targetSlug)) {
+            return res.status(400).json({ success: false, message: 'Subdomain must contain lowercase letters, numbers, and hyphens only.' });
+        }
+        if (targetSlug.length < 3 || targetSlug.length > 60) {
+            return res.status(400).json({ success: false, message: 'Subdomain must be between 3 and 60 characters long.' });
+        }
+        const RESERVED_SLUGS = ['api', 'admin', 'login', 'logout', 'signup', 'register', 'uploads',
+            'static', 'health', 'public', 'www', 'mail', 'ftp', 'app', 'dashboard', 'root', 'support'];
+        if (RESERVED_SLUGS.includes(targetSlug)) {
+            return res.status(400).json({ success: false, message: `Slug "${targetSlug}" is reserved. Use a different subdomain.` });
+        }
+        const existing = await Hospital.findOne({ slug: { $regex: new RegExp(`^${targetSlug}$`, 'i') } });
+        if (existing) return res.status(400).json({ success: false, message: 'Subdomain already exists. Please choose another subdomain.' });
+
+        const finalSlug = targetSlug;
 
         const clinicCode = await generateClinicCode(name);
 
@@ -106,10 +119,29 @@ router.post('/', verifyCentralAdmin, async (req, res) => {
 // ==========================================
 router.put('/:id', verifyCentralAdmin, async (req, res) => {
     try {
-        const { name, address, city, state, phone, email, website, appointmentFee, isActive,
+        const { name, slug, address, city, state, phone, email, website, appointmentFee, isActive,
                 maxDoctors, maxReceptionists, ratePerPatient, billingEnabled, appointmentMode } = req.body;
 
         const update = {};
+        if (slug !== undefined) {
+            const targetSlug = slug.toLowerCase().trim().replace(/\s+/g, '-').replace(/-+/g, '-');
+            if (!/^[a-z0-9-]+$/.test(targetSlug)) {
+                return res.status(400).json({ success: false, message: 'Subdomain must contain lowercase letters, numbers, and hyphens only.' });
+            }
+            if (targetSlug.length < 3 || targetSlug.length > 60) {
+                return res.status(400).json({ success: false, message: 'Subdomain must be between 3 and 60 characters long.' });
+            }
+            const RESERVED_SLUGS = ['api', 'admin', 'login', 'logout', 'signup', 'register', 'uploads',
+                'static', 'health', 'public', 'www', 'mail', 'ftp', 'app', 'dashboard', 'root', 'support'];
+            if (RESERVED_SLUGS.includes(targetSlug)) {
+                return res.status(400).json({ success: false, message: `Slug "${targetSlug}" is reserved. Use a different subdomain.` });
+            }
+            const duplicate = await Hospital.findOne({ slug: { $regex: new RegExp(`^${targetSlug}$`, 'i') }, _id: { $ne: req.params.id } });
+            if (duplicate) {
+                return res.status(400).json({ success: false, message: 'Subdomain already exists. Please choose another subdomain.' });
+            }
+            update.slug = targetSlug;
+        }
         if (name       !== undefined) update.name       = name;
         if (address    !== undefined) update.address    = address;
         if (city       !== undefined) update.city       = city;
@@ -269,7 +301,13 @@ router.post('/:id/manager', verifyCentralAdmin, async (req, res) => {
         await clinic.save();
 
         const token = jwt.sign(
-            { userId: manager._id, role: 'hospitaladmin', hospitalId: clinic._id },
+            {
+                userId: manager._id,
+                role: 'hospitaladmin',
+                hospitalId: clinic._id,
+                tenantKey: clinic.tenantKey,
+                subdomain: clinic.slug
+            },
             JWT_SECRET,
             { expiresIn: '7d' }
         );

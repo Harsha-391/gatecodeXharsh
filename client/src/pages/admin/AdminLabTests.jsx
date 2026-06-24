@@ -123,24 +123,6 @@ const AdminLabTests = () => {
         }
     };
 
-    const handleSeedDummy = async () => {
-        if (!window.confirm('Do you want to automatically load realistic dummy lab tests (CBC, Lipid Profile, LFT, etc.) with standard prices?')) return;
-        setLoading(true);
-        setError('');
-        setSuccess('');
-        try {
-            const res = await labTestAPI.seedDummyLabTests();
-            if (res.success) {
-                setSuccess(`Successfully loaded dummy lab tests! Added: ${res.added}, Skipped (already exist): ${res.skipped}`);
-                fetchTests();
-            }
-        } catch (err) {
-            setError(err.response?.data?.message || 'Error seeding lab tests.');
-        } finally {
-            setLoading(false);
-        }
-    };
-
     const openPricingPanel = (test) => {
         if (pricingTestId === test._id) {
             setPricingTestId(null);
@@ -198,26 +180,6 @@ const AdminLabTests = () => {
                         <p>Manage the predefined lab tests available for doctors and labs</p>
                     </div>
                     <div style={{ display: 'flex', gap: '10px' }}>
-                        <button 
-                            onClick={handleSeedDummy} 
-                            disabled={loading} 
-                            className="btn btn-secondary" 
-                            style={{ 
-                                padding: '8px 16px', 
-                                background: '#10b981', 
-                                color: 'white', 
-                                border: 'none', 
-                                borderRadius: '8px', 
-                                cursor: 'pointer', 
-                                fontWeight: 700,
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '6px',
-                                boxShadow: '0 2px 4px rgba(16,185,129,0.2)'
-                            }}
-                        >
-                            ⚡ Load Dummy Lab Tests
-                        </button>
                         <button onClick={() => { setShowForm(!showForm); setEditingId(null); setFormData({ name: '', code: '', description: '', price: '', category: 'General', isActive: true }); }} className="btn btn-primary" style={{ padding: '8px 16px' }}>
                             {showForm ? 'Cancel' : '+ Add Lab Test'}
                         </button>

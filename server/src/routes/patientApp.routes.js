@@ -154,12 +154,27 @@ router.post('/auth/verify-otp', async (req, res) => {
         const jti = require('crypto').randomUUID();
         const effectiveClinicId = clinicId || session.clinicId?.toString();
 
+        let tenantKey = null;
+        let subdomain = null;
+        if (effectiveClinicId) {
+            try {
+                const Hospital = require('../models/hospital.model');
+                const hosp = await Hospital.findById(effectiveClinicId).select('tenantKey slug');
+                if (hosp) {
+                    tenantKey = hosp.tenantKey;
+                    subdomain = hosp.slug;
+                }
+            } catch (_) {}
+        }
+
         const token = jwt.sign(
             {
                 sub:      'patient',
                 phone:    cleanPhone,
                 clinicId: effectiveClinicId,
                 patientId: session.patientId?.toString() || null,
+                tenantKey,
+                subdomain,
                 jti,
             },
             JWT_SECRET,

@@ -44,6 +44,12 @@ exports.verifyToken = async (req, res, next) => {
         if (decoded.hospitalId) {
             user.hospitalId = decoded.hospitalId;
         }
+        if (decoded.tenantKey) {
+            user.tenantKey = decoded.tenantKey;
+        }
+        if (decoded.subdomain) {
+            user.subdomain = decoded.subdomain;
+        }
 
         // Populate the role data
         let roleData = null;

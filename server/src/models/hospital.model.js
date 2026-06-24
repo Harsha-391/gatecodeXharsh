@@ -35,6 +35,10 @@ const hospitalSchema = new mongoose.Schema({
     // Custom domain mapping for white-labeled deployments (e.g., portal.hospitalA.com)
     customDomain: { type: String, unique: true, sparse: true, lowercase: true, trim: true },
 
+    // TenantKey Architecture fields
+    originalSubdomain: { type: String, immutable: true },
+    tenantKey: { type: String, unique: true, sparse: true, immutable: true },
+
     address: { type: String, default: '' },
     city: { type: String, default: '' },
     state: { type: String, default: '' },
@@ -113,5 +117,18 @@ const hospitalSchema = new mongoose.Schema({
         billingCycle:  { type: String, enum: ['monthly', 'quarterly', 'annual'], default: 'monthly' },
     },
 }, { timestamps: true });
+
+// Pre-save hook to automatically generate originalSubdomain and tenantKey on creation
+hospitalSchema.pre('save', function (next) {
+    if (this.isNew) {
+        if (this.slug) {
+            this.originalSubdomain = this.slug;
+        }
+        if (this.originalSubdomain && this._id) {
+            this.tenantKey = `${this.originalSubdomain}-${this._id.toString()}`;
+        }
+    }
+    next();
+});
 
 module.exports = mongoose.model('Hospital', hospitalSchema);
