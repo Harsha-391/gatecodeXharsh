@@ -185,7 +185,7 @@ router.get('/stats', verifyToken, resolveTenant, verifyLab, async (req, res) => 
                 pendingSamples: pending,
                 collectedSamples: collected,
                 inTesting,
-                reportsReady: reportReady
+                reportsReady: reportReady + completed
             }
         });
     } catch (error) {
@@ -255,7 +255,7 @@ router.get('/requests', verifyToken, resolveTenant, verifyLabOrReportsView, asyn
             } else if (statusUpper === 'REPORT READY' || statusUpper === 'REPORT_READY') {
                 query.$or = [{ status: 'Report Ready' }, { status: { $exists: false }, reportStatus: 'UPLOADED' }];
             } else if (statusUpper === 'COMPLETED') {
-                query.status = 'Completed';
+                query.$or = [{ status: 'Completed' }, { status: 'Report Ready' }, { status: { $exists: false }, reportStatus: 'UPLOADED' }];
             } else if (statusUpper === 'CANCELLED') {
                 query.status = 'Cancelled';
             }
