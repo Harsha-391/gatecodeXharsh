@@ -182,16 +182,6 @@ const SampleCollection = () => {
                                 </select>
                             </div>
 
-                            <div className="form-group">
-                                <label>Collection Date & Time *</label>
-                                <input 
-                                    type="datetime-local" 
-                                    name="collectionTime"
-                                    value={sampleForm.collectionTime}
-                                    onChange={handleFormChange}
-                                    required
-                                />
-                            </div>
 
                             <div className="form-group">
                                 <label>Collected By (Lab Tech)</label>

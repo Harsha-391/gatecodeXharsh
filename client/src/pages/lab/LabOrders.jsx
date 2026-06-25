@@ -181,7 +181,7 @@ const LabOrders = () => {
                                     <strong style={{ color: '#15803d', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.9rem' }}>🧪 Sample Collection Information</strong>
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '8px', fontSize: '0.85rem', color: '#374151' }}>
                                         <div><strong>Sample Type:</strong> {selectedOrder.sampleType}</div>
-                                        <div><strong>Collected At:</strong> {formatDateTime(selectedOrder.sampleCollectedAt)}</div>
+                                        <div><strong>Collected At:</strong> {selectedOrder.sampleCollectedAt ? new Date(selectedOrder.sampleCollectedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : 'N/A'}</div>
                                         <div style={{ gridColumn: '1 / -1' }}><strong>Notes:</strong> {selectedOrder.collectionNotes || 'None'}</div>
                                     </div>
                                 </div>

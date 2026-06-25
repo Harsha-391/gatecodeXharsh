@@ -1175,15 +1175,24 @@ router.get('/resources', verifyAdministratorAccess, async (req, res) => {
         const dbResources = await Resource.find({ hospitalId, isActive: true }).sort({ createdAt: 1 });
 
         // Calculate utilization for Room/Bed types using current admissions
-        const currentAdmitted = await Admission.countDocuments({ hospitalId, status: 'Admitted' });
+        const activeAdmissions = await Admission.find({ hospitalId, status: 'Admitted' });
 
         const resources = dbResources.map(r => {
             let occupied = 0;
             if (r.type === 'Bed') {
-                occupied = Math.min(r.total, currentAdmitted);
+                const targetWard = (r.ward || r.name || '').trim().toLowerCase();
+                occupied = activeAdmissions.filter(a => {
+                    const isPrivate = a.privateRoom === true || (a.ward || '').trim().toLowerCase() === 'private room';
+                    return !isPrivate && (a.ward || '').trim().toLowerCase() === targetWard;
+                }).length;
             } else if (r.type === 'Room') {
-                occupied = Math.min(r.total, Math.ceil(currentAdmitted * 0.8));
+                const targetRoom = (r.ward || r.name || '').trim().toLowerCase();
+                occupied = activeAdmissions.filter(a => {
+                    const isPrivate = a.privateRoom === true || (a.ward || '').trim().toLowerCase() === 'private room';
+                    return isPrivate || (a.ward || '').trim().toLowerCase() === targetRoom;
+                }).length;
             }
+            occupied = Math.min(r.total, occupied);
             const utilization = r.total > 0 ? Math.round((occupied / r.total) * 100) : 0;
             return {
                 _id: r._id,
