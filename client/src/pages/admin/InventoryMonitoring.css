@@ -273,6 +273,40 @@
 
 .req-badge.pending { background: #fffbeb; color: #d97706; }
 .req-badge.ordered { background: #e0f2fe; color: #0369a1; }
+.req-badge.approved { background: #d1fae5; color: #065f46; }
+.req-badge.rejected { background: #fee2e2; color: #991b1b; }
+
+.btn-action-approve {
+    background: #059669;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-action-approve:hover {
+    background: #047857;
+}
+
+.btn-action-reject {
+    background: #dc2626;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-action-reject:hover {
+    background: #b91c1c;
+}
 
 /* Top Consumed Products list */
 .consumed-list {

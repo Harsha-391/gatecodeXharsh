@@ -49,6 +49,18 @@ const InventoryMonitoring = () => {
         }
     };
 
+    const handleUpdateStatus = async (id, status) => {
+        try {
+            const res = await administratorAPI.updatePurchaseRequestStatus(id, status);
+            if (res.success) {
+                fetchData();
+            }
+        } catch (err) {
+            console.error('Error updating purchase request status:', err);
+            alert('Failed to update status.');
+        }
+    };
+
     useEffect(() => {
         fetchData();
     }, []);
@@ -216,9 +228,15 @@ const InventoryMonitoring = () => {
                         {/* Right Side: Operational Oversight */}
                         <div className="right-sidebar-stack">
                             {/* Purchase Requests */}
-                            <div className="inv-section-card">
-                                <div className="section-head" style={{ marginBottom: '16px' }}>
+                             <div className="inv-section-card">
+                                <div className="section-head" style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <h2>Supply Purchase Approvals</h2>
+                                    <button
+                                        onClick={() => navigate('/admin/purchase-approvals')}
+                                        style={{ background: 'none', border: 'none', color: '#0ea5e9', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                    >
+                                        View All <FiExternalLink size={13} />
+                                    </button>
                                 </div>
                                 <div className="requests-stack">
                                     {pendingRequests.length === 0 ? (
@@ -226,17 +244,49 @@ const InventoryMonitoring = () => {
                                             No pending purchase requests.
                                         </div>
                                     ) : (
-                                        pendingRequests.map((req, idx) => (
+                                        pendingRequests.slice(0, 3).map((req, idx) => (
                                             <div key={idx} className="req-item">
                                                 <div className="req-info">
                                                     <strong>{req.item}</strong>
                                                     <span>Qty: {req.qty} | Requested by: {req.requestedBy}</span>
                                                 </div>
-                                                <span className={`req-badge ${req.status.toLowerCase().includes('pending') ? 'pending' : 'ordered'}`}>
-                                                    {req.status}
-                                                </span>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    <span className={`req-badge ${
+                                                        req.status.toLowerCase().includes('pending') ? 'pending' :
+                                                        req.status.toLowerCase().includes('ordered') ? 'ordered' :
+                                                        req.status.toLowerCase().includes('approved') ? 'approved' : 'rejected'
+                                                    }`}>
+                                                        {req.status}
+                                                    </span>
+                                                    {req.status === 'Approval Pending' && (
+                                                        <div style={{ display: 'flex', gap: '4px' }}>
+                                                            <button 
+                                                                className="btn-action-approve"
+                                                                onClick={() => handleUpdateStatus(req._id, 'Ordered')}
+                                                                title="Mark as Ordered"
+                                                            >
+                                                                ✓ Order
+                                                            </button>
+                                                            <button 
+                                                                className="btn-action-reject"
+                                                                onClick={() => handleUpdateStatus(req._id, 'Rejected')}
+                                                                title="Reject Request"
+                                                            >
+                                                                ✕ Reject
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
                                         ))
+                                    )}
+                                    {pendingRequests.length > 3 && (
+                                        <div
+                                            onClick={() => navigate('/admin/purchase-approvals')}
+                                            style={{ textAlign: 'center', padding: '10px', color: '#0ea5e9', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer', borderTop: '1px solid #f1f5f9', marginTop: '6px' }}
+                                        >
+                                            +{pendingRequests.length - 3} more requests → View All
+                                        </div>
                                     )}
                                 </div>
                             </div>

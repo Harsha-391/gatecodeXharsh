@@ -33,6 +33,27 @@ const getAdmission = (req) => {
     return MasterAdmission;
 };
 
+// GET /api/admissions/beds-rooms — Get active Bed and Room resources for admission allocation
+router.get('/beds-rooms', verifyAdmissionAccess, async (req, res) => {
+    try {
+        const hospitalId = req.hospitalId || req.user.hospitalId;
+        if (!hospitalId) {
+            return res.status(400).json({ success: false, message: 'Hospital context required' });
+        }
+        const { Resource } = getTenantModels(req.tenantDb);
+        const resources = await Resource.find({
+            hospitalId,
+            isActive: true,
+            type: { $in: ['Bed', 'Room'] }
+        }).sort({ name: 1 });
+        
+        res.json({ success: true, resources });
+    } catch (err) {
+        console.error('[GET /beds-rooms] Error:', err.message);
+        res.status(500).json({ success: false, message: 'An internal error occurred' });
+    }
+});
+
 // POST /api/admissions — Admit a patient (receptionist)
 router.post('/', verifyAdmissionAccess, async (req, res) => {
     try {

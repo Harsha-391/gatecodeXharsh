@@ -77,6 +77,7 @@ import CompletedReportsDetails from '../pages/lab/CompletedReports';
 // Pharmacy Management Pages
 import PharmacyInventory from '../pages/pharmacy/PharmacyInventory';
 import PharmacyOrders from '../pages/pharmacy/PharmacyOrders';
+import PharmacyPurchaseApprovals from '../pages/pharmacy/PharmacyPurchaseApprovals';
 
 // Reception Pages
 import ReceptionDashboard from '../pages/reception/ReceptionDashboard';
@@ -230,7 +231,7 @@ const MainRoutes = () => {
                             <Route path="admin/pharmacy" element={<ProtectedRoute requiredPermissions={['admin_manage_roles']}><AdminPharmacy /></ProtectedRoute>} />
                             <Route path="admin/reception" element={<ProtectedRoute requiredPermissions={['admin_manage_roles']}><AdminReception /></ProtectedRoute>} />
                             <Route path="admin/services" element={<ProtectedRoute requiredPermissions={['admin_manage_roles']}><AdminServices /></ProtectedRoute>} />
-                            <Route path="admin/facilities" element={<ProtectedRoute requiredPermissions={['admin_manage_roles']}><AdminFacilities /></ProtectedRoute>} />
+                            {/* <Route path="admin/facilities" element={<ProtectedRoute requiredPermissions={['admin_manage_roles']}><AdminFacilities /></ProtectedRoute>} /> */}
                             <Route path="admin/roles" element={<ProtectedRoute requiredPermissions={['admin_manage_roles']}><AdminRoles /></ProtectedRoute>} />
                             <Route path="admin/medicines" element={<ProtectedRoute requiredPermissions={['admin_manage_roles']}><AdminMedicines /></ProtectedRoute>} />
                             <Route path="admin/question-library" element={<ProtectedRoute requiredPermissions={['admin_manage_roles']}><AdminQuestionLibrary /></ProtectedRoute>} />
@@ -261,6 +262,8 @@ const MainRoutes = () => {
                             {/* Pharmacy Management Pages */}
                             <Route path="pharmacy/inventory" element={<ProtectedRoute requiredPermissions={['pharmacy_view', 'pharmacy_manage']}><PharmacyInventory /></ProtectedRoute>} />
                             <Route path="pharmacy/orders" element={<ProtectedRoute requiredPermissions={['pharmacy_view', 'pharmacy_manage']}><PharmacyOrders /></ProtectedRoute>} />
+                            <Route path="pharmacy/purchase-approvals" element={<ProtectedRoute requiredPermissions={['pharmacy_view', 'pharmacy_manage']}><PharmacyPurchaseApprovals /></ProtectedRoute>} />
+                            <Route path="admin/purchase-approvals" element={<ProtectedRoute requiredPermissions={['inventory_view']}><PharmacyPurchaseApprovals /></ProtectedRoute>} />
 
                             {/* Reception Pages */}
                             <Route path="reception/dashboard" element={<ProtectedRoute requiredPermissions={['appointment_manage']}><ReceptionDashboard /></ProtectedRoute>} />

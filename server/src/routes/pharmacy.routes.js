@@ -4,6 +4,7 @@ const { resolveTenant } = require('../middleware/tenantMiddleware');
 const { getTenantModels } = require('../db/tenantModels');
 const { verifyToken } = require('../middleware/auth.middleware');
 const Role = require('../models/role.model');
+const MasterPharmacyPurchaseRequest = require('../models/pharmacyPurchaseRequest.model');
 
 const getModels = (req) => {
     if (req.tenantDb) {
@@ -11,13 +12,15 @@ const getModels = (req) => {
         return {
             Inventory: m.Inventory,
             User: m.User,
-            Role: m.Role
+            Role: m.Role,
+            PharmacyPurchaseRequest: m.PharmacyPurchaseRequest
         };
     }
     return {
         Inventory: require('../models/inventory.model'),
         User: require('../models/user.model'),
-        Role: require('../models/role.model')
+        Role: require('../models/role.model'),
+        PharmacyPurchaseRequest: MasterPharmacyPurchaseRequest
     };
 };
 
@@ -49,6 +52,18 @@ router.get('/inventory', verifyToken, resolveTenant, async (req, res) => {
         res.json({ success: true, data: items });
     } catch (error) {
         console.error("Fetch inventory error:", error);
+        res.status(500).json({ success: false, message: 'An internal error occurred' });
+    }
+});
+
+// GET all purchase requests
+router.get('/purchase-requests', verifyToken, resolveTenant, async (req, res) => {
+    try {
+        const { PharmacyPurchaseRequest } = getModels(req);
+        const requests = await PharmacyPurchaseRequest.find({ hospitalId: req.user.hospitalId }).sort({ createdAt: -1 });
+        res.json({ success: true, data: requests });
+    } catch (error) {
+        console.error("Fetch purchase requests error:", error);
         res.status(500).json({ success: false, message: 'An internal error occurred' });
     }
 });
@@ -120,6 +135,32 @@ router.delete('/inventory/:id', verifyToken, resolveTenant, async (req, res) => 
         res.json({ success: true, message: 'Item deleted successfully' });
     } catch (error) {
         console.error("Delete inventory item error:", error);
+        res.status(500).json({ success: false, message: 'An internal error occurred' });
+    }
+});
+
+// POST raise purchase request
+router.post('/purchase-request', verifyToken, resolveTenant, async (req, res) => {
+    try {
+        const { PharmacyPurchaseRequest } = getModels(req);
+        const { item, qty } = req.body;
+        
+        if (!item || !qty) {
+            return res.status(400).json({ success: false, message: 'Item name and quantity are required' });
+        }
+
+        const newRequest = new PharmacyPurchaseRequest({
+            hospitalId: req.user.hospitalId,
+            item,
+            qty: Number(qty),
+            status: 'Approval Pending',
+            requestedBy: 'Lead Pharmacist'
+        });
+
+        await newRequest.save();
+        res.status(201).json({ success: true, data: newRequest });
+    } catch (error) {
+        console.error("Create purchase request error:", error);
         res.status(500).json({ success: false, message: 'An internal error occurred' });
     }
 });

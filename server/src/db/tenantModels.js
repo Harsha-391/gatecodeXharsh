@@ -53,6 +53,7 @@ function getTenantModels(tenantDb) {
         ClinicSubscription: model('ClinicSubscription', require('../models/clinicSubscription.model').schema),
         Notification: model('Notification', require('../models/notification.model').schema),
         Medicine: model('Medicine', require('../models/medicine.model').schema),
+        PharmacyPurchaseRequest: model('PharmacyPurchaseRequest', require('../models/pharmacyPurchaseRequest.model').schema),
         TestPackage: model('TestPackage', require('../models/testPackage.model').schema),
         UploadedFile: model('UploadedFile', require('../models/uploadedFile.model').schema),
         AuditLog: model('AuditLog', require('../models/auditLog.model').schema),

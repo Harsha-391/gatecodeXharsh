@@ -129,21 +129,28 @@ const ReceptionDashboard = () => {
     const [otpSent, setOtpSent] = useState(false);
     const [aadhaarOtp, setAadhaarOtp] = useState('');
     const [hospitalContext, setHospitalContext] = useState(null);
+    const [bedRoomResources, setBedRoomResources] = useState([]);
 
     const WARD_BED_MAP = useMemo(() => {
-        if (!hospitalContext?.facilities || hospitalContext.facilities.length === 0) return {};
+        if (!bedRoomResources || bedRoomResources.length === 0) return {};
         const map = {};
-        hospitalContext.facilities.forEach(fac => {
-            const count = fac.bedCount || 0;
+        bedRoomResources.forEach(res => {
+            const count = res.total || 0;
+            const groupName = res.ward ? res.ward.trim() : res.name.trim();
+            const prefix = groupName.substring(0, 3).toUpperCase();
+            
+            if (!map[groupName]) {
+                map[groupName] = [];
+            }
+            
             if (count > 0) {
-                const prefix = fac.name.substring(0, 3).toUpperCase();
-                map[fac.name] = Array.from({ length: count }, (_, i) => `${prefix}-${i + 1}`);
-            } else {
-                map[fac.name] = [];
+                const startNum = map[groupName].length + 1;
+                const newBeds = Array.from({ length: count }, (_, i) => `${prefix}-${startNum + i}`);
+                map[groupName] = [...map[groupName], ...newBeds];
             }
         });
         return map;
-    }, [hospitalContext]);
+    }, [bedRoomResources]);
     const [statusFilter, setStatusFilter] = useState('all');
     const getLocalDateString = (d = new Date()) => {
         const offset = d.getTimezoneOffset();
@@ -153,7 +160,11 @@ const ReceptionDashboard = () => {
     const getAdmissionTotal = (adm) => {
         if (!adm) return 0;
         const wardName = (adm.ward || '').toLowerCase();
-        const facilityPrice = hospitalContext?.facilities?.find(f => f.name.toLowerCase() === wardName)?.pricePerDay || adm.dailyWardCharge || 0;
+        const resourceMatch = bedRoomResources?.find(r => 
+            (r.ward && r.ward.toLowerCase() === wardName) || 
+            (!r.ward && r.name.toLowerCase() === wardName)
+        );
+        const facilityPrice = resourceMatch ? resourceMatch.pricePerDay : (adm.dailyWardCharge || 0);
         const days = Math.max(1, Math.ceil(Math.abs(new Date().setHours(0,0,0,0) - new Date(adm.admissionDate).setHours(0,0,0,0)) / (1000 * 60 * 60 * 24)) + 1);
         const bedAmt = Number(facilityPrice) * days;
         const facilitiesAmt = Number(adm.totalAmount || 0);
@@ -261,7 +272,14 @@ const ReceptionDashboard = () => {
                 if (res.success) setHospitalContext(res.hospital);
             } catch (err) { console.error('Error fetching hospital context:', err); }
         };
+        const fetchBedRoomResources = async () => {
+            try {
+                const res = await admissionAPI.getBedsRooms();
+                if (res.success) setBedRoomResources(res.resources || []);
+            } catch (err) { console.error('Error fetching beds/rooms resources:', err); }
+        };
         fetchHospital();
+        fetchBedRoomResources();
         fetchAppointments(selectedQueueDate, dateTab === 'future', dateTab === 'tomorrow');
         fetchDoctors();
         fetchAdmissions();
@@ -2317,8 +2335,11 @@ const ReceptionDashboard = () => {
                                         value={editAdmissionForm.ward}
                                         onChange={e => {
                                             const w = e.target.value;
-                                            const facMatch = hospitalContext?.facilities?.find(f => f.name.toLowerCase() === w.toLowerCase());
-                                            const defaultPrice = facMatch ? facMatch.pricePerDay : 0;
+                                            const resourceMatch = bedRoomResources?.find(r => 
+                                                (r.ward && r.ward.toLowerCase() === w.toLowerCase()) || 
+                                                (!r.ward && r.name.toLowerCase() === w.toLowerCase())
+                                            );
+                                            const defaultPrice = resourceMatch ? resourceMatch.pricePerDay : 0;
                                             setEditAdmissionForm(p => ({ ...p, ward: w, bedNumber: '', privateRoom: w === 'Private Room', dailyWardCharge: defaultPrice }));
                                         }}
                                         style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e2e8f0', borderRadius: '8px', fontSize: '0.9rem', boxSizing: 'border-box', background: '#fff', cursor: 'pointer' }}
@@ -3540,8 +3561,11 @@ const ReceptionDashboard = () => {
                                     value={hospitalizeForm.ward}
                                     onChange={e => {
                                         const w = e.target.value;
-                                        const facMatch = hospitalContext?.facilities?.find(f => f.name.toLowerCase() === w.toLowerCase());
-                                        const defaultPrice = facMatch ? facMatch.pricePerDay : 0;
+                                        const resourceMatch = bedRoomResources?.find(r => 
+                                            (r.ward && r.ward.toLowerCase() === w.toLowerCase()) || 
+                                            (!r.ward && r.name.toLowerCase() === w.toLowerCase())
+                                        );
+                                        const defaultPrice = resourceMatch ? resourceMatch.pricePerDay : 0;
                                         setHospitalizeForm(p => ({ ...p, ward: w, bedNumber: '', privateRoom: w === 'Private Room', dailyWardCharge: defaultPrice }));
                                     }}
                                     style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #e2e8f0', borderRadius: '8px', fontSize: '0.95rem', boxSizing: 'border-box', background: '#fff', cursor: 'pointer' }}

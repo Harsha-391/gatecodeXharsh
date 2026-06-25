@@ -5,13 +5,14 @@ import {
     FiDatabase, FiActivity, FiRefreshCw,
     FiPlus, FiTrash2, FiCpu, FiSquare
 } from 'react-icons/fi';
+import { FaBed, FaDoorOpen } from 'react-icons/fa';
 import './ResourceManagement.css';
 
 const RESOURCE_TYPES = ['Room', 'Bed', 'Equipment', 'Vehicle', 'Other'];
 
 const typeIcon = (type) => {
-    if (type === 'Bed') return <FiSquare />;
-    if (type === 'Room') return <FiLayers />;
+    if (type === 'Bed') return <FaBed />;
+    if (type === 'Room') return <FaDoorOpen />;
     if (type === 'Equipment') return <FiTool />;
     if (type === 'Vehicle') return <FiActivity />;
     return <FiCpu />;
@@ -25,7 +26,7 @@ const ResourceManagement = () => {
     const [submitting, setSubmitting] = useState(false);
     const [formError, setFormError] = useState('');
     const [formSuccess, setFormSuccess] = useState('');
-    const [form, setForm] = useState({ name: '', type: 'Equipment', total: '', description: '' });
+    const [form, setForm] = useState({ name: '', type: 'Equipment', total: '', description: '', pricePerDay: '', ward: '' });
 
     const fetchData = async () => {
         setLoading(true);
@@ -73,11 +74,13 @@ const ResourceManagement = () => {
                 name: form.name.trim(),
                 type: form.type,
                 total: Number(form.total),
-                description: form.description.trim()
+                description: form.description.trim(),
+                pricePerDay: (form.type === 'Bed' || form.type === 'Room') ? (Number(form.pricePerDay) || 0) : 0,
+                ward: (form.type === 'Bed' || form.type === 'Room') ? form.ward.trim() : ''
             });
             if (res.success) {
                 setFormSuccess('Resource added successfully!');
-                setForm({ name: '', type: 'Equipment', total: '', description: '' });
+                setForm({ name: '', type: 'Equipment', total: '', description: '', pricePerDay: '', ward: '' });
                 setShowForm(false);
                 await fetchData();
             }
@@ -168,6 +171,34 @@ const ResourceManagement = () => {
                                 required
                             />
                         </div>
+                        {(form.type === 'Bed' || form.type === 'Room') && (
+                            <>
+                                <div className="res-form-group">
+                                    <label htmlFor="res-price">Price per Day (₹) *</label>
+                                    <input
+                                        id="res-price"
+                                        type="number"
+                                        name="pricePerDay"
+                                        value={form.pricePerDay}
+                                        onChange={handleFormChange}
+                                        placeholder="e.g., 800"
+                                        min="0"
+                                        required
+                                    />
+                                </div>
+                                <div className="res-form-group">
+                                    <label htmlFor="res-ward">Ward / Department</label>
+                                    <input
+                                        id="res-ward"
+                                        type="text"
+                                        name="ward"
+                                        value={form.ward}
+                                        onChange={handleFormChange}
+                                        placeholder="e.g., ICU, General Ward"
+                                    />
+                                </div>
+                            </>
+                        )}
                         <div className="res-form-group res-form-group--full">
                             <label htmlFor="res-description">Description (Optional)</label>
                             <input
@@ -215,6 +246,12 @@ const ResourceManagement = () => {
                                 <div className="res-card-body">
                                     <h3>{resItem.name}</h3>
                                     {resItem.description && <p className="res-desc">{resItem.description}</p>}
+                                    {(resItem.type === 'Bed' || resItem.type === 'Room') && (
+                                        <div style={{ display: 'flex', gap: '8px', fontSize: '0.8rem', margin: '8px 0 12px' }}>
+                                            <span style={{ background: '#e0f2fe', padding: '3px 8px', borderRadius: '6px', color: '#0369a1', fontWeight: 600 }}>₹{resItem.pricePerDay}/day</span>
+                                            {resItem.ward && <span style={{ background: '#f1f5f9', padding: '3px 8px', borderRadius: '6px', color: '#475569', fontWeight: 600 }}>Ward: {resItem.ward}</span>}
+                                        </div>
+                                    )}
                                     <div className="util-score">
                                         <strong>{resItem.occupied}</strong> <span>/ {resItem.total} Units</span>
                                     </div>

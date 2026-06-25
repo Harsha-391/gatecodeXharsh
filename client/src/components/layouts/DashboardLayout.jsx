@@ -129,6 +129,7 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
             baseMenu = [
                 { label: 'Inventory', path: '/pharmacy/inventory', icon: <FiPackage /> },
                 { label: 'Pharmacy Orders', path: '/pharmacy/orders', icon: <FiClipboard /> },
+                { label: 'Purchase Approvals', path: '/pharmacy/purchase-approvals', icon: <FiCheckCircle /> },
             ];
         } else if (['cashier', 'billing', 'billing executive', 'billing manager', 'senior billing officer'].includes(role)) {
             return [
@@ -201,7 +202,8 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
                         { label: 'Laboratory Management', path: '/admin/lab-management', icon: <FiGrid /> },
                         { label: 'Tests & Packages', path: '/admin/test-packages', icon: <FiPackage /> },
                         { label: 'Pharmacy', path: '/admin/pharmacy', icon: <FiPackage /> },
-                        { label: 'Pharmacy Management', path: '/admin/pharmacy-management', icon: <FiPackage /> }
+                        { label: 'Pharmacy Management', path: '/admin/pharmacy-management', icon: <FiPackage /> },
+                        { label: 'Purchase Approvals', path: '/admin/purchase-approvals', icon: <FiCheckCircle /> }
                     ]
                 },
                 {
@@ -209,7 +211,6 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
                     items: [
                         { label: 'Reception', path: '/admin/reception', icon: <FiHome /> },
                         { label: 'Services', path: '/admin/services', icon: <FiSettings /> },
-                        { label: 'Wards & Facilities', path: '/admin/facilities', icon: <FiGrid /> },
                         { label: 'Inventory Monitoring', path: '/admin/inventory', icon: <FiPackage /> },
                         { label: 'Resource Management', path: '/admin/resources', icon: <FiSettings /> },
                         { label: 'Admissions Oversight', path: '/admin/admissions', icon: <FiPlusSquare /> },
@@ -329,7 +330,8 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
         if (userPermissions.includes('pharmacy_view') || userPermissions.includes('pharmacy_manage')) {
             extraItems.push(
                 { label: 'Pharma Inventory', path: '/pharmacy/inventory', icon: <FiPackage /> },
-                { label: 'Pharmacy Orders', path: '/pharmacy/orders', icon: <FiClipboard /> }
+                { label: 'Pharmacy Orders', path: '/pharmacy/orders', icon: <FiClipboard /> },
+                { label: 'Purchase Approvals', path: '/pharmacy/purchase-approvals', icon: <FiCheckCircle /> }
             );
         }
 

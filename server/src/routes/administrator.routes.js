@@ -25,6 +25,7 @@ const MasterInsuranceClaim = require('../models/insuranceClaim.model');
 const MasterDoctor = require('../models/doctor.model');
 const MasterService = require('../models/service.model');
 const MasterResource = require('../models/resource.model');
+const MasterPharmacyPurchaseRequest = require('../models/pharmacyPurchaseRequest.model');
 
 // Administrator Access Middleware
 const verifyAdministratorAccess = async (req, res, next) => {
@@ -73,6 +74,7 @@ const getModels = (req) => {
         Doctor: MasterDoctor,
         Service: MasterService,
         Resource: MasterResource,
+        PharmacyPurchaseRequest: MasterPharmacyPurchaseRequest,
         Facility: require('../models/facility.model'),
         AuditLog: require('../models/auditLog.model')
     };
@@ -630,7 +632,7 @@ router.get('/admissions/oversight/dashboard', verifyAdministratorAccess, auditLo
         }
 
         const models = getModels(req);
-        const { Admission, User, Appointment, Facility } = models;
+        const { Admission, User, Appointment, Resource } = models;
 
         // Multi-tenant check
         let query = {};
@@ -657,14 +659,14 @@ router.get('/admissions/oversight/dashboard', verifyAdministratorAccess, auditLo
         let totalBedsCount = 50; // default fallback
         
         if (activeHospitalId) {
-            const facilities = await Facility.find({ hospitalId: activeHospitalId }).lean();
-            if (facilities && facilities.length > 0) {
-                totalBedsCount = facilities.reduce((sum, f) => sum + (f.bedCount || 0), 0);
+            const bedResources = await Resource.find({ hospitalId: activeHospitalId, isActive: true, type: 'Bed' }).lean();
+            if (bedResources && bedResources.length > 0) {
+                totalBedsCount = bedResources.reduce((sum, r) => sum + (r.total || 0), 0);
             }
         } else {
-            const facilities = await Facility.find({}).lean();
-            if (facilities && facilities.length > 0) {
-                totalBedsCount = facilities.reduce((sum, f) => sum + (f.bedCount || 0), 0);
+            const bedResources = await Resource.find({ isActive: true, type: 'Bed' }).lean();
+            if (bedResources && bedResources.length > 0) {
+                totalBedsCount = bedResources.reduce((sum, r) => sum + (r.total || 0), 0);
             }
         }
 
@@ -820,13 +822,13 @@ router.get('/admissions/oversight/occupancy', verifyAdministratorAccess, auditLo
         }
 
         const models = getModels(req);
-        const { Admission, Facility } = models;
+        const { Admission, Resource } = models;
 
         const currentAdmissions = await Admission.find({ hospitalId, status: { $ne: 'Discharged' } });
         const occupiedBedNumbers = currentAdmissions.map(a => a.bedNumber).filter(Boolean);
         const occupiedICUBeds = currentAdmissions.filter(a => a.ward === 'ICU').map(a => a.bedNumber).filter(Boolean);
 
-        const facilities = await Facility.find({ hospitalId }).lean();
+        const facilities = await Resource.find({ hospitalId, isActive: true, type: { $in: ['Bed', 'Room'] } }).lean();
 
         let icuTotal = 0;
         let wardTotal = 0;
@@ -835,9 +837,13 @@ router.get('/admissions/oversight/occupancy', verifyAdministratorAccess, auditLo
 
         if (facilities.length > 0) {
             for (const facility of facilities) {
-                const count = facility.bedCount || 0;
-                const activeInFacility = currentAdmissions.filter(a => String(a.ward).toLowerCase() === String(facility.name).toLowerCase()).length;
-                const nameUpper = facility.name.toUpperCase();
+                const count = facility.total || 0;
+                const fName = facility.ward ? facility.ward.trim() : facility.name.trim();
+                const activeInFacility = currentAdmissions.filter(a => 
+                    String(a.ward).toLowerCase() === fName.toLowerCase() ||
+                    String(a.ward).toLowerCase() === String(facility.name).toLowerCase()
+                ).length;
+                const nameUpper = fName.toUpperCase();
                 if (nameUpper.includes('ICU')) {
                     icuTotal += count;
                     icuOccupied += activeInFacility;
@@ -854,7 +860,7 @@ router.get('/admissions/oversight/occupancy', verifyAdministratorAccess, auditLo
         }
 
         const totalBedsCount = facilities.length > 0
-            ? facilities.reduce((sum, f) => sum + (f.bedCount || 0), 0)
+            ? facilities.reduce((sum, f) => sum + (f.total || 0), 0)
             : (icuTotal + wardTotal);
         const occupiedBeds = currentAdmissions.filter(a => a.bedNumber).length;
         const availableBeds = Math.max(0, totalBedsCount - occupiedBeds);
@@ -872,11 +878,18 @@ router.get('/admissions/oversight/occupancy', verifyAdministratorAccess, auditLo
                 wardTotal,
                 wardOccupancyRate: wardTotal > 0 ? Math.round((wardOccupied / wardTotal) * 100) : 0,
                 facilities: facilities.length > 0 
-                    ? facilities.map(f => ({
-                        name: f.name,
-                        bedCount: f.bedCount || 0,
-                        occupiedCount: currentAdmissions.filter(a => String(a.ward).toLowerCase() === String(f.name).toLowerCase()).length
-                      }))
+                    ? facilities.map(f => {
+                        const fName = f.name.trim();
+                        const isOccupiedCount = currentAdmissions.filter(a => 
+                            String(a.ward).toLowerCase() === fName.toLowerCase() ||
+                            (f.ward && String(a.ward).toLowerCase() === String(f.ward).toLowerCase())
+                        ).length;
+                        return {
+                            name: f.ward ? `${f.ward} (${f.name})` : f.name,
+                            bedCount: f.total || 0,
+                            occupiedCount: isOccupiedCount
+                        };
+                      })
                     : [
                         { name: 'ICU', bedCount: 10, occupiedCount: icuOccupied },
                         { name: 'General', bedCount: 40, occupiedCount: wardOccupied }
@@ -1179,7 +1192,9 @@ router.get('/resources', verifyAdministratorAccess, async (req, res) => {
                 total: r.total,
                 occupied,
                 utilization,
-                description: r.description
+                description: r.description,
+                pricePerDay: r.pricePerDay || 0,
+                ward: r.ward || ''
             };
         });
 
@@ -1196,7 +1211,7 @@ router.post('/resources', verifyAdministratorAccess, async (req, res) => {
         const models = getModels(req);
         const { Resource } = models;
 
-        const { name, type, total, description } = req.body;
+        const { name, type, total, description, pricePerDay, ward } = req.body;
         if (!name || !total) {
             return res.status(400).json({ success: false, message: 'Name and total count are required' });
         }
@@ -1206,7 +1221,9 @@ router.post('/resources', verifyAdministratorAccess, async (req, res) => {
             name: name.trim(),
             type: type || 'Equipment',
             total: Number(total),
-            description: description || ''
+            description: description || '',
+            pricePerDay: Number(pricePerDay) || 0,
+            ward: ward ? ward.trim() : ''
         });
 
         res.json({ success: true, resource });
@@ -1243,7 +1260,7 @@ router.get('/inventory', verifyAdministratorAccess, async (req, res) => {
     try {
         const hospitalId = req.hospitalId || req.user.hospitalId;
         const models = getModels(req);
-        const { Inventory } = models;
+        const { Inventory, PharmacyOrder, PharmacyPurchaseRequest } = models;
 
         const items = await Inventory.find({ hospitalId });
 
@@ -1254,16 +1271,49 @@ router.get('/inventory', verifyAdministratorAccess, async (req, res) => {
         const threeMonthsFromNow = new Date(now.getFullYear(), now.getMonth() + 3, now.getDate());
         const expiring = items.filter(item => item.expiryDate && item.expiryDate <= threeMonthsFromNow);
 
-        const pendingPurchaseRequests = [
-            { item: 'Paracetamol 650mg', qty: 2000, status: 'Approval Pending', requestedBy: 'Lead Pharmacist' },
-            { item: 'Amoxicillin 500mg', qty: 1000, status: 'Ordered', requestedBy: 'Lead Pharmacist' }
-        ];
+        // Fetch pending purchase requests, seed if none exist
+        let pendingPurchaseRequests = [];
+        if (PharmacyPurchaseRequest) {
+            pendingPurchaseRequests = await PharmacyPurchaseRequest.find({ hospitalId });
+            if (pendingPurchaseRequests.length === 0) {
+                pendingPurchaseRequests = await PharmacyPurchaseRequest.create([
+                    { hospitalId, item: 'Paracetamol 650mg', qty: 2000, status: 'Approval Pending', requestedBy: 'Lead Pharmacist' },
+                    { hospitalId, item: 'Amoxicillin 500mg', qty: 1000, status: 'Ordered', requestedBy: 'Lead Pharmacist' }
+                ]);
+            }
+        }
 
-        const topConsumed = items.slice(0, 5).map(item => ({
-            name: item.name,
-            qty: 120,
-            revenue: 120 * (item.sellingPrice || 15)
-        }));
+        // Aggregate actual consumption from completed PharmacyOrders
+        let topConsumed = [];
+        if (PharmacyOrder) {
+            const completedOrders = await PharmacyOrder.find({
+                hospitalId,
+                orderStatus: 'Completed'
+            });
+
+            const consumptionMap = {};
+            for (const order of completedOrders) {
+                for (const item of order.items) {
+                    if (item.purchased) {
+                        const name = item.medicineName;
+                        if (!consumptionMap[name]) {
+                            consumptionMap[name] = { qty: 0, revenue: 0 };
+                        }
+                        consumptionMap[name].qty += (item.quantity || 0);
+                        consumptionMap[name].revenue += (item.totalPrice || 0);
+                    }
+                }
+            }
+
+            topConsumed = Object.entries(consumptionMap)
+                .map(([name, data]) => ({
+                    name,
+                    qty: data.qty,
+                    revenue: data.revenue
+                }))
+                .sort((a, b) => b.qty - a.qty)
+                .slice(0, 5);
+        }
 
         res.json({
             success: true,
@@ -1273,6 +1323,30 @@ router.get('/inventory', verifyAdministratorAccess, async (req, res) => {
             pendingPurchaseRequests,
             topConsumed
         });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// PATCH update purchase request status
+router.patch('/purchase-request/:id', verifyAdministratorAccess, async (req, res) => {
+    try {
+        const { PharmacyPurchaseRequest } = getModels(req);
+        const { status } = req.body;
+        
+        if (!status) {
+            return res.status(400).json({ success: false, message: 'Status is required' });
+        }
+
+        const request = await PharmacyPurchaseRequest.findById(req.params.id);
+        if (!request) {
+            return res.status(404).json({ success: false, message: 'Purchase request not found' });
+        }
+
+        request.status = status;
+        await request.save();
+
+        res.json({ success: true, message: 'Request status updated successfully', data: request });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }

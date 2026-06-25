@@ -86,6 +86,23 @@ const AdminReception = () => {
     });
   };
 
+  const handleSelectAllAvailability = (checked) => {
+    const updatedAvailability = { ...formData.availability };
+    days.forEach(day => {
+      if (!updatedAvailability[day]) {
+        updatedAvailability[day] = { startTime: '09:00', endTime: '17:00' };
+      }
+      updatedAvailability[day] = {
+        ...updatedAvailability[day],
+        available: checked
+      };
+    });
+    setFormData({
+      ...formData,
+      availability: updatedAvailability
+    });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -305,7 +322,17 @@ const AdminReception = () => {
               </div>
 
               <div className="form-group">
-                <label>Availability</label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <label style={{ margin: 0 }}>Availability</label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', margin: 0, fontSize: '0.9rem', fontWeight: '500' }}>
+                    <input
+                      type="checkbox"
+                      checked={days.every(day => formData.availability?.[day]?.available)}
+                      onChange={(e) => handleSelectAllAvailability(e.target.checked)}
+                    />
+                    Select All
+                  </label>
+                </div>
                 <div className="availability-grid">
                   {days.map(day => (
                     <div key={day} className="availability-day">

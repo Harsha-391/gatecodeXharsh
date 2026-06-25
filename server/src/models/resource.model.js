@@ -26,6 +26,14 @@ const resourceSchema = new mongoose.Schema({
         type: String,
         default: ''
     },
+    pricePerDay: {
+        type: Number,
+        default: 0
+    },
+    ward: {
+        type: String,
+        default: ''
+    },
     isActive: {
         type: Boolean,
         default: true

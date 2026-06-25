@@ -335,6 +335,7 @@ export const administratorAPI = {
     createResource: async (data) => (await apiClient.post('/api/administrator/resources', data)).data,
     deleteResource: async (id) => (await apiClient.delete(`/api/administrator/resources/${id}`)).data,
     getInventory: async () => (await apiClient.get('/api/administrator/inventory')).data,
+    updatePurchaseRequestStatus: async (id, status) => (await apiClient.patch(`/api/administrator/purchase-request/${id}`, { status })).data,
     getReports: async (startDate = null, endDate = null) => {
         const params = new URLSearchParams();
         if (startDate) params.set('startDate', startDate);
@@ -423,7 +424,9 @@ export const pharmacyAPI = {
     getInventory: async () => (await apiClient.get('/api/pharmacy/inventory')).data,
     addMedicine: async (data) => (await apiClient.post('/api/pharmacy/inventory', data)).data,
     updateMedicine: async (id, data) => (await apiClient.put(`/api/pharmacy/inventory/${id}`, data)).data,
-    deleteMedicine: async (id) => (await apiClient.delete(`/api/pharmacy/inventory/${id}`)).data
+    deleteMedicine: async (id) => (await apiClient.delete(`/api/pharmacy/inventory/${id}`)).data,
+    raisePurchaseRequest: async (data) => (await apiClient.post('/api/pharmacy/purchase-request', data)).data,
+    getPurchaseRequests: async () => (await apiClient.get('/api/pharmacy/purchase-requests')).data
 };
 
 export const pharmacyOrderAPI = {
@@ -759,6 +762,7 @@ export const admissionAPI = {
     updateAdmission: async (id, data) => (await apiClient.put(`/api/admissions/${id}`, data)).data,
     dischargePatient: async (id, data = {}) => (await apiClient.put(`/api/admissions/${id}/discharge`, data)).data,
     markAdmissionPaid: async (id, data = {}) => (await apiClient.put(`/api/admissions/${id}/pay`, data)).data,
+    getBedsRooms: async () => (await apiClient.get('/api/admissions/beds-rooms')).data,
 };
 
 // Clinic self-service API (for clinic admin dashboard)

@@ -107,6 +107,24 @@
     box-shadow: 0 8px 20px rgba(16, 185, 129, 0.5);
 }
 
+.btn-request {
+    background: linear-gradient(135deg, var(--pharma-secondary), #0f766e);
+    color: white;
+    border: none;
+    padding: 14px 28px;
+    border-radius: 16px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(13, 148, 136, 0.4);
+    transition: all 0.3s;
+}
+
+.btn-request:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(13, 148, 136, 0.5);
+}
+
 /* Table */
 .inventory-table-wrapper {
     background: var(--glass-bg);
@@ -376,4 +394,123 @@
     color: var(--text-light);
     font-size: 1.2rem;
     font-weight: 600;
+}
+
+/* Tabs styling */
+.pharma-tabs-container {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.pharma-tab {
+    padding: 12px 24px;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 14px;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-light);
+    cursor: pointer;
+    transition: all 0.3s;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.02);
+}
+
+.pharma-tab:hover {
+    color: var(--pharma-primary);
+    transform: translateY(-1px);
+}
+
+.pharma-tab.active {
+    background: linear-gradient(135deg, var(--pharma-primary), var(--pharma-accent));
+    color: white;
+    border-color: transparent;
+    box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+}
+
+/* Purchase Request list styling */
+.req-status-badge {
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    display: inline-block;
+}
+
+.req-status-pending { background: #fffbeb; color: #d97706; border: 1px solid #fef3c7; }
+.req-status-ordered { background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; }
+.req-status-approved { background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
+.req-status-rejected { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+
+/* Autocomplete Suggestions Card */
+.autocomplete-suggestions-card {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+    max-height: 220px;
+    overflow-y: auto;
+    z-index: 1100;
+    animation: slideIn 0.2s ease;
+}
+
+.suggestion-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    cursor: pointer;
+    border-bottom: 1px solid #f1f5f9;
+    transition: background-color 0.2s;
+}
+
+.suggestion-item:last-child {
+    border-bottom: none;
+}
+
+.suggestion-item:hover {
+    background-color: #f0fdfa; /* light teal background matching theme */
+}
+
+.suggestion-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    text-align: left;
+}
+
+.suggestion-name {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-dark);
+}
+
+.suggestion-category {
+    font-size: 0.75rem;
+    color: var(--text-light);
+}
+
+.suggestion-meta {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+}
+
+.suggestion-stock {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--pharma-primary);
+}
+
+.suggestion-price {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-dark);
 }
