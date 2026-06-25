@@ -886,6 +886,7 @@ router.get('/admissions/oversight/occupancy', verifyAdministratorAccess, auditLo
                         ).length;
                         return {
                             name: f.ward ? `${f.ward} (${f.name})` : f.name,
+                            rawName: f.ward || f.name,
                             bedCount: f.total || 0,
                             occupiedCount: isOccupiedCount
                         };

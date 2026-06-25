@@ -198,13 +198,31 @@ const AdmissionsOversight = () => {
     const renderBedGrid = (wardName, totalCount, prefixSymbol, startBedNum) => {
         const beds = [];
 
+        // Filter active admissions for this ward/room
+        const wardAdmissions = activeAdmissionsForBeds.filter(a => 
+            String(a.ward).toLowerCase() === wardName.toLowerCase() ||
+            (wardName.toLowerCase() === 'private room' && (a.privateRoom === true || String(a.ward).toLowerCase() === 'private room'))
+        );
+
+        // Separate assigned (has bedNumber) and unassigned (empty bedNumber)
+        const assignedAdmissions = wardAdmissions.filter(a => a.bedNumber && a.bedNumber.trim() !== '');
+        const unassignedAdmissions = wardAdmissions.filter(a => !a.bedNumber || a.bedNumber.trim() === '');
+
+        let unassignedIndex = 0;
+
         for (let i = 0; i < totalCount; i++) {
             const bedNum = `${prefixSymbol}${startBedNum + i}`;
-            // Find active admission currently in this bed
-            const currentAdmitted = activeAdmissionsForBeds.find(a => 
-                String(a.bedNumber).toUpperCase() === bedNum.toUpperCase() &&
-                String(a.ward).toLowerCase() === wardName.toLowerCase()
+            
+            // 1. Check for explicit bed number match
+            let currentAdmitted = assignedAdmissions.find(a => 
+                String(a.bedNumber).toUpperCase() === bedNum.toUpperCase()
             );
+
+            // 2. If no explicit match, populate sequentially from unassigned list (e.g. Private Rooms)
+            if (!currentAdmitted && unassignedIndex < unassignedAdmissions.length) {
+                currentAdmitted = unassignedAdmissions[unassignedIndex];
+                unassignedIndex++;
+            }
 
             beds.push(
                 <div 
@@ -538,14 +556,14 @@ const AdmissionsOversight = () => {
                                 if (count <= 0) return null;
                                 
                                 const isICU = fac.name.toUpperCase().includes('ICU');
-                                const prefix = isICU ? 'ICU-' : `${fac.name.substring(0, 3).toUpperCase()}-`;
+                                const prefix = isICU ? 'ICU-' : `${(fac.rawName || fac.name).substring(0, 3).toUpperCase()}-`;
                                 
                                 return (
                                     <div key={fac.name} className="ward-visualization-section">
                                         <h3>
                                             {isICU ? '🚨' : '🛏️'} {fac.name} Beds (Total: {count} Beds)
                                         </h3>
-                                        {renderBedGrid(fac.name, count, prefix, 1)}
+                                        {renderBedGrid(fac.rawName || fac.name, count, prefix, 1)}
                                     </div>
                                 );
                             })
