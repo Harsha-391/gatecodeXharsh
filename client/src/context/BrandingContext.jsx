@@ -10,6 +10,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { hospitalAPI, publicAPI } from '../utils/api';
 import socket from '../utils/socket';
+import { getSubdomain } from '../utils/subdomain';
 
 // Default Medical 365 branding (platform defaults)
 const DEFAULT_BRANDING = {
@@ -200,10 +201,14 @@ export const BrandingProvider = ({ children }) => {
             const domain = hostname.startsWith('www.') ? hostname.slice(4) : hostname;
             // Treat localhost specially for dev, though you can test domains locally by modifying hosts
             const isBaseDomain = domain === 'medicalhms.in' || domain === 'boonkies.com' || domain === 'localhost';
+            
+            const subdomain = getSubdomain();
+            const isReservedSubdomain = subdomain && ['admin', 'www', 'api'].includes(subdomain);
+            
             let fetchedFromDomain = false;
 
             // If we are on a custom domain, try to fetch the tenant config
-            if (!isBaseDomain) {
+            if (!isBaseDomain && !isReservedSubdomain) {
                 try {
                     const res = await publicAPI.getTenantConfig(domain);
                     if (res.success && res.tenant) {
