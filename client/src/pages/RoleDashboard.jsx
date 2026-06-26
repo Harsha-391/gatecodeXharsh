@@ -100,35 +100,92 @@ const RoleDashboard = () => {
 
     // Dynamically append permission-based links for non-administrator/accountant roles
     const extraItems = [];
+    // Core billing pages — accessible with billing_view or billing_manage or specific page permissions
     if (userPermissions.includes('billing_view') || userPermissions.includes('billing_manage')) {
-        extraItems.push(
-            { label: 'Billing Dashboard', path: '/billing/dashboard' },
-            { label: 'Patient Billing', path: '/billing/patient' },
-            { label: 'Pending Payments', path: '/billing/pending' },
-            { label: 'Invoices', path: '/billing/invoices' },
-            { label: 'Refunds', path: '/billing/refunds' },
-            { label: 'Invoice Templates', path: '/billing/templates' },
-            { label: 'Reception Collections', path: '/finance/reception-collections' },
-            { label: 'Settings', path: '/billing/settings' }
-        );
+        extraItems.push({ label: 'Billing Dashboard', path: '/billing/dashboard' });
     }
-    if (userPermissions.includes('finance_view') || userPermissions.includes('accountant_view')) {
-        extraItems.push(
-            { label: 'Accountant Dashboard', path: '/accountant/dashboard' },
-            { label: 'Revenue Reports', path: '/billing/reports' },
-            { label: 'Billing Analytics', path: '/billing/analytics' },
-            { label: 'Outstanding Payments', path: '/accountant/outstanding' },
-            { label: 'Insurance Claims', path: '/accountant/claims' },
-            { label: 'Discount Approvals', path: '/accountant/discount-approvals' },
-            { label: 'Expenses', path: '/accountant/expenses' },
-            { label: 'Profit & Loss', path: '/accountant/profit-loss' },
-            { label: 'Financial Statements', path: '/accountant/statements' },
-            { label: 'Reconciliation', path: '/accountant/reconciliation' },
-            { label: 'Payroll Management', path: '/accountant/payroll' },
-            { label: 'Doctor Payouts', path: '/accountant/doctor-payouts' },
-            { label: 'Audit Logs', path: '/accountant/audit-logs' },
-            { label: 'Transaction Logs', path: '/accountant/transactions' }
-        );
+    if (userPermissions.includes('billing_patient') || userPermissions.includes('billing_view') || userPermissions.includes('billing_manage')) {
+        extraItems.push({ label: 'Patient Billing', path: '/billing/patient' });
+    }
+    if (userPermissions.includes('billing_pending') || userPermissions.includes('billing_view') || userPermissions.includes('billing_manage')) {
+        extraItems.push({ label: 'Pending Payments', path: '/billing/pending' });
+    }
+    if (userPermissions.includes('billing_invoices') || userPermissions.includes('billing_view') || userPermissions.includes('billing_manage')) {
+        extraItems.push({ label: 'Invoices', path: '/billing/invoices' });
+    }
+    if (userPermissions.includes('billing_templates') || userPermissions.includes('billing_view') || userPermissions.includes('billing_manage')) {
+        extraItems.push({ label: 'Invoice Templates', path: '/billing/templates' });
+    }
+    if (userPermissions.includes('billing_settings') || userPermissions.includes('billing_view') || userPermissions.includes('billing_manage')) {
+        extraItems.push({ label: 'Settings', path: '/billing/settings' });
+    }
+    // Specific billing sub-pages — each requires its own dedicated permission
+    if (userPermissions.includes('billing_refund')) {
+        extraItems.push({ label: 'Refunds', path: '/billing/refunds' });
+    }
+    if (userPermissions.includes('billing_insurance')) {
+        extraItems.push({ label: 'Insurance Billing', path: '/billing/insurance' });
+    }
+    if (userPermissions.includes('billing_ipd_settlement')) {
+        extraItems.push({ label: 'IPD Settlement', path: '/billing/ipd-settlement' });
+    }
+    if (userPermissions.includes('billing_receipt_reprint')) {
+        extraItems.push({ label: 'Receipt Reprint', path: '/billing/receipt-reprint' });
+    }
+    if (userPermissions.includes('billing_discounts')) {
+        extraItems.push({ label: 'Discounts & Adjustments', path: '/billing/discounts' });
+    }
+    if (userPermissions.includes('billing_reports')) {
+        extraItems.push({ label: 'Revenue Reports', path: '/billing/reports' });
+    }
+    if (userPermissions.includes('billing_analytics')) {
+        extraItems.push({ label: 'Billing Analytics', path: '/billing/analytics' });
+    }
+    if (userPermissions.includes('finance_reception_collections')) {
+        extraItems.push({ label: 'Reception Collections', path: '/finance/reception-collections' });
+    }
+    // Accountant workspace — each page requires its own specific permission
+    if (userPermissions.includes('accountant_view') || userPermissions.includes('finance_view')) {
+        extraItems.push({ label: 'Accountant Dashboard', path: '/accountant/dashboard' });
+    }
+    if (userPermissions.includes('billing_reports') || userPermissions.includes('finance_view')) {
+        extraItems.push({ label: 'Revenue Reports', path: '/billing/reports' });
+    }
+    if (userPermissions.includes('billing_analytics') || userPermissions.includes('finance_view')) {
+        extraItems.push({ label: 'Billing Analytics', path: '/billing/analytics' });
+    }
+    if (userPermissions.includes('billing_discounts') || userPermissions.includes('finance_view')) {
+        extraItems.push({ label: 'Discount Approvals', path: '/accountant/discount-approvals' });
+    }
+    if (userPermissions.includes('finance_outstanding')) {
+        extraItems.push({ label: 'Outstanding Payments', path: '/accountant/outstanding' });
+    }
+    if (userPermissions.includes('finance_claims')) {
+        extraItems.push({ label: 'Insurance Claims', path: '/accountant/claims' });
+    }
+    if (userPermissions.includes('finance_expenses')) {
+        extraItems.push({ label: 'Expenses', path: '/accountant/expenses' });
+    }
+    if (userPermissions.includes('finance_profit_loss')) {
+        extraItems.push({ label: 'Profit & Loss', path: '/accountant/profit-loss' });
+    }
+    if (userPermissions.includes('finance_statements')) {
+        extraItems.push({ label: 'Financial Statements', path: '/accountant/statements' });
+    }
+    if (userPermissions.includes('finance_reconciliation')) {
+        extraItems.push({ label: 'Reconciliation', path: '/accountant/reconciliation' });
+    }
+    if (userPermissions.includes('finance_payroll')) {
+        extraItems.push({ label: 'Payroll Management', path: '/accountant/payroll' });
+    }
+    if (userPermissions.includes('finance_doctor_payouts')) {
+        extraItems.push({ label: 'Doctor Payouts', path: '/accountant/doctor-payouts' });
+    }
+    if (userPermissions.includes('finance_audit')) {
+        extraItems.push({ label: 'Audit Logs', path: '/accountant/audit-logs' });
+    }
+    if (userPermissions.includes('finance_transactions')) {
+        extraItems.push({ label: 'Transaction Logs', path: '/accountant/transactions' });
     }
     if (userPermissions.includes('lab_view') || userPermissions.includes('lab_manage')) {
         extraItems.push(

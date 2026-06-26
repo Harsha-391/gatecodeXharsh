@@ -86,15 +86,17 @@ const PharmacyPurchaseApprovals = () => {
 
     const filtered = requests.filter(r => {
         const matchesSearch =
-            r.item?.toLowerCase().includes(search.toLowerCase()) ||
-            r.requestedBy?.toLowerCase().includes(search.toLowerCase());
+            (r.item || '').toLowerCase().includes(search.toLowerCase()) ||
+            (r.requestedBy || '').toLowerCase().includes(search.toLowerCase());
         const matchesStatus = statusFilter === 'all' || r.status === statusFilter;
         return matchesSearch && matchesStatus;
     });
 
     const formatDate = (d) => {
         if (!d) return '—';
-        return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+        const dateObj = new Date(d);
+        if (isNaN(dateObj.getTime())) return '—';
+        return dateObj.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
     };
 
     const getStatusCfg = (status) => statusConfig[status] || { cls: 'status-pending', icon: <FiClock />, label: status };

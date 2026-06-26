@@ -1,99 +1,105 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { adminAPI } from '../../utils/api';
 
-// ─── Permission Registry (matches server KNOWN_PERMISSIONS) ───────────────────
-const PERMISSION_GROUPS = [
+// Each workspace tab maps to a sidebar section.
+// Toggle cards to grant/revoke specific sidebar pages.
+const WORKSPACE_PERMISSIONS = [
     {
-        group: 'Patient Management',
-        color: '#6366f1',
-        icon: '🧑‍⚕️',
+        id: 'billing', name: 'Billing Workspace', icon: '💳',
+        color: '#dc2626', bg: '#fff1f2', border: '#fecaca',
+        description: 'Grant access to individual Billing Operations Center pages',
         items: [
-            { key: 'patient_create', label: 'Register New Patients' },
-            { key: 'patient_search', label: 'Search Patient Database' },
-            { key: 'patient_view', label: 'View Patient Profiles' },
-            { key: 'patient_edit', label: 'Edit Patient Profiles' }
-        ]
+            { key: 'billing_view', label: 'Billing Dashboard', emoji: '🏠', description: 'Unlocks the main billing dashboard.', unlocks: ['Billing Dashboard'] },
+            { key: 'billing_patient', label: 'Patient Billing', emoji: '🧑‍⚕️', description: 'Access patient billing and billing entries page.', unlocks: ['Patient Billing Page'] },
+            { key: 'billing_pending', label: 'Pending Payments', emoji: '⏳', description: 'View and collect pending patient payments.', unlocks: ['Pending Payments Page'] },
+            { key: 'billing_invoices', label: 'Invoices', emoji: '📄', description: 'View and manage all patient invoices.', unlocks: ['Invoices Page'] },
+            { key: 'billing_refund', label: 'Process Refunds', emoji: '↩️', description: 'Submit and manage patient refund requests.', unlocks: ['Refunds Page'] },
+            { key: 'finance_reception_collections', label: 'Reception Collections', emoji: '🏪', description: 'Monitor daily collections at the reception desk.', unlocks: ['Reception Collections Page'] },
+            { key: 'billing_insurance', label: 'Insurance Billing', emoji: '🛡️', description: 'Handle insurance claim submissions.', unlocks: ['Insurance Billing Page'] },
+            { key: 'billing_ipd_settlement', label: 'IPD Settlement', emoji: '🛏️', description: 'Process billing for inpatient (admitted) patients.', unlocks: ['IPD Settlement Page'] },
+            { key: 'billing_receipt_reprint', label: 'Receipt Reprint', emoji: '🔄', description: 'Reprint previously issued payment receipts.', unlocks: ['Receipt Reprint Page'] },
+            { key: 'billing_discounts', label: 'Discounts & Adjustments', emoji: '🏷️', description: 'Apply discounts and adjustments to patient bills.', unlocks: ['Discounts & Adjustments Page'] },
+            { key: 'billing_templates', label: 'Invoice Templates', emoji: '📋', description: 'Configure templates for invoice printouts.', unlocks: ['Invoice Templates Page'] },
+            { key: 'billing_settings', label: 'Billing Settings', emoji: '⚙️', description: 'Configure billing parameters and options.', unlocks: ['Settings Page'] },
+            { key: 'billing_manage', label: 'Cashier Controls Override', emoji: '🛠️', description: 'Master cashier override and config permissions.', unlocks: ['Full Override'] }
+        ],
     },
     {
-        group: 'Clinical & Medical',
-        color: '#10b981',
-        icon: '🩺',
+        id: 'accountant', name: 'Accountant Workspace', icon: '📊',
+        color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe',
+        description: 'Grant access to individual Financial Management Center pages',
         items: [
-            { key: 'visit_intake', label: 'Nurse Intake (Vitals & History)' },
-            { key: 'visit_diagnose', label: 'Doctor Diagnosis & Prescription' },
-            { key: 'clinical_history_view', label: 'View Medical History' }
-        ]
+            { key: 'accountant_view', label: 'Accountant Dashboard', emoji: '🏠', description: 'Main accountant overview and dashboard.', unlocks: ['Accountant Dashboard'] },
+            { key: 'billing_reports', label: 'Revenue Reports', emoji: '📊', description: 'View detailed billing revenue reports.', unlocks: ['Revenue Reports Page'] },
+            { key: 'billing_analytics', label: 'Billing Analytics', emoji: '📈', description: 'View billing analytics and financial trends.', unlocks: ['Billing Analytics Dashboard'] },
+            { key: 'finance_view', label: 'Discount Approvals', emoji: '💼', description: 'Approve or reject patient billing discount requests.', unlocks: ['Discount Approvals Page'] },
+            { key: 'finance_outstanding', label: 'Outstanding Payments', emoji: '⏰', description: 'Monitor and manage overdue payment accounts.', unlocks: ['Outstanding Payments Page'] },
+            { key: 'finance_claims', label: 'Insurance Claims Monitor', emoji: '📋', description: 'Track and manage insurance claim submissions.', unlocks: ['Insurance Claims Page'] },
+            { key: 'finance_expenses', label: 'Expenses Management', emoji: '💸', description: 'Log, track and categorize hospital expenses.', unlocks: ['Expenses Page'] },
+            { key: 'finance_profit_loss', label: 'Profit & Loss Reports', emoji: '📉', description: 'View P&L statements and financial analysis.', unlocks: ['Profit & Loss Page'] },
+            { key: 'finance_statements', label: 'Financial Statements', emoji: '📃', description: 'View balance sheets and income statements.', unlocks: ['Financial Statements Page'] },
+            { key: 'finance_reconciliation', label: 'Bank/Cash Reconciliation', emoji: '⚖️', description: 'Reconcile bank and cash account transactions.', unlocks: ['Reconciliation Page'] },
+            { key: 'finance_payroll', label: 'Payroll Management', emoji: '👥', description: 'Process and manage hospital staff payroll.', unlocks: ['Payroll Management Page'] },
+            { key: 'finance_doctor_payouts', label: 'Doctor Payouts', emoji: '👨‍⚕️', description: 'Process and track doctor earnings and payouts.', unlocks: ['Doctor Payouts Page'] },
+            { key: 'finance_audit', label: 'Financial Audit Logs', emoji: '🔍', description: 'View the financial audit trail and compliance records.', unlocks: ['Financial Audit Logs Page'] },
+            { key: 'finance_transactions', label: 'Transaction Logs', emoji: '📒', description: 'View complete transaction history and records.', unlocks: ['Transaction Logs Page'] },
+        ],
     },
     {
-        group: 'Operations',
-        color: '#f59e0b',
-        icon: '⚙️',
+        id: 'patient', name: 'Patient Management', icon: '🧑‍⚕️',
+        color: '#4f46e5', bg: '#eef2ff', border: '#c7d2fe',
+        description: 'Patient record access and registration permissions',
         items: [
-            { key: 'appointment_manage', label: 'Manage Appointments' },
-            { key: 'appointment_view_all', label: 'View All Appointments' },
-            { key: 'lab_view', label: 'View Lab Tests' },
-            { key: 'lab_manage', label: 'Manage Lab Tests' },
-            { key: 'lab_reports_view', label: 'View Lab Reports Only' },
-            { key: 'pharmacy_view', label: 'View Pharmacy' },
-            { key: 'pharmacy_manage', label: 'Pharmacy & Inventory' },
-            { key: 'inventory_view', label: 'View Inventory Monitoring' }
-        ]
+            { key: 'patient_create', label: 'Register New Patients', emoji: '➕', description: 'Create new patient registrations and profiles.', unlocks: ['Patient Registration Form'] },
+            { key: 'patient_search', label: 'Search Patient Database', emoji: '🔍', description: 'Search and find patients across the hospital.', unlocks: ['Patient Search'] },
+            { key: 'patient_view', label: 'View Patient Profiles', emoji: '👁️', description: 'Read-only access to patient records.', unlocks: ['Patient Profile View'] },
+            { key: 'patient_edit', label: 'Edit Patient Profiles', emoji: '✏️', description: 'Modify patient records and contact details.', unlocks: ['Patient Edit Controls'] },
+            { key: 'patient_monitor', label: 'Patient Flow Monitor', emoji: '🔄', description: 'Monitor patient queues and flow across departments.', unlocks: ['Patient Flow Page'] },
+        ],
     },
     {
-        group: 'Finance & Billing',
-        color: '#ef4444',
-        icon: '💰',
+        id: 'clinical', name: 'Clinical & Medical', icon: '🩺',
+        color: '#059669', bg: '#f0fdf4', border: '#a7f3d0',
+        description: 'Clinical workflow, diagnosis and medical record access',
         items: [
-            { key: 'finance_view', label: 'View Hospital Financials' },
-            { key: 'billing_view', label: 'View Patient Billing' },
-            { key: 'billing_manage', label: 'Manage Patient Billing (Cashier)' },
-            { key: 'billing_insurance', label: 'Insurance Billing' },
-            { key: 'billing_ipd_settlement', label: 'IPD Settlement' },
-            { key: 'billing_receipt_reprint', label: 'Receipt Reprint' },
-            { key: 'billing_discounts', label: 'Discounts & Adjustments' },
-            { key: 'billing_collect_payment', label: 'Collect Payments' },
-            { key: 'billing_generate_invoice', label: 'Generate Invoices' },
-            { key: 'billing_print_invoice', label: 'Print Invoices & Receipts' },
-            { key: 'billing_refund', label: 'Process Refunds & Cancellations' },
-            { key: 'billing_reports', label: 'View Billing Reports' },
-            { key: 'billing_analytics', label: 'View Billing Analytics Dashboard' },
-            { key: 'finance_outstanding', label: 'Outstanding Payments Monitoring' },
-            { key: 'finance_claims', label: 'Insurance Claims Monitoring' },
-            { key: 'finance_reception_collections', label: 'Reception Collections Monitoring' },
-            { key: 'finance_expenses', label: 'Expenses Management' },
-            { key: 'finance_profit_loss', label: 'Profit & Loss Reports' },
-            { key: 'finance_statements', label: 'Financial Statements' },
-            { key: 'finance_reconciliation', label: 'Bank/Cash Reconciliation' },
-            { key: 'finance_transactions', label: 'Transaction Logs' },
-            { key: 'finance_audit', label: 'Financial Audit Logs' },
-            { key: 'finance_payroll', label: 'Payroll Management' },
-            { key: 'finance_doctor_payouts', label: 'Doctor Payouts' }
-        ]
+            { key: 'visit_intake', label: 'Nurse Intake', emoji: '💉', description: 'Record patient vitals, symptoms and history.', unlocks: ['Nurse Intake Form'] },
+            { key: 'visit_diagnose', label: 'Doctor Diagnosis & Prescription', emoji: '🩺', description: 'Write diagnoses, prescriptions and clinical notes.', unlocks: ['My Patients (Doctor) Sidebar', 'Patient Diagnosis Form'] },
+            { key: 'clinical_history_view', label: 'View Medical History', emoji: '📂', description: 'Read-only access to patient clinical history.', unlocks: ['Medical History View'] },
+        ],
     },
     {
-        group: 'Accountant',
-        color: '#8b5cf6',
-        icon: '💼',
+        id: 'operations', name: 'Operations & Services', icon: '⚙️',
+        color: '#d97706', bg: '#fffbeb', border: '#fde68a',
+        description: 'Lab, pharmacy, appointments and hospital operations',
         items: [
-            { key: 'accountant_view', label: 'View Accountant Dashboard' },
-            { key: 'accountant_manage', label: 'Configure Accountant Dashboard' },
-            { key: 'staff_manage', label: 'Manage Staff Roster' },
-            { key: 'department_manage', label: 'Manage Departments' },
-            { key: 'patient_monitor', label: 'Monitor Patients & Queues' },
-            { key: 'admission_manage', label: 'Manage Admissions & Beds' },
-            { key: 'resource_manage', label: 'Manage Assets & Equipment' },
-            { key: 'reports_view', label: 'Generate Reports' },
-            { key: 'analytics_view', label: 'Analytics Oversight' },
-            { key: 'operations_manage', label: 'Operations Feed Access' },
-            { key: 'admin_manage_roles', label: 'Manage Roles & Permissions' },
-            { key: 'admin_view_stats', label: 'View Admin Stats' }
-        ]
-    }
+            { key: 'appointment_manage', label: 'Appointments Management', emoji: '📅', description: 'Book, manage and track patient appointments.', unlocks: ['Reception Dashboard', 'Appointments/Booking Page'] },
+            { key: 'appointment_view_all', label: 'View All Appointments', emoji: '📋', description: 'View all hospital appointments.', unlocks: ['Full Appointment List'] },
+            { key: 'lab_view', label: 'Lab Dashboard Access', emoji: '🧪', description: 'Full lab workspace - orders, samples, processing and reports.', unlocks: ['Lab Dashboard', 'Lab Orders', 'Sample Collection', 'Test Processing', 'Lab Reports'] },
+            { key: 'lab_manage', label: 'Lab Management Controls', emoji: '⚗️', description: 'Advanced lab management and test configuration.', unlocks: ['Lab Management Controls'] },
+            { key: 'lab_reports_view', label: 'View Lab Reports Only', emoji: '📄', description: 'Read-only access to completed lab reports.', unlocks: ['Lab Reports Page'] },
+            { key: 'pharmacy_view', label: 'Pharmacy Dashboard Access', emoji: '💊', description: 'View pharmacy inventory, orders and purchase approvals.', unlocks: ['Pharma Inventory', 'Pharmacy Orders', 'Purchase Approvals Sidebar'] },
+            { key: 'pharmacy_manage', label: 'Pharmacy Management', emoji: '🏥', description: 'Full pharmacy control, stock management and ordering.', unlocks: ['Pharmacy Management Controls'] },
+            { key: 'inventory_view', label: 'Inventory Monitoring', emoji: '📦', description: 'Monitor hospital inventory stock levels.', unlocks: ['Inventory Monitoring Page'] },
+            { key: 'admission_manage', label: 'Admissions Management', emoji: '🛏️', description: 'Manage bed admissions and patient discharge.', unlocks: ['Admissions Page'] },
+            { key: 'resource_manage', label: 'Resource Management', emoji: '🔧', description: 'Manage hospital equipment, assets and resources.', unlocks: ['Resource Management Page'] },
+            { key: 'operations_manage', label: 'Hospital Operations Feed', emoji: '📡', description: 'Access to hospital operations live monitoring feed.', unlocks: ['Operations Center'] },
+        ],
+    },
+    {
+        id: 'admin', name: 'Admin & Reporting', icon: '🔑',
+        color: '#475569', bg: '#f8fafc', border: '#cbd5e1',
+        description: 'Administrative controls, reporting and system management',
+        items: [
+            { key: 'staff_manage', label: 'Staff Roster Management', emoji: '👥', description: 'Manage staff accounts, roles and profiles.', unlocks: ['Staff Management'] },
+            { key: 'department_manage', label: 'Department Management', emoji: '🏢', description: 'Configure and manage hospital departments.', unlocks: ['Department Settings'] },
+            { key: 'reports_view', label: 'Generate Reports', emoji: '📊', description: 'Generate and export hospital operational reports.', unlocks: ['Reports Page'] },
+            { key: 'analytics_view', label: 'Analytics Oversight', emoji: '📈', description: 'View hospital analytics and performance metrics.', unlocks: ['Analytics Dashboard'] },
+            { key: 'admin_view_stats', label: 'View Admin Statistics', emoji: '🔢', description: 'View admin-level hospital statistics.', unlocks: ['Admin Stats Dashboard'] },
+            { key: 'admin_manage_roles', label: 'Manage Roles & Permissions', emoji: '🔑', description: 'Create, edit and assign roles to hospital staff.', unlocks: ['Roles & Permissions Page', 'Dynamic Permissions Page'] },
+        ],
+    },
 ];
 
-const ALL_PERMISSIONS = PERMISSION_GROUPS.flatMap(g => g.items.map(i => i.key));
-
-// ─── UserPermissionManager Component ─────────────────────────────────────────
 const UserPermissionManager = ({ hospitals = [] }) => {
     const [allStaff, setAllStaff] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -102,19 +108,14 @@ const UserPermissionManager = ({ hospitals = [] }) => {
     const [deniedPerms, setDeniedPerms] = useState([]);
     const [saving, setSaving] = useState(false);
     const [message, setMessage] = useState({ type: '', text: '' });
-    const [showSaveSuccess, setShowSaveSuccess] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [hospitalFilter, setHospitalFilter] = useState('');
     const [roleFilter, setRoleFilter] = useState('');
+    const [activeWorkspace, setActiveWorkspace] = useState('billing');
 
+    useEffect(() => { loadAllStaff(); }, []);
     useEffect(() => {
-        loadAllStaff();
-    }, []);
-
-    useEffect(() => {
-        if (hospitals && hospitals.length === 1) {
-            setHospitalFilter(hospitals[0]._id);
-        }
+        if (hospitals && hospitals.length === 1) setHospitalFilter(hospitals[0]._id);
     }, [hospitals]);
 
     const loadAllStaff = async () => {
@@ -122,18 +123,14 @@ const UserPermissionManager = ({ hospitals = [] }) => {
         try {
             const res = await adminAPI.getUsers();
             if (res.success) {
-                // Exclude system admin roles
                 const staff = (res.users || []).filter(u => {
                     const role = (u.role || '').toLowerCase();
                     return !['centraladmin', 'superadmin', 'hospitaladmin', 'patient'].includes(role);
                 });
                 setAllStaff(staff);
             }
-        } catch (err) {
-            console.error('Failed to load staff:', err);
-        } finally {
-            setLoading(false);
-        }
+        } catch (err) { console.error(err); }
+        finally { setLoading(false); }
     };
 
     const openUser = (user) => {
@@ -141,643 +138,237 @@ const UserPermissionManager = ({ hospitals = [] }) => {
         setCustomPerms(user.customPermissions || []);
         setDeniedPerms(user.deniedPermissions || []);
         setMessage({ type: '', text: '' });
+        setActiveWorkspace('billing');
+        window.scrollTo(0, 0);
     };
-
-    const closeUser = () => {
-        setSelectedUser(null);
-        setCustomPerms([]);
-        setDeniedPerms([]);
-        setMessage({ type: '', text: '' });
-    };
+    const closeUser = () => { setSelectedUser(null); setCustomPerms([]); setDeniedPerms([]); setMessage({ type: '', text: '' }); };
 
     const togglePerm = (key) => {
         const isRolePerm = (selectedUser?.permissions || []).includes(key);
         if (isRolePerm) {
-            setDeniedPerms(prev =>
-                prev.includes(key) ? prev.filter(p => p !== key) : [...prev, key]
-            );
+            setDeniedPerms(prev => prev.includes(key) ? prev.filter(p => p !== key) : [...prev, key]);
         } else {
-            setCustomPerms(prev =>
-                prev.includes(key) ? prev.filter(p => p !== key) : [...prev, key]
-            );
+            setCustomPerms(prev => prev.includes(key) ? prev.filter(p => p !== key) : [...prev, key]);
         }
     };
 
     const handleSave = async () => {
         if (!selectedUser) return;
-        setSaving(true);
-        setMessage({ type: '', text: '' });
+        setSaving(true); setMessage({ type: '', text: '' });
         try {
-            const res = await adminAPI.updateUserPermissions(selectedUser.id, customPerms, deniedPerms);
+            const res = await adminAPI.updateUserPermissions(selectedUser.id || selectedUser._id, customPerms, deniedPerms);
             if (res.success) {
-                setMessage({ type: 'success', text: `✅ Permissions saved for ${selectedUser.name}` });
-                setShowSaveSuccess(true);
-                // Refresh staff list to reflect changes
+                setMessage({ type: 'success', text: 'Permissions saved for ' + selectedUser.name });
                 await loadAllStaff();
-                // Update the selected user view
-                setSelectedUser(prev => ({
-                    ...prev,
-                    customPermissions: customPerms,
-                    deniedPermissions: deniedPerms,
-                    effectivePermissions: Array.from(new Set([...(prev.permissions || []), ...customPerms].filter(p => !deniedPerms.includes(p))))
-                }));
-            } else {
-                setMessage({ type: 'error', text: res.message || 'Failed to save permissions' });
-            }
-        } catch (err) {
-            setMessage({ type: 'error', text: err?.response?.data?.message || err.message });
-        } finally {
-            setSaving(false);
-        }
+                setSelectedUser(prev => ({ ...prev, customPermissions: customPerms, deniedPermissions: deniedPerms, effectivePermissions: Array.from(new Set([...(prev.permissions || []), ...customPerms].filter(p => !deniedPerms.includes(p)))) }));
+            } else { setMessage({ type: 'error', text: res.message || 'Failed to save' }); }
+        } catch (err) { setMessage({ type: 'error', text: err?.response?.data?.message || err.message }); }
+        finally { setSaving(false); }
     };
 
-    const clearAllCustom = () => {
-        if (!selectedUser) return;
-        setCustomPerms([]);
-        setDeniedPerms([]);
+    const clearAllCustom = () => { setCustomPerms([]); setDeniedPerms([]); };
+
+    const grantAllInWorkspace = () => {
+        const ws = WORKSPACE_PERMISSIONS.find(w => w.id === activeWorkspace); if (!ws) return;
+        const rp = selectedUser?.permissions || [];
+        const keys = ws.items.map(i => i.key);
+        setCustomPerms(prev => Array.from(new Set([...prev, ...keys.filter(k => !rp.includes(k))])));
+        setDeniedPerms(prev => prev.filter(p => !keys.includes(p)));
     };
 
-    const grantAll = () => {
-        if (!selectedUser) return;
-        const rolePerms = selectedUser.permissions || [];
-        setDeniedPerms([]);
-        setCustomPerms(ALL_PERMISSIONS.filter(p => !rolePerms.includes(p)));
+    const revokeAllInWorkspace = () => {
+        const ws = WORKSPACE_PERMISSIONS.find(w => w.id === activeWorkspace); if (!ws) return;
+        const keys = ws.items.map(i => i.key);
+        setCustomPerms(prev => prev.filter(p => !keys.includes(p)));
     };
 
-    // Filtered staff list
-    const filteredStaff = useMemo(() => {
-        return allStaff.filter(u => {
-            const matchSearch = !searchQuery ||
-                u.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                u.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                (u.role || '').toLowerCase().includes(searchQuery.toLowerCase());
-            const matchHospital = !hospitalFilter || String(u.hospitalId) === hospitalFilter;
-            const matchRole = !roleFilter || (u.role || '').toLowerCase().includes(roleFilter.toLowerCase());
-            return matchSearch && matchHospital && matchRole;
-        });
-    }, [allStaff, searchQuery, hospitalFilter, roleFilter]);
+    const getPermStatus = (key) => {
+        const isRolePerm = (selectedUser?.permissions || []).includes(key);
+        const isDenied = deniedPerms.includes(key);
+        const isCustomGranted = customPerms.includes(key);
+        if (isDenied) return 'denied';
+        if (isRolePerm) return 'role';
+        if (isCustomGranted) return 'custom';
+        return 'none';
+    };
 
-    // Unique roles in staff list
-    const uniqueRoles = useMemo(() => {
-        return Array.from(new Set(allStaff.map(u => u.role).filter(Boolean)));
-    }, [allStaff]);
+    const filteredStaff = useMemo(() => allStaff.filter(u => {
+        const s = searchQuery.toLowerCase();
+        const matchSearch = !s || (u.name || '').toLowerCase().includes(s) || (u.email || '').toLowerCase().includes(s) || (u.role || '').toLowerCase().includes(s);
+        const matchHospital = !hospitalFilter || String(u.hospitalId) === String(hospitalFilter);
+        const matchRole = !roleFilter || (u.role || '').toLowerCase() === roleFilter.toLowerCase();
+        return matchSearch && matchHospital && matchRole;
+    }), [allStaff, searchQuery, hospitalFilter, roleFilter]);
 
-    const getHospitalName = (hid) => hospitals.find(h => h._id === hid)?.name || 'Unknown';
-
+    const uniqueRoles = useMemo(() => Array.from(new Set(allStaff.map(u => u.role).filter(Boolean))).sort(), [allStaff]);
     const getEffectivePermCount = (user) => {
-        const rolePerms = user.permissions || [];
-        const customPerms = user.customPermissions || [];
-        const deniedPerms = user.deniedPermissions || [];
-        return new Set([...rolePerms, ...customPerms].filter(p => !deniedPerms.includes(p))).size;
+        const rp = user.permissions || []; const cp = user.customPermissions || []; const dp = user.deniedPermissions || [];
+        return new Set([...rp, ...cp].filter(p => !dp.includes(p))).size;
     };
 
-    // ─── Permission Panel (right panel when user selected) ──────────────────
     if (selectedUser) {
         const rolePerms = selectedUser.permissions || [];
         const effectivePerms = Array.from(new Set([...rolePerms, ...customPerms].filter(p => !deniedPerms.includes(p))));
-
+        const currentWs = WORKSPACE_PERMISSIONS.find(w => w.id === activeWorkspace);
+        const wsGranted = currentWs?.items.filter(i => effectivePerms.includes(i.key)).length || 0;
         return (
-            <div style={{ display: 'flex', gap: '0', height: '100%', minHeight: '70vh' }}>
-                {/* Left — User Info Panel */}
-                <div style={{
-                    width: '280px', flexShrink: 0,
-                    background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
-                    borderRadius: '16px 0 0 16px', padding: '28px 24px',
-                    color: 'white', display: 'flex', flexDirection: 'column', gap: '20px'
-                }}>
-                    <button onClick={closeUser} style={{
-                        background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)',
-                        color: '#94a3b8', borderRadius: '8px', padding: '8px 14px',
-                        cursor: 'pointer', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px',
-                        width: 'fit-content'
-                    }}>← Back to Staff List</button>
-
-                    {/* Avatar */}
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', textAlign: 'center' }}>
-                        <div style={{
-                            width: '72px', height: '72px', borderRadius: '50%',
-                            background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            fontSize: '28px', fontWeight: 800, color: 'white',
-                            boxShadow: '0 0 0 4px rgba(99,102,241,0.3)'
-                        }}>
-                            {selectedUser.name?.charAt(0).toUpperCase()}
+            <div style={{ display: 'flex', minHeight: '75vh', borderRadius: '16px', overflow: 'hidden', border: '1.5px solid #e2e8f0', boxShadow: '0 4px 24px rgba(0,0,0,0.08)' }}>
+                {/* Left: User Info Panel */}
+                <div style={{ width: '250px', flexShrink: 0, background: 'linear-gradient(160deg,#1e293b,#0f172a)', padding: '20px 18px', color: 'white', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                    <button onClick={closeUser} style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', color: '#94a3b8', borderRadius: '8px', padding: '6px 12px', cursor: 'pointer', fontSize: '12px', fontWeight: 600, alignSelf: 'flex-start' }}>← Staff List</button>
+                    <div style={{ textAlign: 'center' }}>
+                        <div style={{ width: '64px', height: '64px', borderRadius: '50%', margin: '0 auto 10px', background: 'linear-gradient(135deg,#6366f1,#8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '26px', fontWeight: 800, boxShadow: '0 0 0 3px rgba(99,102,241,0.35)' }}>
+                            {(selectedUser.name || 'U').charAt(0).toUpperCase()}
                         </div>
-                        <div>
-                            <div style={{ fontWeight: 700, fontSize: '1rem' }}>{selectedUser.name}</div>
-                            <div style={{ color: '#94a3b8', fontSize: '12px' }}>{selectedUser.email}</div>
-                            <div style={{
-                                marginTop: '8px', background: 'rgba(99,102,241,0.2)',
-                                color: '#a5b4fc', borderRadius: '20px', padding: '4px 12px',
-                                fontSize: '11px', fontWeight: 600, display: 'inline-block'
-                            }}>{selectedUser.role}</div>
+                        <h3 style={{ margin: '0 0 4px', fontSize: '15px', fontWeight: 700 }}>{selectedUser.name}</h3>
+                        <p style={{ margin: '0 0 6px', fontSize: '11px', color: '#94a3b8', wordBreak: 'break-all' }}>{selectedUser.email}</p>
+                        <span style={{ display: 'inline-block', background: '#3b82f6', color: 'white', borderRadius: '10px', padding: '2px 10px', fontSize: '11px', fontWeight: 700 }}>{selectedUser.role}</span>
+                    </div>
+                    <div style={{ padding: '12px', background: 'rgba(255,255,255,0.04)', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                        <div style={{ fontSize: '9px', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '10px' }}>Permission Summary</div>
+                        {[['Role permissions', rolePerms.length, 'white'], ['Custom grants', '+' + customPerms.length, '#34d399'], ...(deniedPerms.length > 0 ? [['Revoked', '-' + deniedPerms.length, '#f87171']] : [])].map(([label, val, color]) => (
+                            <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                                <span style={{ fontSize: '11px', color: '#94a3b8' }}>{label}</span>
+                                <span style={{ fontSize: '13px', fontWeight: 700, color }}>{val}</span>
+                            </div>
+                        ))}
+                        <div style={{ borderTop: '1px solid rgba(255,255,255,0.07)', paddingTop: '7px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600 }}>Effective total</span>
+                            <span style={{ fontSize: '18px', fontWeight: 800, color: '#22c55e' }}>{effectivePerms.length}</span>
                         </div>
                     </div>
-
-                    <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '16px' }}>
-                        <div style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '12px' }}>Permission Summary</div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-                                <span style={{ color: '#94a3b8' }}>Role permissions</span>
-                                <span style={{ fontWeight: 700, color: '#10b981' }}>{rolePerms.length}</span>
-                            </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-                                <span style={{ color: '#94a3b8' }}>Custom grants</span>
-                                <span style={{ fontWeight: 700, color: '#f59e0b' }}>{customPerms.length}</span>
-                            </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-                                <span style={{ color: '#94a3b8' }}>Explicitly revoked</span>
-                                <span style={{ fontWeight: 700, color: '#ef4444' }}>{deniedPerms.length}</span>
-                            </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '8px' }}>
-                                <span style={{ color: '#e2e8f0', fontWeight: 600 }}>Total effective</span>
-                                <span style={{ fontWeight: 700, color: '#6366f1' }}>{effectivePerms.length}</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Hospital Info */}
-                    <div style={{ fontSize: '12px', color: '#64748b' }}>
-                        <div style={{ color: '#475569', marginBottom: '4px', fontWeight: 600 }}>Hospital</div>
-                        <div style={{ color: '#94a3b8' }}>{getHospitalName(selectedUser.hospitalId) || 'N/A'}</div>
-                    </div>
-
-                    {/* Legend */}
-                    <div style={{ marginTop: 'auto', fontSize: '11px', color: '#475569' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
-                            <div style={{ width: '10px', height: '10px', borderRadius: '2px', background: '#10b981' }}></div>
-                            <span>From role (active)</span>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
-                            <div style={{ width: '10px', height: '10px', borderRadius: '2px', background: '#f59e0b' }}></div>
-                            <span>Custom grant (active)</span>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
-                            <div style={{ width: '10px', height: '10px', borderRadius: '2px', border: '1px solid #ef4444', background: 'transparent' }}></div>
-                            <span>Explicitly revoked</span>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <div style={{ width: '10px', height: '10px', borderRadius: '2px', background: '#334155', border: '1px solid #475569' }}></div>
-                            <span>Not granted</span>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Right — Permission Grid */}
-                <div style={{
-                    flex: 1, background: '#f8fafc', borderRadius: '0 16px 16px 0',
-                    padding: '28px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '20px'
-                }}>
-                    {/* Header */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
-                        <div>
-                            <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#1e293b' }}>
-                                🔐 Permission Configuration
-                            </h3>
-                            <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#64748b' }}>
-                                Grant or revoke permissions beyond the <strong>{selectedUser.role}</strong> role. Backend enforced.
-                            </p>
-                        </div>
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                            <button onClick={clearAllCustom} style={{
-                                padding: '8px 16px', borderRadius: '8px', border: '1px solid #e2e8f0',
-                                background: 'white', cursor: 'pointer', fontSize: '13px', fontWeight: 600, color: '#64748b'
-                            }}>Clear Custom</button>
-                            <button onClick={grantAll} style={{
-                                padding: '8px 16px', borderRadius: '8px', border: 'none',
-                                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', cursor: 'pointer',
-                                fontSize: '13px', fontWeight: 600, color: 'white'
-                            }}>Grant All</button>
-                        </div>
-                    </div>
-
-                    {/* Save Message */}
-                    {message.text && (
-                        <div style={{
-                            padding: '12px 16px', borderRadius: '10px', fontSize: '13px', fontWeight: 600,
-                            background: message.type === 'success' ? '#dcfce7' : '#fee2e2',
-                            color: message.type === 'success' ? '#166534' : '#991b1b',
-                            border: `1px solid ${message.type === 'success' ? '#bbf7d0' : '#fecaca'}`
-                        }}>
-                            {message.text}
-                        </div>
-                    )}
-
-                    {/* Permission Groups */}
-                    {PERMISSION_GROUPS.map(group => (
-                        <div key={group.group} style={{
-                            background: 'white', borderRadius: '12px',
-                            border: '1px solid #e2e8f0', overflow: 'hidden'
-                        }}>
-                            <div style={{
-                                padding: '14px 18px', borderBottom: '1px solid #f1f5f9',
-                                display: 'flex', alignItems: 'center', gap: '10px',
-                                background: `${group.color}08`
-                            }}>
-                                <span style={{ fontSize: '18px' }}>{group.icon}</span>
-                                <span style={{ fontWeight: 700, fontSize: '14px', color: '#1e293b' }}>{group.group}</span>
-                                <span style={{
-                                    marginLeft: 'auto', fontSize: '11px', fontWeight: 600,
-                                    color: group.color, background: `${group.color}15`,
-                                    padding: '2px 10px', borderRadius: '20px'
-                                }}>
-                                    {group.items.filter(i => effectivePerms.includes(i.key)).length}/{group.items.length} granted
-                                </span>
-                            </div>
-                            <div style={{ padding: '12px 18px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                {group.items.map(item => {
-                                    const fromRole = rolePerms.includes(item.key);
-                                    const isCustom = customPerms.includes(item.key);
-                                    const isDenied = deniedPerms.includes(item.key);
-                                    const isGranted = (fromRole || isCustom) && !isDenied;
-
-                                    return (
-                                        <label key={item.key} style={{
-                                            display: 'flex', alignItems: 'center', gap: '12px',
-                                            padding: '10px 14px', borderRadius: '8px', cursor: 'pointer',
-                                            background: (isGranted && fromRole) ? '#f0fdf4' : (isGranted && isCustom) ? '#fffbeb' : isDenied ? '#fef2f2' : '#f8fafc',
-                                            border: `1px solid ${(isGranted && fromRole) ? '#bbf7d0' : (isGranted && isCustom) ? '#fde68a' : isDenied ? '#fecaca' : '#e2e8f0'}`,
-                                            transition: 'all 0.15s ease', userSelect: 'none',
-                                            opacity: (isGranted && fromRole) ? 0.95 : 1
-                                        }}>
-                                            {/* Custom checkbox */}
-                                            <div
-                                                onClick={() => togglePerm(item.key)}
-                                                style={{
-                                                    width: '18px', height: '18px', borderRadius: '4px', flexShrink: 0,
-                                                    border: `2px solid ${
-                                                        isGranted 
-                                                            ? (fromRole ? '#10b981' : '#f59e0b') 
-                                                            : (isDenied ? '#ef4444' : '#cbd5e1')
-                                                    }`,
-                                                    background: isGranted 
-                                                        ? (fromRole ? '#10b981' : '#f59e0b') 
-                                                        : 'transparent',
-                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                    cursor: 'pointer', transition: 'all 0.15s'
-                                                }}
-                                            >
-                                                {isGranted && <span style={{ color: 'white', fontSize: '11px', fontWeight: 700 }}>✓</span>}
-                                            </div>
-
-                                            <span style={{ flex: 1, fontSize: '13px', fontWeight: 500, color: '#334155' }}>
-                                                {item.label}
-                                            </span>
-
-                                            {fromRole && !isDenied && (
-                                                <span style={{
-                                                    fontSize: '10px', fontWeight: 700, color: '#10b981',
-                                                    background: '#dcfce7', padding: '2px 8px', borderRadius: '20px'
-                                                }}>ROLE</span>
-                                            )}
-                                            {isDenied && (
-                                                <span style={{
-                                                    fontSize: '10px', fontWeight: 700, color: '#ef4444',
-                                                    background: '#fee2e2', padding: '2px 8px', borderRadius: '20px'
-                                                }}>REVOKED</span>
-                                            )}
-                                            {isCustom && (
-                                                <span style={{
-                                                    fontSize: '10px', fontWeight: 700, color: '#d97706',
-                                                    background: '#fef3c7', padding: '2px 8px', borderRadius: '20px'
-                                                }}>CUSTOM</span>
-                                            )}
-
-                                            <code style={{
-                                                fontSize: '10px', color: '#94a3b8',
-                                                background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px',
-                                                fontFamily: 'monospace'
-                                            }}>{item.key}</code>
-                                        </label>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    ))}
-
-                    {/* Save Button */}
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', paddingTop: '8px' }}>
-                        <button onClick={closeUser} style={{
-                            padding: '12px 24px', borderRadius: '10px', border: '1px solid #e2e8f0',
-                            background: 'white', cursor: 'pointer', fontSize: '14px', fontWeight: 600, color: '#64748b'
-                        }}>Cancel</button>
-                        <button onClick={handleSave} disabled={saving} style={{
-                            padding: '12px 28px', borderRadius: '10px', border: 'none',
-                            background: saving ? '#94a3b8' : 'linear-gradient(135deg, #6366f1, #4f46e5)',
-                            cursor: saving ? 'not-allowed' : 'pointer', fontSize: '14px',
-                            fontWeight: 700, color: 'white',
-                            boxShadow: '0 4px 12px rgba(99,102,241,0.35)'
-                        }}>
-                            {saving ? 'Saving...' : '💾 Save Permissions'}
+                    {message.text && (<div style={{ padding: '8px 10px', borderRadius: '8px', fontSize: '11px', lineHeight: '1.4', background: message.type === 'success' ? '#dcfce7' : '#fee2e2', color: message.type === 'success' ? '#15803d' : '#dc2626', border: `1px solid ${message.type === 'success' ? '#bbf7d0' : '#fca5a5'}` }}>{message.text}</div>)}
+                    <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <button onClick={handleSave} disabled={saving} style={{ background: 'linear-gradient(135deg,#22c55e,#16a34a)', color: 'white', border: 'none', borderRadius: '10px', padding: '11px', cursor: saving ? 'not-allowed' : 'pointer', fontWeight: 700, fontSize: '14px', opacity: saving ? 0.75 : 1 }}>
+                            {saving ? 'Saving...' : '✓ Save Permissions'}
                         </button>
+                        <button onClick={clearAllCustom} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8', borderRadius: '8px', padding: '8px', cursor: 'pointer', fontSize: '11px' }}>Reset All Custom</button>
                     </div>
                 </div>
-
-                {/* Save Success Popup Modal */}
-                {showSaveSuccess && (
-                    <div style={{
-                        position: 'fixed',
-                        inset: 0,
-                        backgroundColor: 'rgba(15, 23, 42, 0.65)',
-                        backdropFilter: 'blur(8px)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        zIndex: 9999,
-                        animation: 'fadeIn 0.25s ease-out'
-                    }}>
-                        <style>{`
-                            @keyframes fadeIn {
-                                from { opacity: 0; }
-                                to { opacity: 1; }
-                            }
-                            @keyframes scaleUp {
-                                from { transform: scale(0.92); opacity: 0; }
-                                to { transform: scale(1); opacity: 1; }
-                            }
-                            @keyframes pulseSuccess {
-                                0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
-                                70% { transform: scale(1.04); box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
-                                100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
-                            }
-                        `}</style>
-                        <div style={{
-                            background: 'white',
-                            borderRadius: '24px',
-                            padding: '36px 32px',
-                            width: '90%',
-                            maxWidth: '400px',
-                            textAlign: 'center',
-                            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-                            border: '1px solid rgba(226, 232, 240, 0.8)',
-                            animation: 'scaleUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)'
-                        }}>
-                            <div style={{
-                                width: '72px',
-                                height: '72px',
-                                borderRadius: '50%',
-                                background: '#dcfce7',
-                                color: '#15803d',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                fontSize: '36px',
-                                margin: '0 auto 20px',
-                                boxShadow: '0 0 0 8px #f0fdf4',
-                                animation: 'pulseSuccess 2s infinite'
-                            }}>
-                                ✓
-                            </div>
-                            
-                            <h3 style={{
-                                margin: '0 0 8px',
-                                fontSize: '20px',
-                                fontWeight: 850,
-                                color: '#1e293b'
-                            }}>
-                                Changes Saved!
-                            </h3>
-                            
-                            <p style={{
-                                margin: '0 0 24px',
-                                fontSize: '14px',
-                                color: '#64748b',
-                                lineHeight: 1.5
-                            }}>
-                                Permissions have been updated successfully for <strong>{selectedUser?.name}</strong>.
-                            </p>
-                            
-                            <button 
-                                onClick={() => setShowSaveSuccess(false)}
-                                style={{
-                                    width: '100%',
-                                    padding: '12px 24px',
-                                    borderRadius: '12px',
-                                    border: 'none',
-                                    background: 'linear-gradient(135deg, #10b981, #059669)',
-                                    color: 'white',
-                                    fontWeight: 700,
-                                    fontSize: '14px',
-                                    cursor: 'pointer',
-                                    boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
-                                    transition: 'all 0.2s'
-                                }}
-                                onMouseEnter={(e) => {
-                                    e.currentTarget.style.opacity = '0.9';
-                                    e.currentTarget.style.transform = 'translateY(-1px)';
-                                }}
-                                onMouseLeave={(e) => {
-                                    e.currentTarget.style.opacity = '1';
-                                    e.currentTarget.style.transform = 'none';
-                                }}
-                            >
-                                OK
-                            </button>
+                {/* Right: Permission Panel */}
+                <div style={{ flex: 1, overflow: 'auto', background: '#f8fafc', display: 'flex', flexDirection: 'column' }}>
+                    {/* Workspace Tabs */}
+                    <div style={{ padding: '14px 18px', background: 'white', borderBottom: '1.5px solid #e2e8f0', display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                        <span style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', marginRight: '2px' }}>Workspace:</span>
+                        {WORKSPACE_PERMISSIONS.map(ws => {
+                            const granted = ws.items.filter(i => effectivePerms.includes(i.key)).length;
+                            const isActive = activeWorkspace === ws.id;
+                            return (
+                                <button key={ws.id} onClick={() => setActiveWorkspace(ws.id)} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 12px', borderRadius: '20px', border: `2px solid ${ws.color}`, background: isActive ? ws.color : 'white', color: isActive ? 'white' : ws.color, cursor: 'pointer', fontWeight: 600, fontSize: '12px' }}>
+                                    <span>{ws.icon}</span><span>{ws.name}</span>
+                                    {granted > 0 && <span style={{ background: isActive ? 'rgba(255,255,255,0.3)' : ws.color, color: 'white', borderRadius: '10px', padding: '0 7px', fontSize: '11px', fontWeight: 800 }}>{granted}</span>}
+                                </button>
+                            );
+                        })}
+                    </div>
+                    {/* Workspace Header */}
+                    <div style={{ padding: '14px 18px', background: currentWs?.bg || '#fff', borderBottom: `2px solid ${currentWs?.border || '#e2e8f0'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                        <div>
+                            <h3 style={{ margin: 0, color: currentWs?.color, fontWeight: 800, fontSize: '17px' }}>{currentWs?.icon} {currentWs?.name}</h3>
+                            <p style={{ margin: '3px 0 0', color: '#64748b', fontSize: '12px' }}>{currentWs?.description} - click a card to toggle</p>
+                        </div>
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            <div style={{ textAlign: 'right' }}><div style={{ fontSize: '20px', fontWeight: 800, color: currentWs?.color }}>{wsGranted}/{currentWs?.items.length}</div><div style={{ fontSize: '9px', color: '#94a3b8', textTransform: 'uppercase' }}>granted</div></div>
+                            <button onClick={grantAllInWorkspace} style={{ background: currentWs?.color, color: 'white', border: 'none', borderRadius: '8px', padding: '7px 12px', cursor: 'pointer', fontSize: '12px', fontWeight: 700 }}>Grant All</button>
+                            <button onClick={revokeAllInWorkspace} style={{ background: 'white', color: '#64748b', border: '1.5px solid #e2e8f0', borderRadius: '8px', padding: '6px 12px', cursor: 'pointer', fontSize: '12px', fontWeight: 600 }}>Remove All</button>
                         </div>
                     </div>
-                )}
+                    {/* Permission Cards */}
+                    <div style={{ padding: '16px 18px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(268px,1fr))', gap: '12px' }}>
+                        {currentWs?.items.map(item => {
+                            const status = getPermStatus(item.key);
+                            const isGranted = status === 'role' || status === 'custom';
+                            const isRole = status === 'role'; const isCustom = status === 'custom'; const isDenied = status === 'denied';
+                            const cardBg = isGranted ? currentWs.bg : isDenied ? '#fff1f2' : 'white';
+                            const borderColor = isGranted ? currentWs.color : isDenied ? '#fca5a5' : '#e2e8f0';
+                            const nameColor = isGranted ? currentWs.color : isDenied ? '#b91c1c' : '#1e293b';
+                            return (
+                                <div key={item.key} onClick={() => togglePerm(item.key)} style={{ background: cardBg, border: `2px solid ${borderColor}`, borderRadius: '12px', padding: '14px', cursor: 'pointer', position: 'relative', userSelect: 'none', transition: 'box-shadow 0.15s' }} onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 14px rgba(0,0,0,0.1)'} onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}>
+                                    {isRole && <span style={{ position: 'absolute', top: '9px', right: '9px', background: '#6366f1', color: 'white', borderRadius: '5px', padding: '2px 6px', fontSize: '9px', fontWeight: 800 }}>ROLE</span>}
+                                    {isCustom && <span style={{ position: 'absolute', top: '9px', right: '9px', background: '#22c55e', color: 'white', borderRadius: '5px', padding: '2px 6px', fontSize: '9px', fontWeight: 800 }}>CUSTOM</span>}
+                                    {isDenied && <span style={{ position: 'absolute', top: '9px', right: '9px', background: '#ef4444', color: 'white', borderRadius: '5px', padding: '2px 6px', fontSize: '9px', fontWeight: 800 }}>REVOKED</span>}
+                                    <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                                        <div style={{ width: '20px', height: '20px', borderRadius: '50%', flexShrink: 0, marginTop: '2px', border: `2px solid ${isGranted ? currentWs.color : isDenied ? '#ef4444' : '#cbd5e1'}`, background: isGranted ? currentWs.color : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px' }}>
+                                            {isGranted && <span style={{ color: 'white', lineHeight: 1 }}>✓</span>}
+                                            {isDenied && <span style={{ color: '#ef4444', lineHeight: 1 }}>✕</span>}
+                                        </div>
+                                        <div style={{ flex: 1, minWidth: 0, paddingRight: (isRole || isCustom || isDenied) ? '55px' : '0' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
+                                                <span style={{ fontSize: '17px' }}>{item.emoji}</span>
+                                                <span style={{ fontWeight: 700, fontSize: '13px', color: nameColor }}>{item.label}</span>
+                                            </div>
+                                            <p style={{ margin: 0, fontSize: '11px', color: '#64748b', lineHeight: '1.45' }}>{item.description}</p>
+                                        </div>
+                                    </div>
+                                    {item.unlocks?.length > 0 && (
+                                        <div style={{ marginTop: '10px', paddingTop: '8px', borderTop: `1px solid ${isGranted ? currentWs.color + '28' : '#f1f5f9'}` }}>
+                                            <span style={{ fontSize: '9px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Adds to sidebar:</span>
+                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '5px' }}>
+                                                {item.unlocks.map(link => (
+                                                    <span key={link} style={{ background: isGranted ? currentWs.color + '18' : '#f1f5f9', color: isGranted ? currentWs.color : '#64748b', border: `1px solid ${isGranted ? currentWs.color + '30' : '#e2e8f0'}`, borderRadius: '4px', padding: '2px 7px', fontSize: '10px', fontWeight: 600 }}>{link}</span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                    {item.note && (<div style={{ marginTop: '8px', padding: '5px 8px', background: '#fffbeb', borderRadius: '5px', fontSize: '11px', color: '#92400e', border: '1px solid #fde68a' }}>⚠️ {item.note}</div>)}
+                                    <div style={{ marginTop: '8px', fontSize: '9px', color: '#94a3b8', fontFamily: 'monospace' }}>{item.key}</div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
             </div>
         );
     }
 
-    // ─── Staff List View ────────────────────────────────────────────────────
+    // Staff list
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            {/* Header */}
-            <div style={{
-                background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
-                borderRadius: '16px', padding: '24px 28px', color: 'white'
-            }}>
-                <h2 style={{ margin: 0, fontWeight: 800, fontSize: '1.3rem' }}>🔐 Dynamic Permission Assignment</h2>
-                <p style={{ margin: '6px 0 0', opacity: 0.85, fontSize: '14px' }}>
-                    Grant individual staff members additional permissions beyond their role — one account, multiple capabilities.
-                </p>
-                <div style={{ display: 'flex', gap: '20px', marginTop: '16px' }}>
-                    <div style={{ textAlign: 'center' }}>
-                        <div style={{ fontSize: '24px', fontWeight: 800 }}>{allStaff.length}</div>
-                        <div style={{ fontSize: '11px', opacity: 0.7 }}>Total Staff</div>
-                    </div>
-                    <div style={{ width: '1px', background: 'rgba(255,255,255,0.2)' }} />
-                    <div style={{ textAlign: 'center' }}>
-                        <div style={{ fontSize: '24px', fontWeight: 800 }}>
-                            {allStaff.filter(u => (u.customPermissions || []).length > 0).length}
-                        </div>
-                        <div style={{ fontSize: '11px', opacity: 0.7 }}>Custom Grants Active</div>
-                    </div>
-                    <div style={{ width: '1px', background: 'rgba(255,255,255,0.2)' }} />
-                    <div style={{ textAlign: 'center' }}>
-                        <div style={{ fontSize: '24px', fontWeight: 800 }}>{PERMISSION_GROUPS.reduce((acc, g) => acc + g.items.length, 0)}</div>
-                        <div style={{ fontSize: '11px', opacity: 0.7 }}>Available Permissions</div>
-                    </div>
-                </div>
+        <div>
+            <div style={{ background: 'linear-gradient(135deg,#6366f1,#8b5cf6)', borderRadius: '12px', padding: '16px 20px', marginBottom: '18px', color: 'white' }}>
+                <h3 style={{ margin: '0 0 5px', fontWeight: 800, fontSize: '16px' }}>Dynamic Permission Manager</h3>
+                <p style={{ margin: 0, fontSize: '13px', opacity: 0.85 }}>Grant staff access to specific pages from any workspace without changing their role. For example, give a pharmacist access to selected Billing pages only.</p>
             </div>
-
-            {/* Filters */}
-            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                <input
-                    type="text"
-                    placeholder="🔍 Search staff by name, email or role..."
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                    style={{
-                        flex: 1, minWidth: '240px', padding: '10px 14px', borderRadius: '10px',
-                        border: '1px solid #e2e8f0', fontSize: '13px', outline: 'none',
-                        background: 'white'
-                    }}
-                />
-                {hospitals.length > 0 && (
-                    hospitals.length > 1 ? (
-                        <select
-                            value={hospitalFilter}
-                            onChange={e => setHospitalFilter(e.target.value)}
-                            style={{
-                                padding: '10px 14px', borderRadius: '10px', border: '1px solid #e2e8f0',
-                                fontSize: '13px', background: 'white', color: '#374151', cursor: 'pointer'
-                            }}
-                        >
-                            <option value="">All Hospitals</option>
-                            {hospitals.map(h => <option key={h._id} value={h._id}>{h.name}</option>)}
-                        </select>
-                    ) : (
-                        <div style={{
-                            padding: '10px 16px', borderRadius: '10px', border: '1px solid #e2e8f0',
-                            fontSize: '13px', background: '#f8fafc', color: '#475569', fontWeight: 600,
-                            display: 'flex', alignItems: 'center', gap: '6px'
-                        }}>
-                            🏥 {hospitals[0].name}
-                        </div>
-                    )
-                )}
-                <select
-                    value={roleFilter}
-                    onChange={e => setRoleFilter(e.target.value)}
-                    style={{
-                        padding: '10px 14px', borderRadius: '10px', border: '1px solid #e2e8f0',
-                        fontSize: '13px', background: 'white', color: '#374151', cursor: 'pointer'
-                    }}
-                >
-                    <option value="">All Roles</option>
-                    {uniqueRoles.map(r => <option key={r} value={r}>{r}</option>)}
-                </select>
+            <div style={{ display: 'flex', gap: '10px', marginBottom: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
+                <input type="text" placeholder="Search by name, email or role..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} style={{ flex: 1, minWidth: '200px', padding: '9px 14px', borderRadius: '10px', border: '1.5px solid #e2e8f0', fontSize: '13px', outline: 'none', background: 'white' }} />
+                {hospitals.length > 1 && (<select value={hospitalFilter} onChange={e => setHospitalFilter(e.target.value)} style={{ padding: '9px 14px', borderRadius: '10px', border: '1.5px solid #e2e8f0', fontSize: '13px', outline: 'none', background: 'white' }}><option value="">All Hospitals</option>{hospitals.map(h => <option key={h._id} value={h._id}>{h.name}</option>)}</select>)}
+                {uniqueRoles.length > 0 && (<select value={roleFilter} onChange={e => setRoleFilter(e.target.value)} style={{ padding: '9px 14px', borderRadius: '10px', border: '1.5px solid #e2e8f0', fontSize: '13px', outline: 'none', background: 'white' }}><option value="">All Roles</option>{uniqueRoles.map(r => <option key={r} value={r}>{r}</option>)}</select>)}
+                <span style={{ fontSize: '12px', color: '#94a3b8', whiteSpace: 'nowrap' }}>{filteredStaff.length} member{filteredStaff.length !== 1 ? 's' : ''}</span>
             </div>
-
-            {/* Staff Grid */}
-            {loading ? (
-                <div style={{ textAlign: 'center', padding: '60px', color: '#94a3b8' }}>
-                    <div style={{ fontSize: '32px', marginBottom: '12px' }}>⏳</div>
-                    <div>Loading staff members...</div>
-                </div>
-            ) : filteredStaff.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '60px', color: '#94a3b8' }}>
-                    <div style={{ fontSize: '32px', marginBottom: '12px' }}>👥</div>
-                    <div style={{ fontWeight: 600 }}>No staff members found</div>
-                    <div style={{ fontSize: '13px', marginTop: '4px' }}>Try adjusting your filters</div>
-                </div>
-            ) : (
-                <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
-                    gap: '16px'
-                }}>
+            {loading ? (<div style={{ textAlign: 'center', padding: '50px', color: '#94a3b8' }}>Loading staff...</div>) :
+             filteredStaff.length === 0 ? (<div style={{ textAlign: 'center', padding: '50px', color: '#94a3b8' }}>No staff found.</div>) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(300px,1fr))', gap: '14px' }}>
                     {filteredStaff.map(user => {
+                        const rp = user.permissions || [];
                         const customCount = (user.customPermissions || []).length;
-                        const roleCount = (user.permissions || []).length;
                         const effectiveCount = getEffectivePermCount(user);
-                        const hasCustom = customCount > 0;
-
+                        const hasCustom = customCount > 0 || (user.deniedPermissions || []).length > 0;
+                        const initials = (user.name || 'U').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
                         return (
-                            <div key={user.id} style={{
-                                background: 'white', borderRadius: '14px',
-                                border: hasCustom ? '2px solid #fde68a' : '1px solid #e2e8f0',
-                                padding: '20px', cursor: 'pointer',
-                                transition: 'all 0.2s ease', position: 'relative',
-                                boxShadow: hasCustom ? '0 4px 16px rgba(245,158,11,0.1)' : '0 2px 8px rgba(0,0,0,0.04)'
-                            }}
-                                onClick={() => openUser(user)}
-                                onMouseEnter={e => {
-                                    e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.12)';
-                                    e.currentTarget.style.transform = 'translateY(-2px)';
-                                }}
-                                onMouseLeave={e => {
-                                    e.currentTarget.style.boxShadow = hasCustom ? '0 4px 16px rgba(245,158,11,0.1)' : '0 2px 8px rgba(0,0,0,0.04)';
-                                    e.currentTarget.style.transform = 'translateY(0)';
-                                }}
-                            >
-                                {hasCustom && (
-                                    <div style={{
-                                        position: 'absolute', top: '12px', right: '12px',
-                                        background: '#fef3c7', color: '#d97706', borderRadius: '6px',
-                                        padding: '2px 8px', fontSize: '10px', fontWeight: 700
-                                    }}>CUSTOM</div>
-                                )}
-
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '14px' }}>
-                                    <div style={{
-                                        width: '46px', height: '46px', borderRadius: '12px',
-                                        background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                        fontSize: '20px', fontWeight: 800, color: 'white', flexShrink: 0
-                                    }}>
-                                        {user.name?.charAt(0).toUpperCase()}
-                                    </div>
+                            <div key={user.id || user._id} onClick={() => openUser(user)} style={{ background: 'white', border: `2px solid ${hasCustom ? '#f59e0b' : '#e2e8f0'}`, borderRadius: '14px', padding: '16px 18px', cursor: 'pointer', transition: 'all 0.2s', boxShadow: hasCustom ? '0 2px 10px rgba(245,158,11,0.1)' : '0 1px 4px rgba(0,0,0,0.04)' }} onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 6px 20px rgba(0,0,0,0.1)'; e.currentTarget.style.transform = 'translateY(-1px)'; }} onMouseLeave={e => { e.currentTarget.style.boxShadow = hasCustom ? '0 2px 10px rgba(245,158,11,0.1)' : '0 1px 4px rgba(0,0,0,0.04)'; e.currentTarget.style.transform = 'none'; }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                                    <div style={{ width: '44px', height: '44px', borderRadius: '50%', flexShrink: 0, background: 'linear-gradient(135deg,#6366f1,#8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 800, fontSize: '16px' }}>{initials}</div>
                                     <div style={{ flex: 1, minWidth: 0 }}>
-                                        <div style={{ fontWeight: 700, fontSize: '15px', color: '#1e293b' }}>{user.name}</div>
-                                        <div style={{ fontSize: '12px', color: '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user.email}</div>
-                                        <div style={{
-                                            marginTop: '4px', display: 'inline-block',
-                                            background: '#f0f9ff', color: '#0ea5e9',
-                                            borderRadius: '20px', padding: '2px 10px', fontSize: '11px', fontWeight: 600
-                                        }}>{user.role}</div>
+                                        <div style={{ fontWeight: 700, fontSize: '14px', color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user.name}</div>
+                                        <div style={{ fontSize: '11px', color: '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user.email}</div>
+                                        <span style={{ display: 'inline-block', background: '#eff6ff', color: '#3b82f6', borderRadius: '8px', padding: '1px 8px', fontSize: '10px', fontWeight: 700, marginTop: '2px' }}>{user.role}</span>
                                     </div>
+                                    {hasCustom && <span style={{ background: '#fef3c7', color: '#d97706', borderRadius: '8px', padding: '2px 8px', fontSize: '10px', fontWeight: 800, flexShrink: 0 }}>CUSTOM</span>}
                                 </div>
-
-                                <div style={{ display: 'flex', gap: '8px' }}>
-                                    <div style={{
-                                        flex: 1, background: '#f0fdf4', borderRadius: '8px',
-                                        padding: '8px 10px', textAlign: 'center'
-                                    }}>
-                                        <div style={{ fontSize: '18px', fontWeight: 800, color: '#10b981' }}>{roleCount}</div>
-                                        <div style={{ fontSize: '10px', color: '#6b7280', fontWeight: 600 }}>Role Perms</div>
-                                    </div>
-                                    <div style={{
-                                        flex: 1, background: customCount > 0 ? '#fffbeb' : '#f8fafc', borderRadius: '8px',
-                                        padding: '8px 10px', textAlign: 'center'
-                                    }}>
-                                        <div style={{ fontSize: '18px', fontWeight: 800, color: customCount > 0 ? '#f59e0b' : '#94a3b8' }}>{customCount}</div>
-                                        <div style={{ fontSize: '10px', color: '#6b7280', fontWeight: 600 }}>Custom</div>
-                                    </div>
-                                    <div style={{
-                                        flex: 1, background: '#f0f9ff', borderRadius: '8px',
-                                        padding: '8px 10px', textAlign: 'center'
-                                    }}>
-                                        <div style={{ fontSize: '18px', fontWeight: 800, color: '#6366f1' }}>{effectiveCount}</div>
-                                        <div style={{ fontSize: '10px', color: '#6b7280', fontWeight: 600 }}>Effective</div>
-                                    </div>
+                                <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+                                    {[['Role', rp.length, '#6366f1', '#eef2ff'], ['Custom', customCount, '#22c55e', '#f0fdf4'], ['Effective', effectiveCount, '#0284c7', '#f0f9ff']].map(([label, val, color, bg]) => (
+                                        <div key={label} style={{ flex: 1, padding: '7px 6px', background: bg, borderRadius: '8px', textAlign: 'center' }}>
+                                            <div style={{ fontSize: '16px', fontWeight: 800, color }}>{val}</div>
+                                            <div style={{ fontSize: '9px', color: '#94a3b8', textTransform: 'uppercase' }}>{label}</div>
+                                        </div>
+                                    ))}
                                 </div>
-
-                                {hasCustom && (
-                                    <div style={{ marginTop: '12px', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                                        {(user.customPermissions || []).slice(0, 3).map(p => (
-                                            <span key={p} style={{
-                                                background: '#fef3c7', color: '#92400e',
-                                                borderRadius: '4px', padding: '2px 8px', fontSize: '10px', fontWeight: 600
-                                            }}>{p.replace(/_/g, ' ')}</span>
-                                        ))}
-                                        {(user.customPermissions || []).length > 3 && (
-                                            <span style={{
-                                                background: '#f3f4f6', color: '#6b7280',
-                                                borderRadius: '4px', padding: '2px 8px', fontSize: '10px', fontWeight: 600
-                                            }}>+{user.customPermissions.length - 3} more</span>
-                                        )}
+                                {(user.effectivePermissions || user.permissions || []).length > 0 && (
+                                    <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginBottom: '10px' }}>
+                                        {(user.effectivePermissions || user.permissions || []).slice(0, 4).map(p => (<span key={p} style={{ background: '#f1f5f9', color: '#64748b', borderRadius: '4px', padding: '2px 6px', fontSize: '10px' }}>{p.replace(/_/g, ' ')}</span>))}
+                                        {(user.effectivePermissions || user.permissions || []).length > 4 && (<span style={{ background: '#f1f5f9', color: '#94a3b8', borderRadius: '4px', padding: '2px 6px', fontSize: '10px' }}>+{(user.effectivePermissions || user.permissions || []).length - 4} more</span>)}
                                     </div>
                                 )}
-
-                                <div style={{
-                                    marginTop: '14px', textAlign: 'right',
-                                    fontSize: '12px', color: '#6366f1', fontWeight: 600
-                                }}>
-                                    Configure Permissions →
-                                </div>
+                                <div style={{ textAlign: 'right', fontSize: '12px', fontWeight: 600, color: '#6366f1' }}>Configure Permissions →</div>
                             </div>
                         );
                     })}

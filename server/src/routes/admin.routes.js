@@ -978,6 +978,7 @@ const KNOWN_PERMISSIONS = [
     'analytics_view', 'operations_manage', 'inventory_view',
     'billing_insurance', 'billing_ipd_settlement', 'billing_receipt_reprint', 'billing_discounts',
     'billing_collect_payment', 'billing_generate_invoice', 'billing_print_invoice', 'billing_refund', 'billing_reports', 'billing_analytics',
+    'billing_patient', 'billing_pending', 'billing_invoices', 'billing_templates', 'billing_settings',
     'finance_outstanding', 'finance_claims', 'finance_reception_collections', 'finance_expenses', 'finance_profit_loss',
     'finance_statements', 'finance_reconciliation', 'finance_transactions', 'finance_audit',
     'finance_payroll', 'finance_doctor_payouts'

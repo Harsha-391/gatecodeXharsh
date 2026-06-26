@@ -2,6 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { pharmacyAPI } from '../../utils/api';
 import './PharmacyInventory.css';
 
+const formatDate = (dateStr) => {
+    if (!dateStr) return '—';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '—';
+    return d.toLocaleDateString();
+};
+
 const PharmacyInventory = () => {
     const today = new Date().toLocaleDateString('en-CA');
     const [medicines, setMedicines] = useState([]);
@@ -60,13 +67,13 @@ const PharmacyInventory = () => {
             setShowSuggestions(false);
         } else {
             const filtered = medicines.filter(med => 
-                med.name.toLowerCase().includes(val.toLowerCase())
+                (med.name || '').toLowerCase().includes(val.toLowerCase())
             );
             setSuggestions(filtered);
             setShowSuggestions(true);
         }
         
-        const match = medicines.find(med => med.name.toLowerCase() === val.toLowerCase());
+        const match = medicines.find(med => (med.name || '').toLowerCase() === val.toLowerCase());
         if (match) {
             setExistingMatch(match);
             setNewMedicine(prev => ({
@@ -177,13 +184,13 @@ const PharmacyInventory = () => {
     };
 
     const filteredMedicines = medicines.filter(med =>
-        med.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        med.category.toLowerCase().includes(searchTerm.toLowerCase())
+        (med.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (med.category || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
 
     const filteredRequests = purchaseRequests.filter(req =>
-        req.item.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        req.status.toLowerCase().includes(searchTerm.toLowerCase())
+        (req.item || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (req.status || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
 
     return (
@@ -246,7 +253,7 @@ const PharmacyInventory = () => {
                                         <td>₹{med.buyingPrice}</td>
                                         <td><strong>₹{med.sellingPrice}</strong></td>
                                         <td>{med.vendor}</td>
-                                        <td>{new Date(med.expiryDate).toLocaleDateString()}</td>
+                                        <td>{formatDate(med.expiryDate)}</td>
                                         <td>
                                             <button className="action-btn delete" onClick={() => handleDelete(med._id)}>🗑</button>
                                         </td>
@@ -274,7 +281,7 @@ const PharmacyInventory = () => {
                             <tbody>
                                 {filteredRequests.map((req) => (
                                     <tr key={req._id}>
-                                        <td>{new Date(req.createdAt).toLocaleDateString()}</td>
+                                        <td>{formatDate(req.createdAt)}</td>
                                         <td className="med-name">{req.item}</td>
                                         <td><strong>{req.qty}</strong></td>
                                         <td>{req.requestedBy}</td>
@@ -331,7 +338,7 @@ const PharmacyInventory = () => {
                                             onFocus={() => {
                                                 if (newMedicine.name.trim() !== '') {
                                                     const filtered = medicines.filter(med => 
-                                                        med.name.toLowerCase().includes(newMedicine.name.toLowerCase())
+                                                        (med.name || '').toLowerCase().includes(newMedicine.name.toLowerCase())
                                                     );
                                                     setSuggestions(filtered);
                                                     setShowSuggestions(true);

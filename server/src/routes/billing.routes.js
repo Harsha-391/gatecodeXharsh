@@ -34,7 +34,26 @@ const verifyBillingAccess = async (req, res, next) => {
             const isBillingRole = ['billing', 'billing executive', 'billing manager', 'senior billing officer', 'cashier', 'accountant', 'centraladmin', 'superadmin', 'hospitaladmin'].includes(roleIdStr) ||
                 ['billing', 'billing executive', 'billing manager', 'senior billing officer', 'cashier', 'accountant', 'centraladmin', 'superadmin', 'hospitaladmin'].includes(roleName);
 
-            if (isBillingRole || perms.includes('billing_view') || perms.includes('billing_manage') || perms.includes('appointment_manage') || perms.includes('*')) {
+            const hasGranularBillingPerm = 
+                perms.includes('billing_view') || 
+                perms.includes('billing_manage') ||
+                perms.includes('billing_patient') ||
+                perms.includes('billing_pending') ||
+                perms.includes('billing_invoices') ||
+                perms.includes('billing_refund') ||
+                perms.includes('billing_insurance') ||
+                perms.includes('billing_ipd_settlement') ||
+                perms.includes('billing_receipt_reprint') ||
+                perms.includes('billing_discounts') ||
+                perms.includes('billing_templates') ||
+                perms.includes('billing_settings') ||
+                perms.includes('finance_reception_collections') ||
+                perms.includes('billing_reports') ||
+                perms.includes('billing_analytics') ||
+                perms.includes('appointment_manage') || 
+                perms.includes('*');
+
+            if (isBillingRole || hasGranularBillingPerm) {
                 await resolveTenant(req, res, next);
             } else {
                 return res.status(403).json({ success: false, message: 'Billing access required' });

@@ -170,6 +170,43 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
                     ]
                 },
             ];
+        } else if (role === 'accountant') {
+            return [
+                {
+                    category: '',
+                    items: [
+                        { label: 'Accountant Dashboard', path: '/accountant/dashboard', icon: <FiHome /> }
+                    ]
+                },
+                {
+                    category: 'Financial Management',
+                    items: [
+                        { label: 'Revenue Reports', path: '/billing/reports', icon: <FiGrid /> },
+                        { label: 'Billing Analytics', path: '/billing/analytics', icon: <FiPieChart /> },
+                        { label: 'Discount Approvals', path: '/accountant/discount-approvals', icon: <FiCheckCircle /> },
+                        { label: 'Outstanding Payments', path: '/accountant/outstanding', icon: <FiFileText /> },
+                        { label: 'Insurance Claims', path: '/accountant/claims', icon: <FiClipboard /> },
+                        { label: 'Expenses', path: '/accountant/expenses', icon: <FiPackage /> },
+                        { label: 'Profit & Loss', path: '/accountant/profit-loss', icon: <FiPieChart /> },
+                        { label: 'Financial Statements', path: '/accountant/statements', icon: <FiFileText /> },
+                        { label: 'Reconciliation', path: '/accountant/reconciliation', icon: <FiCheckCircle /> }
+                    ]
+                },
+                {
+                    category: 'Human Resources',
+                    items: [
+                        { label: 'Payroll Management', path: '/accountant/payroll', icon: <FiUsers /> },
+                        { label: 'Doctor Payouts', path: '/accountant/doctor-payouts', icon: <FiActivity /> }
+                    ]
+                },
+                {
+                    category: 'Administration',
+                    items: [
+                        { label: 'Audit Logs', path: '/accountant/audit-logs', icon: <FiClipboard /> },
+                        { label: 'Transaction Logs', path: '/accountant/transactions', icon: <FiDatabase /> }
+                    ]
+                }
+            ];
         } else if (role === 'nurse') {
             baseMenu = [
                 { label: 'Patient Queue', path: '/doctor/patients', icon: <FiUsers /> },
@@ -288,27 +325,49 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
         // Dynamically append permission-based links for non-administrator/accountant roles
         const extraItems = [];
 
+        // Core billing pages — unlocked by billing_view or billing_manage or specific page permissions
         if (userPermissions.includes('billing_view') || userPermissions.includes('billing_manage')) {
-            if (role === 'accountant') {
-                extraItems.push(
-                    { label: 'Billing Dashboard', path: '/billing/dashboard', icon: <FiPieChart /> },
-                    { label: 'Revenue Reports', path: '/billing/reports', icon: <FiGrid /> },
-                    { label: 'Billing Analytics', path: '/billing/analytics', icon: <FiPieChart /> },
-                    { label: 'Invoice Templates', path: '/billing/templates', icon: <FiClipboard /> },
-                    { label: 'Settings', path: '/billing/settings', icon: <FiSettings /> }
-                );
-            } else {
-                extraItems.push(
-                    { label: 'Billing Dashboard', path: '/billing/dashboard', icon: <FiPieChart /> },
-                    { label: 'Patient Billing', path: '/billing/patient', icon: <FiUsers /> },
-                    { label: 'Pending Payments', path: '/billing/pending', icon: <FiClipboard /> },
-                    { label: 'Invoices', path: '/billing/invoices', icon: <FiFileText /> },
-                    { label: 'Refunds', path: '/billing/refunds', icon: <FiLogOut /> },
-                    { label: 'Invoice Templates', path: '/billing/templates', icon: <FiClipboard /> },
-                    { label: 'Reception Collections', path: '/finance/reception-collections', icon: <FiTrendingUp /> },
-                    { label: 'Settings', path: '/billing/settings', icon: <FiSettings /> }
-                );
-            }
+            extraItems.push({ label: 'Billing Dashboard', path: '/billing/dashboard', icon: <FiPieChart /> });
+        }
+        if (userPermissions.includes('billing_patient') || userPermissions.includes('billing_view') || userPermissions.includes('billing_manage')) {
+            extraItems.push({ label: 'Patient Billing', path: '/billing/patient', icon: <FiUsers /> });
+        }
+        if (userPermissions.includes('billing_pending') || userPermissions.includes('billing_view') || userPermissions.includes('billing_manage')) {
+            extraItems.push({ label: 'Pending Payments', path: '/billing/pending', icon: <FiClipboard /> });
+        }
+        if (userPermissions.includes('billing_invoices') || userPermissions.includes('billing_view') || userPermissions.includes('billing_manage')) {
+            extraItems.push({ label: 'Invoices', path: '/billing/invoices', icon: <FiFileText /> });
+        }
+        if (userPermissions.includes('billing_templates') || userPermissions.includes('billing_view') || userPermissions.includes('billing_manage')) {
+            extraItems.push({ label: 'Invoice Templates', path: '/billing/templates', icon: <FiClipboard /> });
+        }
+        if (userPermissions.includes('billing_settings') || userPermissions.includes('billing_view') || userPermissions.includes('billing_manage')) {
+            extraItems.push({ label: 'Settings', path: '/billing/settings', icon: <FiSettings /> });
+        }
+        // Specific billing sub-pages — each requires its own dedicated permission
+        if (userPermissions.includes('billing_refund')) {
+            extraItems.push({ label: 'Refunds', path: '/billing/refunds', icon: <FiLogOut /> });
+        }
+        if (userPermissions.includes('billing_insurance')) {
+            extraItems.push({ label: 'Insurance Billing', path: '/billing/insurance', icon: <FiClipboard /> });
+        }
+        if (userPermissions.includes('billing_ipd_settlement')) {
+            extraItems.push({ label: 'IPD Settlement', path: '/billing/ipd-settlement', icon: <FiHome /> });
+        }
+        if (userPermissions.includes('billing_receipt_reprint')) {
+            extraItems.push({ label: 'Receipt Reprint', path: '/billing/receipt-reprint', icon: <FiGrid /> });
+        }
+        if (userPermissions.includes('billing_discounts')) {
+            extraItems.push({ label: 'Discounts & Adjustments', path: '/billing/discounts', icon: <FiAlertCircle /> });
+        }
+        if (userPermissions.includes('billing_reports')) {
+            extraItems.push({ label: 'Revenue Reports', path: '/billing/reports', icon: <FiGrid /> });
+        }
+        if (userPermissions.includes('billing_analytics')) {
+            extraItems.push({ label: 'Billing Analytics', path: '/billing/analytics', icon: <FiPieChart /> });
+        }
+        if (userPermissions.includes('finance_reception_collections')) {
+            extraItems.push({ label: 'Reception Collections', path: '/finance/reception-collections', icon: <FiTrendingUp /> });
         }
 
         if (userPermissions.includes('lab_view') || userPermissions.includes('lab_manage')) {
@@ -333,23 +392,48 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
             );
         }
 
-        if (userPermissions.includes('finance_view') || userPermissions.includes('accountant_view')) {
-            extraItems.push(
-                { label: 'Accountant Dashboard', path: '/accountant/dashboard', icon: <FiHome /> },
-                { label: 'Revenue Reports', path: '/billing/reports', icon: <FiGrid /> },
-                { label: 'Billing Analytics', path: '/billing/analytics', icon: <FiPieChart /> },
-                { label: 'Outstanding Payments', path: '/accountant/outstanding', icon: <FiFileText /> },
-                { label: 'Insurance Claims', path: '/accountant/claims', icon: <FiClipboard /> },
-                { label: 'Discount Approvals', path: '/accountant/discount-approvals', icon: <FiCheckCircle /> },
-                { label: 'Expenses', path: '/accountant/expenses', icon: <FiPackage /> },
-                { label: 'Profit & Loss', path: '/accountant/profit-loss', icon: <FiPieChart /> },
-                { label: 'Financial Statements', path: '/accountant/statements', icon: <FiFileText /> },
-                { label: 'Reconciliation', path: '/accountant/reconciliation', icon: <FiCheckCircle /> },
-                { label: 'Payroll Management', path: '/accountant/payroll', icon: <FiUsers /> },
-                { label: 'Doctor Payouts', path: '/accountant/doctor-payouts', icon: <FiActivity /> },
-                { label: 'Audit Logs', path: '/accountant/audit-logs', icon: <FiClipboard /> },
-                { label: 'Transaction Logs', path: '/accountant/transactions', icon: <FiDatabase /> }
-            );
+        // Accountant workspace — each page requires its own specific permission
+        if (userPermissions.includes('accountant_view') || userPermissions.includes('finance_view')) {
+            extraItems.push({ label: 'Accountant Dashboard', path: '/accountant/dashboard', icon: <FiHome /> });
+        }
+        if (userPermissions.includes('billing_reports') || userPermissions.includes('finance_view')) {
+            extraItems.push({ label: 'Revenue Reports', path: '/billing/reports', icon: <FiGrid /> });
+        }
+        if (userPermissions.includes('billing_analytics') || userPermissions.includes('finance_view')) {
+            extraItems.push({ label: 'Billing Analytics', path: '/billing/analytics', icon: <FiPieChart /> });
+        }
+        if (userPermissions.includes('billing_discounts') || userPermissions.includes('finance_view')) {
+            extraItems.push({ label: 'Discount Approvals', path: '/accountant/discount-approvals', icon: <FiCheckCircle /> });
+        }
+        if (userPermissions.includes('finance_outstanding')) {
+            extraItems.push({ label: 'Outstanding Payments', path: '/accountant/outstanding', icon: <FiFileText /> });
+        }
+        if (userPermissions.includes('finance_claims')) {
+            extraItems.push({ label: 'Insurance Claims', path: '/accountant/claims', icon: <FiClipboard /> });
+        }
+        if (userPermissions.includes('finance_expenses')) {
+            extraItems.push({ label: 'Expenses', path: '/accountant/expenses', icon: <FiPackage /> });
+        }
+        if (userPermissions.includes('finance_profit_loss')) {
+            extraItems.push({ label: 'Profit & Loss', path: '/accountant/profit-loss', icon: <FiPieChart /> });
+        }
+        if (userPermissions.includes('finance_statements')) {
+            extraItems.push({ label: 'Financial Statements', path: '/accountant/statements', icon: <FiFileText /> });
+        }
+        if (userPermissions.includes('finance_reconciliation')) {
+            extraItems.push({ label: 'Reconciliation', path: '/accountant/reconciliation', icon: <FiCheckCircle /> });
+        }
+        if (userPermissions.includes('finance_payroll')) {
+            extraItems.push({ label: 'Payroll Management', path: '/accountant/payroll', icon: <FiUsers /> });
+        }
+        if (userPermissions.includes('finance_doctor_payouts')) {
+            extraItems.push({ label: 'Doctor Payouts', path: '/accountant/doctor-payouts', icon: <FiActivity /> });
+        }
+        if (userPermissions.includes('finance_audit')) {
+            extraItems.push({ label: 'Audit Logs', path: '/accountant/audit-logs', icon: <FiClipboard /> });
+        }
+        if (userPermissions.includes('finance_transactions')) {
+            extraItems.push({ label: 'Transaction Logs', path: '/accountant/transactions', icon: <FiDatabase /> });
         }
 
         if (userPermissions.includes('appointment_manage') || userPermissions.includes('appointment_view_all') || userPermissions.includes('patient_create')) {
@@ -390,17 +474,74 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
         }
 
         // De-duplicate extra items by path or label, and add them to baseMenu
-        extraItems.forEach(item => {
-            const hasPath = baseMenu.some(b => b.path === item.path);
-            const hasLabel = baseMenu.some(b => b.label === item.label);
-            if (!hasPath && !hasLabel) {
-                baseMenu.push(item);
+        if (extraItems.length > 0) {
+            if (isCategorizedRole) {
+                // Filter out extra items that are already in any of the categories
+                const filteredExtra = extraItems.filter(extra => {
+                    return !baseMenu.some(group =>
+                        (group.items || []).some(item => item.path === extra.path || item.label === extra.label)
+                    );
+                });
+                
+                if (filteredExtra.length > 0) {
+                    baseMenu.push({
+                        category: 'Custom Access',
+                        items: filteredExtra
+                    });
+                }
+            } else {
+                extraItems.forEach(item => {
+                    const hasPath = baseMenu.some(b => b.path === item.path);
+                    const hasLabel = baseMenu.some(b => b.label === item.label);
+                    if (!hasPath && !hasLabel) {
+                        baseMenu.push(item);
+                    }
+                });
             }
-        });
+        }
 
         // Filter out Payment History and Patient Flow for reception roles to prevent it from appearing anywhere in their sidebar
         if (role === 'reception' || role === 'receptionist') {
             baseMenu = baseMenu.filter(item => item.path !== '/billing/history' && item.path !== '/admin/patient-flow');
+        }
+
+        if (isCategorizedRole) {
+            baseMenu = baseMenu.map(group => {
+                const filteredItems = (group.items || []).filter(item => {
+                    const path = item.path;
+                    if (path === '/billing/dashboard') return userPermissions.includes('billing_view') || userPermissions.includes('billing_manage');
+                    if (path === '/billing/patient') return userPermissions.includes('billing_patient') || userPermissions.includes('billing_view') || userPermissions.includes('billing_manage');
+                    if (path === '/billing/pending') return userPermissions.includes('billing_pending') || userPermissions.includes('billing_view') || userPermissions.includes('billing_manage');
+                    if (path === '/billing/invoices') return userPermissions.includes('billing_invoices') || userPermissions.includes('billing_view') || userPermissions.includes('billing_manage');
+                    if (path === '/billing/refunds') return userPermissions.includes('billing_refund') || userPermissions.includes('billing_manage');
+                    if (path === '/finance/reception-collections') return userPermissions.includes('finance_reception_collections');
+                    if (path === '/billing/insurance') return userPermissions.includes('billing_insurance') || userPermissions.includes('billing_manage');
+                    if (path === '/billing/ipd-settlement') return userPermissions.includes('billing_ipd_settlement') || userPermissions.includes('billing_manage');
+                    if (path === '/billing/receipt-reprint') return userPermissions.includes('billing_receipt_reprint') || userPermissions.includes('billing_manage');
+                    if (path === '/billing/discounts') return userPermissions.includes('billing_discounts') || userPermissions.includes('billing_manage');
+                    if (path === '/billing/templates') return userPermissions.includes('billing_templates') || userPermissions.includes('billing_view') || userPermissions.includes('billing_manage');
+                    if (path === '/billing/settings') return userPermissions.includes('billing_settings') || userPermissions.includes('billing_view') || userPermissions.includes('billing_manage');
+                    if (path === '/admin/profile-settings') return true;
+
+                    if (path === '/accountant/dashboard') return userPermissions.includes('accountant_view') || userPermissions.includes('finance_view');
+                    if (path === '/billing/reports') return userPermissions.includes('billing_reports') || userPermissions.includes('finance_view');
+                    if (path === '/billing/analytics') return userPermissions.includes('billing_analytics') || userPermissions.includes('finance_view');
+                    if (path === '/accountant/discount-approvals') return userPermissions.includes('finance_view') || userPermissions.includes('billing_discounts');
+                    if (path === '/accountant/outstanding') return userPermissions.includes('finance_outstanding');
+                    if (path === '/accountant/claims') return userPermissions.includes('finance_claims');
+                    if (path === '/accountant/expenses') return userPermissions.includes('finance_expenses');
+                    if (path === '/accountant/profit-loss') return userPermissions.includes('finance_profit_loss');
+                    if (path === '/accountant/statements') return userPermissions.includes('finance_statements');
+                    if (path === '/accountant/reconciliation') return userPermissions.includes('finance_reconciliation');
+                    if (path === '/accountant/payroll') return userPermissions.includes('finance_payroll');
+                    if (path === '/accountant/doctor-payouts') return userPermissions.includes('finance_doctor_payouts');
+                    if (path === '/accountant/audit-logs') return userPermissions.includes('finance_audit');
+                    if (path === '/accountant/transactions') return userPermissions.includes('finance_transactions');
+
+                    return true;
+                });
+                return { ...group, items: filteredItems };
+            }).filter(group => group.items && group.items.length > 0);
         }
 
         return baseMenu;
