@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth, useAppDispatch } from '../../store/hooks';
 import { updateUser, logoutUser } from '../../store/slices/authSlice';
@@ -17,6 +17,17 @@ const AdminProfile = () => {
         phone: user?.phone || '',
         avatar: user?.avatar || '',
     });
+
+    useEffect(() => {
+        if (user) {
+            setFormData({
+                name: user.name || '',
+                email: user.email || '',
+                phone: user.phone || '',
+                avatar: user.avatar || '',
+            });
+        }
+    }, [user]);
 
     const [passwordData, setPasswordData] = useState({
         currentPassword: '',
@@ -115,16 +126,45 @@ const AdminProfile = () => {
         return (name || 'A').split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
     };
 
-    const handleAvatarUploadMock = () => {
-        // Mock avatar upload with a medical-style avatar
-        const mockAvatars = [
-            'https://images.unsplash.com/photo-1537368910025-700350fe46c7?q=80&w=150&auto=format&fit=crop',
-            'https://images.unsplash.com/photo-1622253692010-333f2da6031d?q=80&w=150&auto=format&fit=crop',
-            'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?q=80&w=150&auto=format&fit=crop'
-        ];
-        const randomAvatar = mockAvatars[Math.floor(Math.random() * mockAvatars.length)];
-        setFormData(prev => ({ ...prev, avatar: randomAvatar }));
-        setSuccessMsg('Avatar selected. Click Save Changes to apply.');
+    const handleAvatarFileChange = (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        if (file.size > 2 * 1024 * 1024) {
+            setErrorMsg('Image size must be less than 2MB.');
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            const base64Image = event.target.result;
+            setFormData(prev => ({ ...prev, avatar: base64Image }));
+            setSuccessMsg('Uploading and saving new photo...');
+            setErrorMsg('');
+            
+            try {
+                setSaving(true);
+                const res = await authAPI.updateProfile({
+                    ...formData,
+                    avatar: base64Image
+                });
+                if (res.success) {
+                    dispatch(updateUser(res.user));
+                    setSuccessMsg('Profile photo updated successfully and saved.');
+                } else {
+                    setErrorMsg(res.message || 'Failed to save new photo.');
+                }
+            } catch (err) {
+                setErrorMsg(err.response?.data?.message || 'Failed to save new photo.');
+            } finally {
+                setSaving(false);
+            }
+        };
+        reader.readAsDataURL(file);
+    };
+
+    const triggerFileSelect = () => {
+        document.getElementById('profile-avatar-file-input').click();
     };
 
     return (
@@ -152,7 +192,14 @@ const AdminProfile = () => {
                                     <span className="avatar-initials">{formData.avatar ? formData.avatar : getInitials(formData.name)}</span>
                                 )}
                             </div>
-                            <button type="button" className="avatar-upload-btn" onClick={handleAvatarUploadMock}>
+                            <input
+                                type="file"
+                                id="profile-avatar-file-input"
+                                style={{ display: 'none' }}
+                                accept="image/*"
+                                onChange={handleAvatarFileChange}
+                            />
+                            <button type="button" className="avatar-upload-btn" onClick={triggerFileSelect}>
                                 <FiUploadCloud /> Change Photo
                             </button>
                         </div>

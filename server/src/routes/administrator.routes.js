@@ -2029,19 +2029,20 @@ router.get('/profit-loss', verifyAdministratorAccess, async (req, res) => {
         if (!hospitalId) return res.status(400).json({ success: false, message: 'Hospital context required' });
 
         const models = getModels(req);
-        const { Invoice, Expense } = models;
+        const { Invoice, Expense, CollectionTransaction } = models;
 
-        // Fetch all invoices and expenses scoped to this hospital
+        // Fetch all invoices, expenses and collection transactions scoped to this hospital
         const allInvoices = await Invoice.find({ hospitalId }).lean();
         const allExpenses = await Expense.find({ hospitalId }).lean();
+        const allTransactions = await CollectionTransaction.find({ hospitalId }).lean();
 
-        // Categorize invoice items
-        const getRevenueSource = (itemType) => {
-            const type = String(itemType || '').toLowerCase();
-            if (type === 'consultation' || type === 'service') return 'opd';
-            if (type === 'admission' || type === 'facility') return 'ipd';
-            if (type === 'laboratory') return 'laboratory';
-            if (type === 'pharmacy') return 'pharmacy';
+        // Categorize collection types
+        const getRevenueSource = (collectionType) => {
+            const type = String(collectionType || '');
+            if (type === 'OPD Registration' || type === 'Follow-up Consultation') return 'opd';
+            if (type === 'Lab Payment') return 'laboratory';
+            if (type === 'Pharmacy Payment') return 'pharmacy';
+            if (type === 'IPD Admission Advance' || type === 'Insurance Co-Pay') return 'ipd';
             return 'other';
         };
 
@@ -2058,9 +2059,14 @@ router.get('/profit-loss', verifyAdministratorAccess, async (req, res) => {
         };
 
         // Main calculator function
-        const calculatePeriodData = (invoices, expenses, startDate, endDate, getTrendKey, trendLabels) => {
+        const calculatePeriodData = (invoices, transactions, expenses, startDate, endDate, getTrendKey, trendLabels) => {
             const periodInvoices = invoices.filter(inv => {
                 const date = new Date(inv.invoiceDate || inv.createdAt);
+                return date >= startDate && date <= endDate;
+            });
+
+            const periodTransactions = transactions.filter(t => {
+                const date = new Date(t.collectionTimestamp || t.createdAt);
                 return date >= startDate && date <= endDate;
             });
 
@@ -2077,15 +2083,13 @@ router.get('/profit-loss', verifyAdministratorAccess, async (req, res) => {
 
             periodInvoices.forEach(inv => {
                 totalBilled += (inv.grandTotal || 0);
-                totalCollected += (inv.amountPaid || 0);
                 outstandingPayments += (inv.outstandingAmount || 0);
+            });
 
-                const paidRatio = inv.grandTotal > 0 ? (inv.amountPaid || 0) / inv.grandTotal : 0;
-
-                (inv.items || []).forEach(item => {
-                    const source = getRevenueSource(item.itemType);
-                    revenueSourceMap[source] += (item.totalAmount || 0) * paidRatio;
-                });
+            periodTransactions.forEach(t => {
+                totalCollected += (t.amount || 0);
+                const source = getRevenueSource(t.collectionType);
+                revenueSourceMap[source] += (t.amount || 0);
             });
 
             // Initialize expense categories
@@ -2116,11 +2120,11 @@ router.get('/profit-loss', verifyAdministratorAccess, async (req, res) => {
                 trendMap[lbl] = { label: lbl, revenue: 0, expense: 0, profit: 0 };
             });
 
-            periodInvoices.forEach(inv => {
-                const date = new Date(inv.invoiceDate || inv.createdAt);
+            periodTransactions.forEach(t => {
+                const date = new Date(t.collectionTimestamp || t.createdAt);
                 const key = getTrendKey(date);
                 if (trendMap[key]) {
-                    trendMap[key].revenue += (inv.amountPaid || 0);
+                    trendMap[key].revenue += (t.amount || 0);
                 }
             });
 
@@ -2256,10 +2260,10 @@ router.get('/profit-loss', verifyAdministratorAccess, async (req, res) => {
         };
 
         // Execute aggregations
-        const weeklyData = calculatePeriodData(allInvoices, allExpenses, startOfWeek, endOfWeek, getWeekTrendKey, daysOfWeek);
-        const monthlyData = calculatePeriodData(allInvoices, allExpenses, startOfMonth, endOfMonth, getMonthTrendKey, weeksOfMonth);
-        const halfYearlyData = calculatePeriodData(allInvoices, allExpenses, startOfHalfYear, endOfHalfYear, getHalfYearTrendKey, halfYearTrendLabels);
-        const yearlyData = calculatePeriodData(allInvoices, allExpenses, startOfFY, endOfFY, getFYTrendKey, fyTrendLabels);
+        const weeklyData = calculatePeriodData(allInvoices, allTransactions, allExpenses, startOfWeek, endOfWeek, getWeekTrendKey, daysOfWeek);
+        const monthlyData = calculatePeriodData(allInvoices, allTransactions, allExpenses, startOfMonth, endOfMonth, getMonthTrendKey, weeksOfMonth);
+        const halfYearlyData = calculatePeriodData(allInvoices, allTransactions, allExpenses, startOfHalfYear, endOfHalfYear, getHalfYearTrendKey, halfYearTrendLabels);
+        const yearlyData = calculatePeriodData(allInvoices, allTransactions, allExpenses, startOfFY, endOfFY, getFYTrendKey, fyTrendLabels);
 
         res.json({
             success: true,

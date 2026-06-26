@@ -239,7 +239,7 @@ const TransactionLogs = () => {
                                                         </span>
                                                     </td>
                                                     <td>{log.notes || 'N/A'}</td>
-                                                    <td className="text-right bold highlight-red">{formatCurrency(log.refundAmount)}</td>
+                                                    <td className="text-right bold highlight-red">{formatCurrency(log.amount)}</td>
                                                 </tr>
                                             ))}
                                         </tbody>

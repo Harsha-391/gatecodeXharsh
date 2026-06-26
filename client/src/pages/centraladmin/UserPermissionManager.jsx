@@ -111,6 +111,12 @@ const UserPermissionManager = ({ hospitals = [] }) => {
         loadAllStaff();
     }, []);
 
+    useEffect(() => {
+        if (hospitals && hospitals.length === 1) {
+            setHospitalFilter(hospitals[0]._id);
+        }
+    }, [hospitals]);
+
     const loadAllStaff = async () => {
         setLoading(true);
         try {
@@ -620,17 +626,27 @@ const UserPermissionManager = ({ hospitals = [] }) => {
                     }}
                 />
                 {hospitals.length > 0 && (
-                    <select
-                        value={hospitalFilter}
-                        onChange={e => setHospitalFilter(e.target.value)}
-                        style={{
-                            padding: '10px 14px', borderRadius: '10px', border: '1px solid #e2e8f0',
-                            fontSize: '13px', background: 'white', color: '#374151', cursor: 'pointer'
-                        }}
-                    >
-                        <option value="">All Hospitals</option>
-                        {hospitals.map(h => <option key={h._id} value={h._id}>{h.name}</option>)}
-                    </select>
+                    hospitals.length > 1 ? (
+                        <select
+                            value={hospitalFilter}
+                            onChange={e => setHospitalFilter(e.target.value)}
+                            style={{
+                                padding: '10px 14px', borderRadius: '10px', border: '1px solid #e2e8f0',
+                                fontSize: '13px', background: 'white', color: '#374151', cursor: 'pointer'
+                            }}
+                        >
+                            <option value="">All Hospitals</option>
+                            {hospitals.map(h => <option key={h._id} value={h._id}>{h.name}</option>)}
+                        </select>
+                    ) : (
+                        <div style={{
+                            padding: '10px 16px', borderRadius: '10px', border: '1px solid #e2e8f0',
+                            fontSize: '13px', background: '#f8fafc', color: '#475569', fontWeight: 600,
+                            display: 'flex', alignItems: 'center', gap: '6px'
+                        }}>
+                            🏥 {hospitals[0].name}
+                        </div>
+                    )
                 )}
                 <select
                     value={roleFilter}

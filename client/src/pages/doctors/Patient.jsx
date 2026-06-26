@@ -31,7 +31,7 @@ const Patient = () => {
         try {
             const user = JSON.parse(localStorage.getItem('user') || '{}');
             const role = (user.role || '').toLowerCase();
-            const permissions = user.permissions || [];
+            const permissions = user.effectivePermissions || user.permissions || [];
             
             const staffRoles = ['nurse', 'admin', 'superadmin', 'hospitaladmin', 'reception', 'receptionist'];
             const isAdminOrStaff = staffRoles.some(r => role.includes(r));

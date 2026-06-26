@@ -455,7 +455,8 @@ router.post('/login', loginLimiter, async (req, res) => {
       // effectivePermissions = (role permissions + custom permissions) - denied permissions (de-duped)
       effectivePermissions: Array.from(new Set([...(roleData.permissions || []), ...(user.customPermissions || [])].filter(p => !(user.deniedPermissions || []).includes(p)))),
       dashboardPath: roleData.dashboardPath || '/',
-      navLinks: roleData.navLinks || []
+      navLinks: roleData.navLinks || [],
+      avatar: user.avatar || null
     };
 
     // Log successful login
@@ -574,7 +575,8 @@ router.get('/me', verifyToken, async (req, res) => {
       // effectivePermissions = (role permissions + custom permissions) - denied permissions (de-duped)
       effectivePermissions: Array.from(new Set([...(roleData?.permissions || []), ...(user.customPermissions || [])].filter(p => !(user.deniedPermissions || []).includes(p)))),
       dashboardPath: roleData ? roleData.dashboardPath : '/',
-      navLinks: roleData ? roleData.navLinks : []
+      navLinks: roleData ? roleData.navLinks : [],
+      avatar: user.avatar || null
     };
     
     res.json({

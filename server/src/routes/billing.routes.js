@@ -31,8 +31,8 @@ const verifyBillingAccess = async (req, res, next) => {
             const roleName = (roleData?.name || '').toLowerCase();
             const perms = roleData?.permissions || [];
 
-            const isBillingRole = ['billing', 'billing executive', 'billing manager', 'senior billing officer', 'cashier', 'accountant', 'reception', 'receptionist', 'centraladmin', 'superadmin', 'hospitaladmin'].includes(roleIdStr) ||
-                ['billing', 'billing executive', 'billing manager', 'senior billing officer', 'cashier', 'accountant', 'reception', 'receptionist', 'centraladmin', 'superadmin', 'hospitaladmin'].includes(roleName);
+            const isBillingRole = ['billing', 'billing executive', 'billing manager', 'senior billing officer', 'cashier', 'accountant', 'centraladmin', 'superadmin', 'hospitaladmin'].includes(roleIdStr) ||
+                ['billing', 'billing executive', 'billing manager', 'senior billing officer', 'cashier', 'accountant', 'centraladmin', 'superadmin', 'hospitaladmin'].includes(roleName);
 
             if (isBillingRole || perms.includes('billing_view') || perms.includes('billing_manage') || perms.includes('appointment_manage') || perms.includes('*')) {
                 await resolveTenant(req, res, next);
@@ -823,14 +823,31 @@ router.post('/refunds', verifyBillingAccess, auditLog('UPDATE_BILL', (req, body)
             return res.status(400).json({ success: false, message: 'Missing required refund request fields.' });
         }
 
-        const { Refund, BillingActivityLog } = getModels(req);
+        const { Refund, BillingActivityLog, Invoice } = getModels(req);
         const hospitalId = req.user.hospitalId;
+
+        // Try to automatically find invoice number from database if not written manually
+        let resolvedInvoiceNumber = invoiceNumber || '';
+        if (!resolvedInvoiceNumber) {
+            if (itemId) {
+                const inv = await Invoice.findOne({ hospitalId, 'items.itemId': itemId });
+                if (inv) {
+                    resolvedInvoiceNumber = inv.invoiceNumber;
+                }
+            }
+            if (!resolvedInvoiceNumber && patientId) {
+                const inv = await Invoice.findOne({ hospitalId, patientId }).sort({ createdAt: -1 });
+                if (inv) {
+                    resolvedInvoiceNumber = inv.invoiceNumber;
+                }
+            }
+        }
 
         const refund = new Refund({
             hospitalId,
             patientId,
             patientName,
-            invoiceNumber: invoiceNumber || '',
+            invoiceNumber: resolvedInvoiceNumber || '',
             refundType,
             itemId: itemId || null,
             amount: Number(amount),
@@ -856,7 +873,7 @@ router.post('/refunds', verifyBillingAccess, auditLog('UPDATE_BILL', (req, body)
                     hospitalId,
                     patientId,
                     patientName,
-                    invoiceNumber: invoiceNumber || '',
+                    invoiceNumber: resolvedInvoiceNumber || '',
                     refundType,
                     itemId: itemId || null,
                     amount: Number(amount),

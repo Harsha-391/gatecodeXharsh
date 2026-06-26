@@ -1,5 +1,8 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
+import { useAuth, useAppDispatch } from '../store/hooks';
+import { updateUser } from '../store/slices/authSlice';
+import { authAPI } from '../utils/api';
 import './RoleDashboard.css';
 
 // Icon mapping — maps common path keywords to emojis
@@ -45,7 +48,24 @@ const getDescForLink = (label) => {
 
 const RoleDashboard = () => {
     const navigate = useNavigate();
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const dispatch = useAppDispatch();
+    const { user: authUser } = useAuth();
+    const user = authUser || {};
+
+    // Fetch and sync the profile on mount to guarantee up-to-date permissions/custom permissions
+    useEffect(() => {
+        const syncProfile = async () => {
+            try {
+                const res = await authAPI.getProfile();
+                if (res.success && res.user) {
+                    dispatch(updateUser(res.user));
+                }
+            } catch (err) {
+                console.error('Failed to sync profile on RoleDashboard mount:', err);
+            }
+        };
+        syncProfile();
+    }, [dispatch]);
 
     // Hospital Admin (role='admin') goes directly to the full AdminMainDashboard
     const role = (user.role || '').toLowerCase();
@@ -59,6 +79,8 @@ const RoleDashboard = () => {
         return <Navigate to="/accountant/dashboard" replace />;
     }
 
+    const userPermissions = user.effectivePermissions || user.permissions || [];
+
     // Receptionist goes directly to the Reception Dashboard (skip welcome screen)
     const rawNavLinks = user.navLinks || [];
     const hasReceptionLink = rawNavLinks.some(l => String(l.path || '').includes('reception/dashboard'));
@@ -68,13 +90,106 @@ const RoleDashboard = () => {
 
     // Billing / Cashier roles go directly to the Billing Dashboard (skip welcome screen)
     const billingRoles = ['cashier', 'billing', 'billing executive', 'billing manager', 'senior billing officer'];
-    const isBillingRole = billingRoles.includes(role) || user.permissions?.includes('billing_view');
+    const isBillingRole = billingRoles.includes(role) || role.includes('billing') || role.includes('cashier');
     if (isBillingRole) {
         return <Navigate to="/billing/dashboard" replace />;
     }
 
     // Process and self-heal navLinks for billing roles to guarantee Refunds link works
     let navLinks = [...rawNavLinks];
+
+    // Dynamically append permission-based links for non-administrator/accountant roles
+    const extraItems = [];
+    if (userPermissions.includes('billing_view') || userPermissions.includes('billing_manage')) {
+        extraItems.push(
+            { label: 'Billing Dashboard', path: '/billing/dashboard' },
+            { label: 'Patient Billing', path: '/billing/patient' },
+            { label: 'Pending Payments', path: '/billing/pending' },
+            { label: 'Invoices', path: '/billing/invoices' },
+            { label: 'Refunds', path: '/billing/refunds' },
+            { label: 'Invoice Templates', path: '/billing/templates' },
+            { label: 'Reception Collections', path: '/finance/reception-collections' },
+            { label: 'Settings', path: '/billing/settings' }
+        );
+    }
+    if (userPermissions.includes('finance_view') || userPermissions.includes('accountant_view')) {
+        extraItems.push(
+            { label: 'Accountant Dashboard', path: '/accountant/dashboard' },
+            { label: 'Revenue Reports', path: '/billing/reports' },
+            { label: 'Billing Analytics', path: '/billing/analytics' },
+            { label: 'Outstanding Payments', path: '/accountant/outstanding' },
+            { label: 'Insurance Claims', path: '/accountant/claims' },
+            { label: 'Discount Approvals', path: '/accountant/discount-approvals' },
+            { label: 'Expenses', path: '/accountant/expenses' },
+            { label: 'Profit & Loss', path: '/accountant/profit-loss' },
+            { label: 'Financial Statements', path: '/accountant/statements' },
+            { label: 'Reconciliation', path: '/accountant/reconciliation' },
+            { label: 'Payroll Management', path: '/accountant/payroll' },
+            { label: 'Doctor Payouts', path: '/accountant/doctor-payouts' },
+            { label: 'Audit Logs', path: '/accountant/audit-logs' },
+            { label: 'Transaction Logs', path: '/accountant/transactions' }
+        );
+    }
+    if (userPermissions.includes('lab_view') || userPermissions.includes('lab_manage')) {
+        extraItems.push(
+            { label: 'Lab Dashboard', path: '/lab/dashboard' },
+            { label: 'Lab Orders', path: '/lab/orders' },
+            { label: 'Sample Collection', path: '/lab/sample-collection' },
+            { label: 'Test Processing', path: '/lab/processing' },
+            { label: 'Lab Reports', path: '/lab/completed' }
+        );
+    } else if (userPermissions.includes('lab_reports_view')) {
+        extraItems.push(
+            { label: 'Lab Reports', path: '/lab/completed' }
+        );
+    }
+    if (userPermissions.includes('pharmacy_view') || userPermissions.includes('pharmacy_manage')) {
+        extraItems.push(
+            { label: 'Pharma Inventory', path: '/pharmacy/inventory' },
+            { label: 'Pharmacy Orders', path: '/pharmacy/orders' },
+            { label: 'Purchase Approvals', path: '/pharmacy/purchase-approvals' }
+        );
+    }
+    if (userPermissions.includes('appointment_manage') || userPermissions.includes('appointment_view_all') || userPermissions.includes('patient_create')) {
+        extraItems.push(
+            { label: 'Reception Dashboard', path: '/reception/dashboard' },
+            { label: 'Appointments/Booking', path: '/appointment' }
+        );
+    }
+    if (userPermissions.includes('patient_monitor')) {
+        extraItems.push(
+            { label: 'Patient Flow', path: '/admin/patient-flow' }
+        );
+    }
+    if (userPermissions.includes('admission_manage')) {
+        extraItems.push(
+            { label: 'Admissions', path: '/admin/admissions' }
+        );
+    }
+    if (userPermissions.includes('visit_diagnose')) {
+        extraItems.push(
+            { label: 'My Patients', path: '/doctor/dashboard' }
+        );
+    }
+    if (userPermissions.includes('inventory_view')) {
+        extraItems.push(
+            { label: 'Inventory Monitoring', path: '/admin/inventory' }
+        );
+    }
+    if (userPermissions.includes('resource_manage')) {
+        extraItems.push(
+            { label: 'Resource Management', path: '/admin/resources' }
+        );
+    }
+
+    // De-duplicate extra items by path or label, and add them to navLinks
+    extraItems.forEach(item => {
+        const hasPath = navLinks.some(b => b.path === item.path);
+        const hasLabel = navLinks.some(b => b.label === item.label);
+        if (!hasPath && !hasLabel) {
+            navLinks.push(item);
+        }
+    });
 
     if (isBillingRole) {
         let standardBillingLinks = [];
@@ -132,7 +247,7 @@ const RoleDashboard = () => {
     const userName = user.name || 'Staff';
     const roleName = user.role || 'Staff';
 
-    const permissions = user.permissions || [];
+    const permissions = userPermissions;
 
     // Get time-based greeting
     const hour = new Date().getHours();

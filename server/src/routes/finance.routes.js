@@ -47,11 +47,11 @@ const getModels = (tenantDb) => {
     if (tenantDb) {
         return {
             ...getTenantModels(tenantDb),
-            User: require('../models/user.model'),
-            Doctor: require('../models/doctor.model')
+            User: require('../models/user.model')
         };
     }
     return {
+        Doctor: require('../models/doctor.model'),
         Appointment: require('../models/appointment.model'),
         LabReport: require('../models/labReport.model'),
         PharmacyOrder: require('../models/pharmacyOrder.model'),
@@ -601,7 +601,7 @@ router.get('/profit-loss', verifyFinanceAccess, async (req, res) => {
         const { timeframe } = req.query; // 'weekly', 'monthly', 'half-year', 'yearly'
         const activeTimeframe = timeframe || 'half-year';
 
-        const { Invoice, Expense } = getModels(req.tenantDb);
+        const { CollectionTransaction, Expense } = getModels(req.tenantDb);
 
         // Calculate startDate based on timeframe
         const now = new Date();
@@ -617,19 +617,17 @@ router.get('/profit-loss', verifyFinanceAccess, async (req, res) => {
         }
         startD.setHours(0, 0, 0, 0);
 
-        // Fetch all invoices and expenses
-        const invoices = await Invoice.find({ ...hFilter, paymentStatus: { $ne: 'Cancelled' } }).lean();
+        // Fetch all collection transactions and expenses scoped to this hospital
+        const transactions = await CollectionTransaction.find(hFilter).lean();
         const expenses = await Expense.find(hFilter).lean();
 
         // Calculate Totals within the range
         let totalRevenue = 0;
-        invoices.forEach(inv => {
-            (inv.payments || []).forEach(p => {
-                const pDate = new Date(p.date);
-                if (pDate >= startD && pDate <= now) {
-                    totalRevenue += p.amount;
-                }
-            });
+        transactions.forEach(t => {
+            const pDate = new Date(t.collectionTimestamp || t.createdAt);
+            if (pDate >= startD && pDate <= now) {
+                totalRevenue += (t.amount || 0);
+            }
         });
 
         let totalExpenses = 0;
@@ -650,21 +648,24 @@ router.get('/profit-loss', verifyFinanceAccess, async (req, res) => {
             Admission: { revenue: 0, expenses: 0, profit: 0 }
         };
 
-        invoices.forEach(inv => {
-            (inv.items || []).forEach(item => {
-                const isPaid = item.paymentStatus === 'Paid' || inv.paymentStatus === 'Paid' || inv.paymentStatus === 'Partially Paid';
-                const hasPaymentInRange = (inv.payments || []).some(p => {
-                    const pDate = new Date(p.date);
-                    return pDate >= startD && pDate <= now;
-                });
-
-                if (isPaid && hasPaymentInRange) {
-                    const type = item.itemType === 'Facility' ? 'Admission' : (item.itemType || 'Other');
-                    if (departmentProfitability[type]) {
-                        departmentProfitability[type].revenue += item.totalAmount;
-                    }
+        transactions.forEach(t => {
+            const pDate = new Date(t.collectionTimestamp || t.createdAt);
+            if (pDate >= startD && pDate <= now) {
+                let type = null;
+                if (t.collectionType === 'OPD Registration' || t.collectionType === 'Follow-up Consultation') {
+                    type = 'Consultation';
+                } else if (t.collectionType === 'Lab Payment') {
+                    type = 'Laboratory';
+                } else if (t.collectionType === 'Pharmacy Payment') {
+                    type = 'Pharmacy';
+                } else if (t.collectionType === 'IPD Admission Advance' || t.collectionType === 'Insurance Co-Pay') {
+                    type = 'Admission';
                 }
-            });
+
+                if (type && departmentProfitability[type]) {
+                    departmentProfitability[type].revenue += (t.amount || 0);
+                }
+            }
         });
 
         expenses.forEach(exp => {
@@ -699,13 +700,11 @@ router.get('/profit-loss', verifyFinanceAccess, async (req, res) => {
                 monthlyTrend.push({ key, label, revenue: 0, expenses: 0, profit: 0 });
             }
 
-            invoices.forEach(inv => {
-                (inv.payments || []).forEach(p => {
-                    const pDate = new Date(p.date);
-                    const k = pDate.toISOString().split('T')[0];
-                    const match = monthlyTrend.find(x => x.key === k);
-                    if (match) match.revenue += p.amount;
-                });
+            transactions.forEach(t => {
+                const pDate = new Date(t.collectionTimestamp || t.createdAt);
+                const k = pDate.toISOString().split('T')[0];
+                const match = monthlyTrend.find(x => x.key === k);
+                if (match) match.revenue += (t.amount || 0);
             });
 
             expenses.forEach(exp => {
@@ -727,12 +726,10 @@ router.get('/profit-loss', verifyFinanceAccess, async (req, res) => {
                 monthlyTrend.push({ start: startW, end: endW, label, revenue: 0, expenses: 0, profit: 0 });
             }
 
-            invoices.forEach(inv => {
-                (inv.payments || []).forEach(p => {
-                    const pDate = new Date(p.date);
-                    const match = monthlyTrend.find(x => pDate >= x.start && pDate <= x.end);
-                    if (match) match.revenue += p.amount;
-                });
+            transactions.forEach(t => {
+                const pDate = new Date(t.collectionTimestamp || t.createdAt);
+                const match = monthlyTrend.find(x => pDate >= x.start && pDate <= x.end);
+                if (match) match.revenue += (t.amount || 0);
             });
 
             expenses.forEach(exp => {
@@ -750,13 +747,11 @@ router.get('/profit-loss', verifyFinanceAccess, async (req, res) => {
                 monthlyTrend.push({ key, label, revenue: 0, expenses: 0, profit: 0 });
             }
 
-            invoices.forEach(inv => {
-                (inv.payments || []).forEach(p => {
-                    const pDate = new Date(p.date);
-                    const k = `${pDate.getFullYear()}-${String(pDate.getMonth() + 1).padStart(2, '0')}`;
-                    const match = monthlyTrend.find(x => x.key === k);
-                    if (match) match.revenue += p.amount;
-                });
+            transactions.forEach(t => {
+                const pDate = new Date(t.collectionTimestamp || t.createdAt);
+                const k = `${pDate.getFullYear()}-${String(pDate.getMonth() + 1).padStart(2, '0')}`;
+                const match = monthlyTrend.find(x => x.key === k);
+                if (match) match.revenue += (t.amount || 0);
             });
 
             expenses.forEach(exp => {
@@ -775,13 +770,11 @@ router.get('/profit-loss', verifyFinanceAccess, async (req, res) => {
                 monthlyTrend.push({ key, label, revenue: 0, expenses: 0, profit: 0 });
             }
 
-            invoices.forEach(inv => {
-                (inv.payments || []).forEach(p => {
-                    const pDate = new Date(p.date);
-                    const k = `${pDate.getFullYear()}-${String(pDate.getMonth() + 1).padStart(2, '0')}`;
-                    const match = monthlyTrend.find(x => x.key === k);
-                    if (match) match.revenue += p.amount;
-                });
+            transactions.forEach(t => {
+                const pDate = new Date(t.collectionTimestamp || t.createdAt);
+                const k = `${pDate.getFullYear()}-${String(pDate.getMonth() + 1).padStart(2, '0')}`;
+                const match = monthlyTrend.find(x => x.key === k);
+                if (match) match.revenue += (t.amount || 0);
             });
 
             expenses.forEach(exp => {
@@ -1145,7 +1138,7 @@ router.get('/audit-logs', verifyFinanceAccess, async (req, res) => {
             // High Risk Transactions count
             const highRiskRefunds = await Refund.countDocuments({
                 ...hFilter,
-                refundAmount: { $gt: 10000 }
+                amount: { $gt: 10000 }
             });
             const highRiskInvoices = await Invoice.countDocuments({
                 ...hFilter,
@@ -1261,7 +1254,7 @@ router.get('/audit-logs', verifyFinanceAccess, async (req, res) => {
         // Section: Refunds
         if (section === 'refunds') {
             const dateFilter = buildDateFilter('createdAt');
-            const amtFilter = buildAmountFilter('refundAmount');
+            const amtFilter = buildAmountFilter('amount');
             const query = { ...hFilter, ...dateFilter, ...amtFilter };
 
             if (status) query.status = status;
@@ -1279,7 +1272,7 @@ router.get('/audit-logs', verifyFinanceAccess, async (req, res) => {
                 refundId: ref._id,
                 invoiceNumber: ref.invoiceNumber,
                 patientName: ref.patientName,
-                amount: ref.refundAmount,
+                amount: ref.amount,
                 reason: ref.reason,
                 requestedBy: ref.requestedByName || 'Staff',
                 approvedBy: ref.approvedByName || 'N/A',
@@ -1384,7 +1377,7 @@ router.get('/audit-logs', verifyFinanceAccess, async (req, res) => {
                 deletedBy: del.deletedByName,
                 deletedAt: del.deletedAt,
                 reason: del.reason,
-                amount: del.originalData?.amount || del.originalData?.totalAmount || del.originalData?.refundAmount || 0
+                amount: del.originalData?.amount || del.originalData?.totalAmount || del.originalData?.amount || 0
             }));
 
             return res.json({ success: true, logs });
@@ -1394,11 +1387,11 @@ router.get('/audit-logs', verifyFinanceAccess, async (req, res) => {
         if (section === 'high-risk') {
             const logs = [];
 
-            const refunds = await Refund.find({ ...hFilter, refundAmount: { $gt: 10000 } }).lean();
+            const refunds = await Refund.find({ ...hFilter, amount: { $gt: 10000 } }).lean();
             refunds.forEach(ref => {
                 logs.push({
                     alertType: 'Refund > ₹10,000',
-                    amount: ref.refundAmount,
+                    amount: ref.amount,
                     user: ref.approvedByName || ref.requestedByName || 'Staff',
                     date: ref.createdAt
                 });
@@ -1850,13 +1843,13 @@ router.get('/doctor-payouts/records', verifyFinanceAccess, async (req, res) => {
     try {
         const hospitalId = req.user.hospitalId;
         const { month } = req.query;
-        const { DoctorPayout } = getModels(req.tenantDb);
+        const { Doctor, DoctorPayout } = getModels(req.tenantDb);
         
         const query = { hospitalId };
         if (month) query.month = month;
         
         const records = await DoctorPayout.find(query)
-            .populate({ path: 'doctorId', model: require('../models/doctor.model'), select: 'name email specialty phone payoutModel commissionPercent fixedSalary' })
+            .populate({ path: 'doctorId', model: Doctor, select: 'name email specialty phone payoutModel commissionPercent fixedSalary' })
             .sort({ createdAt: -1 })
             .lean();
             
@@ -1903,7 +1896,25 @@ router.post('/doctor-payouts/records/calculate', verifyFinanceAccess, async (req
                 appointmentDate: { $gte: startDate, $lte: endDate }
             }).lean();
             
-            const patientsSeen = appointments.length;
+            const uniquePatients = new Set();
+            appointments.forEach(appt => {
+                let idStr = '';
+                if (appt.userId) {
+                    idStr = String(appt.userId);
+                } else if (appt.clinicPatientId) {
+                    idStr = String(appt.clinicPatientId);
+                } else if (appt.patientId && appt.patientId.trim()) {
+                    idStr = appt.patientId.trim();
+                } else if (appt.patientPhone && appt.patientPhone.trim()) {
+                    idStr = appt.patientPhone.trim();
+                } else {
+                    idStr = (appt.patientName || '').trim();
+                }
+                if (idStr) {
+                    uniquePatients.add(idStr);
+                }
+            });
+            const patientsSeen = uniquePatients.size;
             const revenueGenerated = appointments.reduce((sum, appt) => sum + (appt.amount || 0), 0);
             
             const model = doc.payoutModel || 'Fixed';
@@ -1973,9 +1984,9 @@ router.post('/doctor-payouts/records/calculate', verifyFinanceAccess, async (req
 router.post('/doctor-payouts/records/approve/:id', verifyFinanceAccess, async (req, res) => {
     try {
         const hospitalId = req.user.hospitalId;
-        const { DoctorPayout } = getModels(req.tenantDb);
+        const { Doctor, DoctorPayout } = getModels(req.tenantDb);
         
-        const payout = await DoctorPayout.findOne({ _id: req.params.id, hospitalId }).populate({ path: 'doctorId', model: require('../models/doctor.model') });
+        const payout = await DoctorPayout.findOne({ _id: req.params.id, hospitalId }).populate({ path: 'doctorId', model: Doctor });
         if (!payout) {
             return res.status(404).json({ success: false, message: 'Payout record not found' });
         }
@@ -2005,9 +2016,9 @@ router.post('/doctor-payouts/records/pay/:id', verifyFinanceAccess, async (req, 
     try {
         const hospitalId = req.user.hospitalId;
         const { paymentMethod, transactionReference, notes } = req.body;
-        const { DoctorPayout, Expense } = getModels(req.tenantDb);
+        const { Doctor, DoctorPayout, Expense } = getModels(req.tenantDb);
         
-        const payout = await DoctorPayout.findOne({ _id: req.params.id, hospitalId }).populate({ path: 'doctorId', model: require('../models/doctor.model') });
+        const payout = await DoctorPayout.findOne({ _id: req.params.id, hospitalId }).populate({ path: 'doctorId', model: Doctor });
         if (!payout) {
             return res.status(404).json({ success: false, message: 'Payout record not found' });
         }

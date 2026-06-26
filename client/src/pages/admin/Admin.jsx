@@ -37,7 +37,7 @@ const Admin = () => {
 
     // Check if user is admin
     useEffect(() => {
-        const perms = user.permissions || [];
+        const perms = user.effectivePermissions || user.permissions || [];
         const allowedRoles = ['admin', 'superadmin', 'centraladmin', 'hospitaladmin'];
         const role = (user.role || '').toLowerCase();
         if (!allowedRoles.includes(role) &&

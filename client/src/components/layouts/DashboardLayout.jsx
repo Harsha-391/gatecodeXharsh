@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { NavLink, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth, useAppDispatch } from '../../store/hooks';
-import { logoutUser } from '../../store/slices/authSlice';
+import { logoutUser, updateUser } from '../../store/slices/authSlice';
 import { useBranding } from '../../context/BrandingContext';
+import { authAPI } from '../../utils/api';
 import {
     FiHome, FiUsers, FiCalendar, FiActivity, FiPackage,
     FiSettings, FiLogOut, FiPieChart, FiClipboard,
@@ -112,10 +113,7 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
             baseMenu = [
                 { label: 'Reception Dashboard', path: '/reception/dashboard', icon: <FiHome /> },
                 { label: 'Appointments/Booking', path: '/appointment', icon: <FiPlusSquare /> },
-                { label: 'My Daily Collection', path: '/finance/reception-collections', icon: <FiTrendingUp /> },
-                { label: 'Patient Billing', path: '/billing/patient', icon: <FiUsers /> },
-                { label: 'Invoices', path: '/billing/invoices', icon: <FiFileText /> },
-                { label: 'Refunds', path: '/billing/refunds', icon: <FiLogOut /> }
+                { label: 'My Daily Collection', path: '/finance/reception-collections', icon: <FiTrendingUp /> }
             ];
         } else if (role === 'lab' || role === 'lab technician') {
             baseMenu = [
@@ -332,6 +330,25 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
                 { label: 'Pharma Inventory', path: '/pharmacy/inventory', icon: <FiPackage /> },
                 { label: 'Pharmacy Orders', path: '/pharmacy/orders', icon: <FiClipboard /> },
                 { label: 'Purchase Approvals', path: '/pharmacy/purchase-approvals', icon: <FiCheckCircle /> }
+            );
+        }
+
+        if (userPermissions.includes('finance_view') || userPermissions.includes('accountant_view')) {
+            extraItems.push(
+                { label: 'Accountant Dashboard', path: '/accountant/dashboard', icon: <FiHome /> },
+                { label: 'Revenue Reports', path: '/billing/reports', icon: <FiGrid /> },
+                { label: 'Billing Analytics', path: '/billing/analytics', icon: <FiPieChart /> },
+                { label: 'Outstanding Payments', path: '/accountant/outstanding', icon: <FiFileText /> },
+                { label: 'Insurance Claims', path: '/accountant/claims', icon: <FiClipboard /> },
+                { label: 'Discount Approvals', path: '/accountant/discount-approvals', icon: <FiCheckCircle /> },
+                { label: 'Expenses', path: '/accountant/expenses', icon: <FiPackage /> },
+                { label: 'Profit & Loss', path: '/accountant/profit-loss', icon: <FiPieChart /> },
+                { label: 'Financial Statements', path: '/accountant/statements', icon: <FiFileText /> },
+                { label: 'Reconciliation', path: '/accountant/reconciliation', icon: <FiCheckCircle /> },
+                { label: 'Payroll Management', path: '/accountant/payroll', icon: <FiUsers /> },
+                { label: 'Doctor Payouts', path: '/accountant/doctor-payouts', icon: <FiActivity /> },
+                { label: 'Audit Logs', path: '/accountant/audit-logs', icon: <FiClipboard /> },
+                { label: 'Transaction Logs', path: '/accountant/transactions', icon: <FiDatabase /> }
             );
         }
 
@@ -733,6 +750,21 @@ const WelcomeCard = () => {
 
 const DashboardLayout = ({ children }) => {
     const [sidebarOpen, setSidebarOpen] = useState(true);
+    const dispatch = useAppDispatch();
+
+    useEffect(() => {
+        const syncProfile = async () => {
+            try {
+                const res = await authAPI.getProfile();
+                if (res.success && res.user) {
+                    dispatch(updateUser(res.user));
+                }
+            } catch (err) {
+                console.error('Failed to sync profile on DashboardLayout mount:', err);
+            }
+        };
+        syncProfile();
+    }, [dispatch]);
 
     return (
         <div className="erp-layout">

@@ -398,7 +398,13 @@ const DoctorPayouts = () => {
 
                         <div className="form-group">
                             <label>Payment Method</label>
-                            <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
+                            <select value={paymentMethod} onChange={(e) => {
+                                const method = e.target.value;
+                                setPaymentMethod(method);
+                                if (method !== 'UPI' && method !== 'Bank Transfer') {
+                                    setTxnRef('');
+                                }
+                            }}>
                                 <option value="Bank Transfer">Bank Transfer</option>
                                 <option value="UPI">UPI</option>
                                 <option value="Cash">Cash</option>
@@ -406,10 +412,12 @@ const DoctorPayouts = () => {
                             </select>
                         </div>
                         
-                        <div className="form-group">
-                            <label>Transaction Reference / Txn ID</label>
-                            <input type="text" placeholder="e.g. UPI-9210831" value={txnRef} onChange={(e) => setTxnRef(e.target.value)} />
-                        </div>
+                        {(paymentMethod === 'UPI' || paymentMethod === 'Bank Transfer') && (
+                            <div className="form-group">
+                                <label>Transaction Reference / Txn ID</label>
+                                <input type="text" placeholder="e.g. UPI-9210831" value={txnRef} onChange={(e) => setTxnRef(e.target.value)} />
+                            </div>
+                        )}
 
                         <div className="form-group">
                             <label>Notes / Memo</label>
