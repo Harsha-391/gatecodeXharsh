@@ -1741,13 +1741,15 @@ const BillingDashboard = ({ tab }) => {
                 {activeTab === 'invoices' && (
                     <div className="tab-pane-view">
                         <div className="patient-search-block">
-                            <input
-                                type="text"
-                                placeholder="Search Invoices by number or patient name..."
-                                value={invoiceSearch}
-                                onChange={e => setInvoiceSearch(e.target.value)}
-                                className="p-search-input"
-                            />
+                            <div className="search-form-wrap">
+                                <input
+                                    type="text"
+                                    placeholder="Search Invoices by number or patient name..."
+                                    value={invoiceSearch}
+                                    onChange={e => setInvoiceSearch(e.target.value)}
+                                    className="p-search-input"
+                                />
+                            </div>
                         </div>
                         <div className="billing-section-box" style={{ marginTop: '20px' }}>
                             <h3>Invoices Repository</h3>
@@ -1962,13 +1964,15 @@ const BillingDashboard = ({ tab }) => {
                         </div>
 
                         <div className="patient-search-block" style={{ marginTop: '20px' }}>
-                            <input
-                                type="text"
-                                placeholder="Search refunds by patient name or invoice ref..."
-                                value={refundSearch}
-                                onChange={e => setRefundSearch(e.target.value)}
-                                className="p-search-input"
-                            />
+                            <div className="search-form-wrap">
+                                <input
+                                    type="text"
+                                    placeholder="Search refunds by patient name or invoice ref..."
+                                    value={refundSearch}
+                                    onChange={e => setRefundSearch(e.target.value)}
+                                    className="p-search-input"
+                                />
+                            </div>
                         </div>
 
                         <div className="billing-section-box" style={{ marginTop: '20px' }}>

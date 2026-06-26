@@ -915,7 +915,7 @@ router.put('/refunds/:id/approve', verifyBillingAccess, auditLog('UPDATE_BILL', 
             return res.status(403).json({ success: false, message: 'Forbidden: Receptionists are not allowed to approve refunds.' });
         }
 
-        const { Refund, BillingActivityLog } = getModels(req);
+        const { Refund, BillingActivityLog, HospitalPatient, ClinicPatient, User } = getModels(req);
         const refund = await Refund.findById(id);
         if (!refund) return res.status(404).json({ success: false, message: 'Refund request not found.' });
 
@@ -931,6 +931,50 @@ router.put('/refunds/:id/approve', verifyBillingAccess, auditLog('UPDATE_BILL', 
         });
 
         await refund.save();
+
+        try {
+            let collectionType = 'Miscellaneous Collection';
+            if (refund.refundType === 'Cancelled Lab Test') {
+                collectionType = 'Lab Payment';
+            } else if (refund.refundType === 'Returned Medicine') {
+                collectionType = 'Pharmacy Payment';
+            }
+
+            const patientUser = await HospitalPatient.findById(refund.patientId) ||
+                                (ClinicPatient ? await ClinicPatient.findById(refund.patientId) : null) ||
+                                await User.findById(refund.patientId);
+
+            const transactionData = {
+                hospitalId: refund.hospitalId,
+                patientId: refund.patientId,
+                patientName: refund.patientName,
+                patientPhone: patientUser?.phone || '',
+                patientIdStr: patientUser?.patientId || patientUser?.mrn || 'WALK-IN',
+                invoiceNumber: refund.invoiceNumber || '',
+                amount: -Math.abs(refund.amount), // Ensure amount is negative
+                paymentMethod: req.body.paymentMethod || 'Cash',
+                collectedByUserId: req.user._id,
+                collectedByName: req.user.name || 'Staff',
+                counterName: req.user.counterName && req.user.counterName !== 'Counter 1' ? req.user.counterName : (req.user.name || 'Counter 1'),
+                collectionType,
+                collectionTimestamp: new Date()
+            };
+
+            const MasterCollectionTransaction = require('../models/collectionTransaction.model');
+            const masterTx = new MasterCollectionTransaction(transactionData);
+            await masterTx.save();
+
+            if (req.tenantDb) {
+                const TenantCollectionTransaction = getTenantModels(req.tenantDb).CollectionTransaction;
+                const tenantTx = new TenantCollectionTransaction({
+                    ...transactionData,
+                    _id: masterTx._id
+                });
+                await tenantTx.save();
+            }
+        } catch (txErr) {
+            console.error('Failed to log refund collection transaction:', txErr.message);
+        }
 
         // Also update the copy in the Master DB (HSM)
         if (!req.tenantDb) {
