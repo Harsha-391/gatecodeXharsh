@@ -90,8 +90,8 @@ const BillingDashboard = ({ tab }) => {
 
     useEffect(() => {
         if (refundModal) {
-            // ONLY pre-populate the patient if we are on the 'patient' tab (viewing a specific patient's profile)
-            if (activeTab === 'patient' && patient) {
+            // Pre-populate the patient if we have an active patient selected (either on 'patient' tab or 'refunds' tab)
+            if ((activeTab === 'patient' || activeTab === 'refunds') && patient) {
                 setSelectedModalPatient(patient);
                 setRefundForm({
                     patientId: patient._id,
@@ -153,12 +153,19 @@ const BillingDashboard = ({ tab }) => {
         if (activeTab === 'settings') loadSettings();
         if (activeTab === 'history' || activeTab === 'dashboard') fetchLogs();
         
-        // Clear active patient profile context if we navigate away from patient tab
-        if (activeTab !== 'patient') {
+        // Clear active patient profile context if we navigate away from patient or refunds tab
+        if (activeTab !== 'patient' && activeTab !== 'refunds') {
             setPatient(null);
             setBilling(null);
         }
     }, [activeTab]);
+
+    // Keep refund search text synchronized with patient if patient changes
+    useEffect(() => {
+        if (activeTab === 'refunds' && patient && !refundSearch) {
+            setRefundSearch(patient.mrn || patient.name || '');
+        }
+    }, [activeTab, patient]);
 
     // When invoices load for the reports tab, generate the report
     useEffect(() => {
@@ -261,6 +268,28 @@ const BillingDashboard = ({ tab }) => {
     const handlePatientSearch = async (e) => {
         e.preventDefault();
         performPatientLookup(searchQuery);
+    };
+
+    const handleRefundSearchSubmit = (e) => {
+        e.preventDefault();
+        if (refundSearch && refundSearch.trim()) {
+            performPatientLookup(refundSearch);
+        }
+    };
+
+    const handleRefundSearchChange = (e) => {
+        const val = e.target.value;
+        setRefundSearch(val);
+        if (!val.trim()) {
+            setPatient(null);
+            setBilling(null);
+        }
+    };
+
+    const handleClearRefundSearch = () => {
+        setRefundSearch('');
+        setPatient(null);
+        setBilling(null);
     };
 
     const toggleItem = (category, id) => {
@@ -1964,86 +1993,181 @@ const BillingDashboard = ({ tab }) => {
                         </div>
 
                         <div className="patient-search-block" style={{ marginTop: '20px' }}>
-                            <div className="search-form-wrap">
+                            <form onSubmit={handleRefundSearchSubmit} className="search-form-wrap">
                                 <input
                                     type="text"
-                                    placeholder="Search refunds by patient name or invoice ref..."
+                                    placeholder="Search patient by MRN, Name, Phone or Invoice ID..."
                                     value={refundSearch}
-                                    onChange={e => setRefundSearch(e.target.value)}
+                                    onChange={handleRefundSearchChange}
                                     className="p-search-input"
                                 />
-                            </div>
+                                <button type="submit" className="p-search-btn"><FiSearch /> Search Patient</button>
+                                {patient && (
+                                    <button 
+                                        type="button" 
+                                        onClick={handleClearRefundSearch} 
+                                        className="p-search-btn" 
+                                        style={{ backgroundColor: '#64748b', marginLeft: '8px' }}
+                                    >
+                                        Clear Search
+                                    </button>
+                                )}
+                            </form>
                         </div>
 
-                        <div className="billing-section-box" style={{ marginTop: '20px' }}>
-                            <h3>Refund Log History</h3>
-                            <div className="table-responsive">
-                                <table>
-                                    <thead>
-                                        <tr>
-                                            <th>Patient Name</th>
-                                            <th>Invoice Ref</th>
-                                            <th>Refund Type</th>
-                                            <th>Amount</th>
-                                            <th>Status</th>
-                                            <th>Requested By</th>
-                                            <th>Date</th>
-                                            <th>Action</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {(() => {
-                                            const filtered = refunds.filter(ref => {
-                                                const q = refundSearch.toLowerCase();
-                                                return (
-                                                    (ref.patientName || '').toLowerCase().includes(q) ||
-                                                    (ref.invoiceNumber || '').toLowerCase().includes(q) ||
-                                                    (ref.refundType || '').toLowerCase().includes(q) ||
-                                                    (ref.status || '').toLowerCase().includes(q) ||
-                                                    (ref.requestedByName || '').toLowerCase().includes(q)
-                                                );
-                                            });
+                        {patient ? (
+                            <div className="patient-billing-profile-grid" style={{ marginTop: '20px' }}>
+                                {/* Left Column: Patient Card */}
+                                <div className="p-billing-left-column" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                                    <div className="p-card-left">
+                                        <div className="p-avatar-box">
+                                            <div className="p-avatar-char">{patient.name?.charAt(0).toUpperCase()}</div>
+                                            <h2>{patient.name}</h2>
+                                            <p>MRN: {patient.mrn}</p>
+                                        </div>
+                                        <div className="p-details-list">
+                                            <div className="p-detail-row"><span>Mobile</span><strong>{patient.phone}</strong></div>
+                                            <div className="p-detail-row"><span>Gender</span><strong>{patient.gender || '—'}</strong></div>
+                                            <div className="p-detail-row"><span>DOB</span><strong>{fmtDate(patient.dob)}</strong></div>
+                                        </div>
+                                    </div>
+                                </div>
 
-                                            if (filtered.length === 0) {
-                                                return (
+                                {/* Right Column: Refund Log History */}
+                                <div className="p-billing-right">
+                                    <div className="billing-section-box" style={{ marginTop: '0' }}>
+                                        <h3>Refund Log History</h3>
+                                        <div className="table-responsive">
+                                            <table>
+                                                <thead>
                                                     <tr>
-                                                        <td colSpan="8" style={{ textAlign: 'center', padding: '40px 20px' }}>
-                                                            No refunds match your search.
+                                                        <th>Patient Name</th>
+                                                        <th>Invoice Ref</th>
+                                                        <th>Refund Type</th>
+                                                        <th>Amount</th>
+                                                        <th>Status</th>
+                                                        <th>Requested By</th>
+                                                        <th>Date</th>
+                                                        <th>Action</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {(() => {
+                                                        const filtered = refunds.filter(ref => ref.patientId === patient._id);
+
+                                                        if (filtered.length === 0) {
+                                                            return (
+                                                                <tr>
+                                                                    <td colSpan="8" style={{ textAlign: 'center', padding: '40px 20px' }}>
+                                                                        No refunds match this patient.
+                                                                    </td>
+                                                                </tr>
+                                                            );
+                                                        }
+
+                                                        return filtered.map(ref => (
+                                                            <tr key={ref._id}>
+                                                                <td>{ref.patientName}</td>
+                                                                <td>{ref.invoiceNumber || '—'}</td>
+                                                                <td>{ref.refundType}</td>
+                                                                <td style={{ color: '#dc2626', fontWeight: 'bold' }}>-{fmt(ref.amount)}</td>
+                                                                <td><span className={`badge-refund status-${ref.status.toLowerCase().replace(' ', '-')}`}>{ref.status}</span></td>
+                                                                <td>{ref.requestedByName}</td>
+                                                                <td>{fmtDate(ref.createdAt)}</td>
+                                                                <td>
+                                                                    {ref.status === 'Refund Pending' && !isReceptionist && (
+                                                                        <div className="invoice-actions-wrap">
+                                                                            <button className="btn-collect" onClick={() => handleApproveRefund(ref._id)}>Approve & Settle</button>
+                                                                            <button className="btn-cancel" onClick={() => handleRejectRefund(ref._id)}>Reject</button>
+                                                                        </div>
+                                                                    )}
+                                                                    {ref.status === 'Refunded' && (
+                                                                        <span style={{ color: '#16a34a', fontSize: '12px' }}>Processed ✓</span>
+                                                                    )}
+                                                                    {ref.status === 'Rejected' && (
+                                                                        <span style={{ color: '#dc2626', fontSize: '12px' }}>Rejected ✗</span>
+                                                                    )}
+                                                                </td>
+                                                            </tr>
+                                                        ));
+                                                    })()}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="billing-section-box" style={{ marginTop: '20px' }}>
+                                <h3>Refund Log History</h3>
+                                <div className="table-responsive">
+                                    <table>
+                                        <thead>
+                                            <tr>
+                                                <th>Patient Name</th>
+                                                <th>Invoice Ref</th>
+                                                <th>Refund Type</th>
+                                                <th>Amount</th>
+                                                <th>Status</th>
+                                                <th>Requested By</th>
+                                                <th>Date</th>
+                                                <th>Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {(() => {
+                                                const filtered = refunds.filter(ref => {
+                                                    const q = refundSearch.toLowerCase();
+                                                    return (
+                                                        (ref.patientName || '').toLowerCase().includes(q) ||
+                                                        (ref.invoiceNumber || '').toLowerCase().includes(q) ||
+                                                        (ref.refundType || '').toLowerCase().includes(q) ||
+                                                        (ref.status || '').toLowerCase().includes(q) ||
+                                                        (ref.requestedByName || '').toLowerCase().includes(q)
+                                                    );
+                                                });
+
+                                                if (filtered.length === 0) {
+                                                    return (
+                                                        <tr>
+                                                            <td colSpan="8" style={{ textAlign: 'center', padding: '40px 20px' }}>
+                                                                No refunds match your search.
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                }
+
+                                                return filtered.map(ref => (
+                                                    <tr key={ref._id}>
+                                                        <td>{ref.patientName}</td>
+                                                        <td>{ref.invoiceNumber || '—'}</td>
+                                                        <td>{ref.refundType}</td>
+                                                        <td style={{ color: '#dc2626', fontWeight: 'bold' }}>-{fmt(ref.amount)}</td>
+                                                        <td><span className={`badge-refund status-${ref.status.toLowerCase().replace(' ', '-')}`}>{ref.status}</span></td>
+                                                        <td>{ref.requestedByName}</td>
+                                                        <td>{fmtDate(ref.createdAt)}</td>
+                                                        <td>
+                                                            {ref.status === 'Refund Pending' && !isReceptionist && (
+                                                                <div className="invoice-actions-wrap">
+                                                                    <button className="btn-collect" onClick={() => handleApproveRefund(ref._id)}>Approve & Settle</button>
+                                                                    <button className="btn-cancel" onClick={() => handleRejectRefund(ref._id)}>Reject</button>
+                                                                </div>
+                                                            )}
+                                                            {ref.status === 'Refunded' && (
+                                                                <span style={{ color: '#16a34a', fontSize: '12px' }}>Processed ✓</span>
+                                                            )}
+                                                            {ref.status === 'Rejected' && (
+                                                                <span style={{ color: '#dc2626', fontSize: '12px' }}>Rejected ✗</span>
+                                                            )}
                                                         </td>
                                                     </tr>
-                                                );
-                                            }
-
-                                            return filtered.map(ref => (
-                                                <tr key={ref._id}>
-                                                    <td>{ref.patientName}</td>
-                                                    <td>{ref.invoiceNumber || '—'}</td>
-                                                    <td>{ref.refundType}</td>
-                                                    <td style={{ color: '#dc2626', fontWeight: 'bold' }}>-{fmt(ref.amount)}</td>
-                                                    <td><span className={`badge-refund status-${ref.status.toLowerCase().replace(' ', '-')}`}>{ref.status}</span></td>
-                                                    <td>{ref.requestedByName}</td>
-                                                    <td>{fmtDate(ref.createdAt)}</td>
-                                                    <td>
-                                                        {ref.status === 'Refund Pending' && !isReceptionist && (
-                                                            <div className="invoice-actions-wrap">
-                                                                <button className="btn-collect" onClick={() => handleApproveRefund(ref._id)}>Approve & Settle</button>
-                                                                <button className="btn-cancel" onClick={() => handleRejectRefund(ref._id)}>Reject</button>
-                                                            </div>
-                                                        )}
-                                                        {ref.status === 'Refunded' && (
-                                                            <span style={{ color: '#16a34a', fontSize: '12px' }}>Processed ✓</span>
-                                                        )}
-                                                        {ref.status === 'Rejected' && (
-                                                            <span style={{ color: '#dc2626', fontSize: '12px' }}>Rejected ✗</span>
-                                                        )}
-                                                    </td>
-                                                </tr>
-                                            ));
-                                        })()}
-                                    </tbody>
-                                </table>
+                                                ));
+                                            })()}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
-                        </div>
+                        )}
                     </div>
                 )}
 
