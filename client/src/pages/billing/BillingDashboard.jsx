@@ -69,6 +69,7 @@ const BillingDashboard = ({ tab }) => {
 
     // Refunds state
     const [refunds, setRefunds] = useState([]);
+    const [refundSearch, setRefundSearch] = useState('');
     const [refundModal, setRefundModal] = useState(false);
     const [refundForm, setRefundForm] = useState({ 
         type: 'Manual Refund', 
@@ -1960,6 +1961,16 @@ const BillingDashboard = ({ tab }) => {
                             <button className="btn-save" onClick={() => setRefundModal(true)}>+ Request Manual Refund</button>
                         </div>
 
+                        <div className="patient-search-block" style={{ marginTop: '20px' }}>
+                            <input
+                                type="text"
+                                placeholder="Search refunds by patient name or invoice ref..."
+                                value={refundSearch}
+                                onChange={e => setRefundSearch(e.target.value)}
+                                className="p-search-input"
+                            />
+                        </div>
+
                         <div className="billing-section-box" style={{ marginTop: '20px' }}>
                             <h3>Refund Log History</h3>
                             <div className="table-responsive">
@@ -1977,31 +1988,54 @@ const BillingDashboard = ({ tab }) => {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {refunds.map(ref => (
-                                            <tr key={ref._id}>
-                                                <td>{ref.patientName}</td>
-                                                <td>{ref.invoiceNumber || '—'}</td>
-                                                <td>{ref.refundType}</td>
-                                                <td style={{ color: '#dc2626', fontWeight: 'bold' }}>-{fmt(ref.amount)}</td>
-                                                <td><span className={`badge-refund status-${ref.status.toLowerCase().replace(' ', '-')}`}>{ref.status}</span></td>
-                                                <td>{ref.requestedByName}</td>
-                                                <td>{fmtDate(ref.createdAt)}</td>
-                                                <td>
-                                                    {ref.status === 'Refund Pending' && !isReceptionist && (
-                                                        <div className="invoice-actions-wrap">
-                                                            <button className="btn-collect" onClick={() => handleApproveRefund(ref._id)}>Approve & Settle</button>
-                                                            <button className="btn-cancel" onClick={() => handleRejectRefund(ref._id)}>Reject</button>
-                                                        </div>
-                                                    )}
-                                                    {ref.status === 'Refunded' && (
-                                                        <span style={{ color: '#16a34a', fontSize: '12px' }}>Processed ✓</span>
-                                                    )}
-                                                    {ref.status === 'Rejected' && (
-                                                        <span style={{ color: '#dc2626', fontSize: '12px' }}>Rejected ✗</span>
-                                                    )}
-                                                </td>
-                                            </tr>
-                                        ))}
+                                        {(() => {
+                                            const filtered = refunds.filter(ref => {
+                                                const q = refundSearch.toLowerCase();
+                                                return (
+                                                    (ref.patientName || '').toLowerCase().includes(q) ||
+                                                    (ref.invoiceNumber || '').toLowerCase().includes(q) ||
+                                                    (ref.refundType || '').toLowerCase().includes(q) ||
+                                                    (ref.status || '').toLowerCase().includes(q) ||
+                                                    (ref.requestedByName || '').toLowerCase().includes(q)
+                                                );
+                                            });
+
+                                            if (filtered.length === 0) {
+                                                return (
+                                                    <tr>
+                                                        <td colSpan="8" style={{ textAlign: 'center', padding: '40px 20px' }}>
+                                                            No refunds match your search.
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            }
+
+                                            return filtered.map(ref => (
+                                                <tr key={ref._id}>
+                                                    <td>{ref.patientName}</td>
+                                                    <td>{ref.invoiceNumber || '—'}</td>
+                                                    <td>{ref.refundType}</td>
+                                                    <td style={{ color: '#dc2626', fontWeight: 'bold' }}>-{fmt(ref.amount)}</td>
+                                                    <td><span className={`badge-refund status-${ref.status.toLowerCase().replace(' ', '-')}`}>{ref.status}</span></td>
+                                                    <td>{ref.requestedByName}</td>
+                                                    <td>{fmtDate(ref.createdAt)}</td>
+                                                    <td>
+                                                        {ref.status === 'Refund Pending' && !isReceptionist && (
+                                                            <div className="invoice-actions-wrap">
+                                                                <button className="btn-collect" onClick={() => handleApproveRefund(ref._id)}>Approve & Settle</button>
+                                                                <button className="btn-cancel" onClick={() => handleRejectRefund(ref._id)}>Reject</button>
+                                                            </div>
+                                                        )}
+                                                        {ref.status === 'Refunded' && (
+                                                            <span style={{ color: '#16a34a', fontSize: '12px' }}>Processed ✓</span>
+                                                        )}
+                                                        {ref.status === 'Rejected' && (
+                                                            <span style={{ color: '#dc2626', fontSize: '12px' }}>Rejected ✗</span>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            ));
+                                        })()}
                                     </tbody>
                                 </table>
                             </div>
