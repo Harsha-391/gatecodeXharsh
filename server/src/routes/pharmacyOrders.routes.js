@@ -14,14 +14,18 @@ const getModels = (req) => {
             PharmacyOrder: m.PharmacyOrder,
             Inventory: m.Inventory,
             User: m.User,
-            Notification: m.Notification
+            Notification: m.Notification,
+            HospitalPatient: m.HospitalPatient,
+            CollectionTransaction: m.CollectionTransaction
         };
     }
     return {
         PharmacyOrder: require('../models/pharmacyOrder.model'),
         Inventory: require('../models/inventory.model'),
         User: require('../models/user.model'),
-        Notification: require('../models/notification.model')
+        Notification: require('../models/notification.model'),
+        HospitalPatient: require('../models/hospitalPatient.model'),
+        CollectionTransaction: require('../models/collectionTransaction.model')
     };
 };
 
@@ -254,6 +258,42 @@ router.patch('/:id/complete', verifyToken, resolveTenant, auditLog('CONFIRM_PAYM
         order.orderStatus = 'Completed';
         await order.save();
 
+        if (order.paymentStatus === 'Paid' && totalAmount > 0) {
+            try {
+                const { HospitalPatient } = getModels(req);
+                const patient = await HospitalPatient.findById(order.userId);
+                const transactionData = {
+                    hospitalId: order.hospitalId,
+                    patientId: order.userId,
+                    patientName: patient ? patient.name : 'Unknown Patient',
+                    patientPhone: patient?.phone || '',
+                    patientIdStr: order.patientId || patient?.patientId || 'WALK-IN',
+                    amount: totalAmount,
+                    paymentMethod: req.body.paymentMethod || 'Cash',
+                    collectedByUserId: req.user.id,
+                    collectedByName: req.user.name || 'Staff',
+                    counterName: req.user.counterName && req.user.counterName !== 'Counter 1' ? req.user.counterName : (req.user.name || 'Counter 1'),
+                    collectionType: 'Pharmacy Payment',
+                    collectionTimestamp: new Date()
+                };
+
+                const MasterCollectionTransaction = require('../models/collectionTransaction.model');
+                const masterTx = new MasterCollectionTransaction(transactionData);
+                await masterTx.save();
+
+                if (req.tenantDb) {
+                    const TenantCollectionTransaction = getTenantModels(req.tenantDb).CollectionTransaction;
+                    const tenantTx = new TenantCollectionTransaction({
+                        ...transactionData,
+                        _id: masterTx._id
+                    });
+                    await tenantTx.save();
+                }
+            } catch (txErr) {
+                console.error("Failed to log pharmacy collection transaction:", txErr.message);
+            }
+        }
+
         const io = req.app.get('io');
         const { Notification } = getModels(req);
 
@@ -310,10 +350,46 @@ router.patch('/:id/mark-paid', verifyToken, resolveTenant, async (req, res) => {
         const order = await PharmacyOrder.findOne(findQuery);
         if (!order) return res.status(404).json({ success: false, message: "Order not found or unauthorized" });
 
-        await processOrderItemsPricing(order, purchasedIndices, itemQuantities, req, Inventory, false);
+        const totalAmount = await processOrderItemsPricing(order, purchasedIndices, itemQuantities, req, Inventory, false);
 
         order.paymentStatus = 'Paid';
         await order.save();
+
+        if (order.paymentStatus === 'Paid' && totalAmount > 0) {
+            try {
+                const { HospitalPatient } = getModels(req);
+                const patient = await HospitalPatient.findById(order.userId);
+                const transactionData = {
+                    hospitalId: order.hospitalId,
+                    patientId: order.userId,
+                    patientName: patient ? patient.name : 'Unknown Patient',
+                    patientPhone: patient?.phone || '',
+                    patientIdStr: order.patientId || patient?.patientId || 'WALK-IN',
+                    amount: totalAmount,
+                    paymentMethod: req.body.paymentMethod || 'Cash',
+                    collectedByUserId: req.user.id,
+                    collectedByName: req.user.name || 'Staff',
+                    counterName: req.user.counterName && req.user.counterName !== 'Counter 1' ? req.user.counterName : (req.user.name || 'Counter 1'),
+                    collectionType: 'Pharmacy Payment',
+                    collectionTimestamp: new Date()
+                };
+
+                const MasterCollectionTransaction = require('../models/collectionTransaction.model');
+                const masterTx = new MasterCollectionTransaction(transactionData);
+                await masterTx.save();
+
+                if (req.tenantDb) {
+                    const TenantCollectionTransaction = getTenantModels(req.tenantDb).CollectionTransaction;
+                    const tenantTx = new TenantCollectionTransaction({
+                        ...transactionData,
+                        _id: masterTx._id
+                    });
+                    await tenantTx.save();
+                }
+            } catch (txErr) {
+                console.error("Failed to log pharmacy collection transaction:", txErr.message);
+            }
+        }
 
         res.json({ success: true, message: 'Payment marked as paid', order });
     } catch (error) {

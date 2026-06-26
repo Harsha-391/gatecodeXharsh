@@ -21,7 +21,8 @@ const getModels = (req) => {
             LabTest: m.LabTest,
             Lab: m.Lab,
             Doctor: m.Doctor,
-            Notification: m.Notification
+            Notification: m.Notification,
+            CollectionTransaction: m.CollectionTransaction
         };
     }
     return {
@@ -32,7 +33,8 @@ const getModels = (req) => {
         LabTest: require('../models/labTest.model'),
         Lab: require('../models/lab.model'),
         Doctor: require('../models/doctor.model'),
-        Notification: require('../models/notification.model')
+        Notification: require('../models/notification.model'),
+        CollectionTransaction: require('../models/collectionTransaction.model')
     };
 };
 
@@ -495,6 +497,40 @@ router.post('/create', verifyToken, resolveTenant, verifyLab, upload.single('rep
         });
 
         await report.save();
+
+        if (report.amount > 0 && ['paid', 'PAID', 'Paid'].includes(report.paymentStatus)) {
+            try {
+                const transactionData = {
+                    hospitalId: report.hospitalId || req.user.hospitalId,
+                    patientId: patientUser._id,
+                    patientName: patientUser.name,
+                    patientPhone: patientUser.phone || '',
+                    patientIdStr: finalPatientId,
+                    amount: report.amount,
+                    paymentMethod: report.paymentMode || 'Cash',
+                    collectedByUserId: req.user.id,
+                    collectedByName: req.user.name || 'Staff',
+                    counterName: req.user.counterName && req.user.counterName !== 'Counter 1' ? req.user.counterName : (req.user.name || 'Counter 1'),
+                    collectionType: 'Lab Payment',
+                    collectionTimestamp: new Date()
+                };
+
+                const MasterCollectionTransaction = require('../models/collectionTransaction.model');
+                const masterTx = new MasterCollectionTransaction(transactionData);
+                await masterTx.save();
+
+                if (req.tenantDb) {
+                    const TenantCollectionTransaction = getTenantModels(req.tenantDb).CollectionTransaction;
+                    const tenantTx = new TenantCollectionTransaction({
+                        ...transactionData,
+                        _id: masterTx._id
+                    });
+                    await tenantTx.save();
+                }
+            } catch (txErr) {
+                console.error("Failed to log lab report collection transaction:", txErr.message);
+            }
+        }
 
         // If report is already uploaded and doctor is assigned, notify that doctor
         if (fileResult && doctorId) {
