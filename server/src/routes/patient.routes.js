@@ -6,6 +6,7 @@ const auditLog = require('../middleware/audit.middleware');
 const { getTenantModels } = require('../db/tenantModels');
 const MasterHospitalPatient = require('../models/hospitalPatient.model');
 const MasterDoctor = require('../models/doctor.model');
+const { patientRegistrationLimiter } = require('../middleware/rateLimiter');
 
 const getModels = (req) => {
     if (req.tenantDb) {
@@ -159,7 +160,7 @@ router.get('/:id/full-history', verifyToken, resolveTenant, auditLog('VIEW_PATIE
 });
 
 // CREATE PATIENT API: Registrations — scoped to hospital tenant
-router.post('/', verifyToken, resolveTenant, auditLog('CREATE_PATIENT', (req, body) => ({
+router.post('/', verifyToken, resolveTenant, patientRegistrationLimiter, auditLog('CREATE_PATIENT', (req, body) => ({
     model: 'HospitalPatient',
     id: body.user?._id || null,
     label: body.user ? `${body.user.name} (${body.user.patientId || ''})` : 'Patient record created',

@@ -29,7 +29,7 @@ const { sendOTP, hashOTP, verifyOTP } = require('../utils/otpService');
 
 const { JWT_SECRET } = require('../config/jwt');
 const JWT_EXPIRES = process.env.PATIENT_JWT_EXPIRES_IN || '8h';
-const { otpLimiter } = require('../middleware/rateLimiter');
+const { otpLimiter, otpVerifyLimiter } = require('../middleware/rateLimiter');
 
 // ─── Patient JWT middleware ───────────────────────────────────────────────────
 
@@ -48,6 +48,21 @@ const verifyPatientToken = (req, res, next) => {
     } catch {
         res.status(401).json({ success: false, message: 'Session expired. Please login again.' });
     }
+};
+
+const enforcePatientTenantBoundary = (req, res, next) => {
+    const { clinicId } = req.params;
+    if (clinicId && req.patient && String(clinicId) !== String(req.patient.clinicId)) {
+        const { logSecurityEvent } = require('../utils/securityLogger');
+        logSecurityEvent('CROSS_TENANT_ACCESS_VIOLATION', {
+            patientPhone: req.patient.phone,
+            tokenClinicId: req.patient.clinicId,
+            requestedClinicId: clinicId,
+            reason: 'Patient attempted to access another clinic context'
+        }, req);
+        return res.status(403).json({ success: false, message: 'Access denied: Tenant boundary violation' });
+    }
+    next();
 };
 
 // ─── POST /auth/request-otp ───────────────────────────────────────────────────
@@ -101,7 +116,7 @@ router.post('/auth/request-otp', otpLimiter, async (req, res) => {
 });
 
 // ─── POST /auth/verify-otp ────────────────────────────────────────────────────
-router.post('/auth/verify-otp', async (req, res) => {
+router.post('/auth/verify-otp', otpVerifyLimiter, async (req, res) => {
     try {
         const { phone, otp, clinicId } = req.body;
         if (!phone || !otp) {
@@ -307,7 +322,7 @@ const tunnelOrFallback = async (req, res, localPath, fallback) => {
 };
 
 // ─── GET /:clinicId/prescriptions ─────────────────────────────────────────────
-router.get('/:clinicId/prescriptions', verifyPatientToken, async (req, res) => {
+router.get('/:clinicId/prescriptions', verifyPatientToken, enforcePatientTenantBoundary, async (req, res) => {
     await tunnelOrFallback(
         req, res,
         `/api/patient-local/prescriptions?phone=${req.patient.phone}`,
@@ -328,7 +343,7 @@ router.get('/:clinicId/prescriptions', verifyPatientToken, async (req, res) => {
 });
 
 // ─── GET /:clinicId/bills ──────────────────────────────────────────────────────
-router.get('/:clinicId/bills', verifyPatientToken, async (req, res) => {
+router.get('/:clinicId/bills', verifyPatientToken, enforcePatientTenantBoundary, async (req, res) => {
     await tunnelOrFallback(
         req, res,
         `/api/patient-local/bills?phone=${req.patient.phone}`,
@@ -349,7 +364,7 @@ router.get('/:clinicId/bills', verifyPatientToken, async (req, res) => {
 });
 
 // ─── GET /:clinicId/queue — LIVE only (tunnel required) ───────────────────────
-router.get('/:clinicId/queue', verifyPatientToken, async (req, res) => {
+router.get('/:clinicId/queue', verifyPatientToken, enforcePatientTenantBoundary, async (req, res) => {
     const tunnelServer = require('../utils/tunnelServer');
     const { clinicId } = req.params;
 
@@ -375,7 +390,7 @@ router.get('/:clinicId/queue', verifyPatientToken, async (req, res) => {
 });
 
 // ─── GET /:clinicId/me — patient profile ──────────────────────────────────────
-router.get('/:clinicId/me', verifyPatientToken, async (req, res) => {
+router.get('/:clinicId/me', verifyPatientToken, enforcePatientTenantBoundary, async (req, res) => {
     await tunnelOrFallback(
         req, res,
         `/api/patient-local/me?phone=${req.patient.phone}`,
@@ -391,7 +406,7 @@ router.get('/:clinicId/me', verifyPatientToken, async (req, res) => {
 });
 
 // ─── POST /:clinicId/book — book appointment ──────────────────────────────────
-router.post('/:clinicId/book', verifyPatientToken, async (req, res) => {
+router.post('/:clinicId/book', verifyPatientToken, enforcePatientTenantBoundary, async (req, res) => {
     const tunnelServer = require('../utils/tunnelServer');
     const { clinicId } = req.params;
 

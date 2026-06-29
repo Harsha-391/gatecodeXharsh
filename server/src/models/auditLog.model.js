@@ -103,6 +103,10 @@ const auditLogSchema = new mongoose.Schema({
     success:   { type: Boolean, default: true },
     reason:    { type: String, default: '' },    // If success=false, explain why
 
+    // Cryptographic integrity chain
+    hash: { type: String, default: '' },
+    previousHash: { type: String, default: '' },
+
     expireAt: {
         type: Date,
         default: () => {
@@ -117,10 +121,22 @@ const auditLogSchema = new mongoose.Schema({
 // ── Immutability: block all update/delete operations on AuditLog ──────────────
 // Any attempt to call .save() on an existing document, findByIdAndUpdate(),
 // updateOne(), findByIdAndDelete(), deleteOne(), etc. will throw.
-auditLogSchema.pre('save', function (next) {
+auditLogSchema.pre('save', async function (next) {
     if (!this.isNew) {
         return next(new Error('AuditLog records are immutable and cannot be modified.'));
     }
+    
+    // Compute cryptographic block hash
+    try {
+        const lastLog = await this.constructor.findOne({}).sort({ createdAt: -1 }).lean();
+        this.previousHash = lastLog ? (lastLog.hash || '') : 'GENESIS_HASH';
+        
+        const { calculateBlockHash } = require('../utils/auditVerifier');
+        this.hash = calculateBlockHash(this);
+    } catch (err) {
+        console.error('Failed to link audit log block:', err.message);
+    }
+
     // Auto-set expiration date: 365 days from creation
     if (!this.expireAt) {
         const d = new Date();

@@ -108,6 +108,7 @@ const UserPermissionManager = ({ hospitals = [] }) => {
     const [deniedPerms, setDeniedPerms] = useState([]);
     const [saving, setSaving] = useState(false);
     const [message, setMessage] = useState({ type: '', text: '' });
+    const [showSaveSuccess, setShowSaveSuccess] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [hospitalFilter, setHospitalFilter] = useState('');
     const [roleFilter, setRoleFilter] = useState('');
@@ -118,8 +119,8 @@ const UserPermissionManager = ({ hospitals = [] }) => {
         if (hospitals && hospitals.length === 1) setHospitalFilter(hospitals[0]._id);
     }, [hospitals]);
 
-    const loadAllStaff = async () => {
-        setLoading(true);
+    const loadAllStaff = async (showLoading = true) => {
+        if (showLoading) setLoading(true);
         try {
             const res = await adminAPI.getUsers();
             if (res.success) {
@@ -130,7 +131,7 @@ const UserPermissionManager = ({ hospitals = [] }) => {
                 setAllStaff(staff);
             }
         } catch (err) { console.error(err); }
-        finally { setLoading(false); }
+        finally { if (showLoading) setLoading(false); }
     };
 
     const openUser = (user) => {
@@ -159,8 +160,33 @@ const UserPermissionManager = ({ hospitals = [] }) => {
             const res = await adminAPI.updateUserPermissions(selectedUser.id || selectedUser._id, customPerms, deniedPerms);
             if (res.success) {
                 setMessage({ type: 'success', text: 'Permissions saved for ' + selectedUser.name });
-                await loadAllStaff();
-                setSelectedUser(prev => ({ ...prev, customPermissions: customPerms, deniedPermissions: deniedPerms, effectivePermissions: Array.from(new Set([...(prev.permissions || []), ...customPerms].filter(p => !deniedPerms.includes(p)))) }));
+                
+                // Update local staff list immediately to prevent any state mismatch or lag
+                const updatedUserId = selectedUser.id || selectedUser._id;
+                setAllStaff(prevStaff => prevStaff.map(u => {
+                    if (String(u.id || u._id) === String(updatedUserId)) {
+                        const rp = u.permissions || [];
+                        const effective = Array.from(new Set([...rp, ...customPerms].filter(p => !deniedPerms.includes(p))));
+                        return {
+                            ...u,
+                            customPermissions: customPerms,
+                            deniedPermissions: deniedPerms,
+                            effectivePermissions: effective
+                        };
+                    }
+                    return u;
+                }));
+
+                setSelectedUser(prev => ({
+                    ...prev,
+                    customPermissions: customPerms,
+                    deniedPermissions: deniedPerms,
+                    effectivePermissions: Array.from(new Set([...(prev.permissions || []), ...customPerms].filter(p => !deniedPerms.includes(p))))
+                }));
+                setShowSaveSuccess(true);
+                
+                // Refresh list in background silently
+                loadAllStaff(false);
             } else { setMessage({ type: 'error', text: res.message || 'Failed to save' }); }
         } catch (err) { setMessage({ type: 'error', text: err?.response?.data?.message || err.message }); }
         finally { setSaving(false); }
@@ -186,6 +212,16 @@ const UserPermissionManager = ({ hospitals = [] }) => {
         const isRolePerm = (selectedUser?.permissions || []).includes(key);
         const isDenied = deniedPerms.includes(key);
         const isCustomGranted = customPerms.includes(key);
+        if (isDenied) return 'denied';
+        if (isRolePerm) return 'role';
+        if (isCustomGranted) return 'custom';
+        return 'none';
+    };
+
+    const getOriginalPermStatus = (key) => {
+        const isRolePerm = (selectedUser?.permissions || []).includes(key);
+        const isDenied = (selectedUser?.deniedPermissions || []).includes(key);
+        const isCustomGranted = (selectedUser?.customPermissions || []).includes(key);
         if (isDenied) return 'denied';
         if (isRolePerm) return 'role';
         if (isCustomGranted) return 'custom';
@@ -277,6 +313,8 @@ const UserPermissionManager = ({ hospitals = [] }) => {
                     <div style={{ padding: '16px 18px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(268px,1fr))', gap: '12px' }}>
                         {currentWs?.items.map(item => {
                             const status = getPermStatus(item.key);
+                            const originalStatus = getOriginalPermStatus(item.key);
+                            const isDirty = status !== originalStatus;
                             const isGranted = status === 'role' || status === 'custom';
                             const isRole = status === 'role'; const isCustom = status === 'custom'; const isDenied = status === 'denied';
                             const cardBg = isGranted ? currentWs.bg : isDenied ? '#fff1f2' : 'white';
@@ -284,9 +322,17 @@ const UserPermissionManager = ({ hospitals = [] }) => {
                             const nameColor = isGranted ? currentWs.color : isDenied ? '#b91c1c' : '#1e293b';
                             return (
                                 <div key={item.key} onClick={() => togglePerm(item.key)} style={{ background: cardBg, border: `2px solid ${borderColor}`, borderRadius: '12px', padding: '14px', cursor: 'pointer', position: 'relative', userSelect: 'none', transition: 'box-shadow 0.15s' }} onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 14px rgba(0,0,0,0.1)'} onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}>
-                                    {isRole && <span style={{ position: 'absolute', top: '9px', right: '9px', background: '#6366f1', color: 'white', borderRadius: '5px', padding: '2px 6px', fontSize: '9px', fontWeight: 800 }}>ROLE</span>}
-                                    {isCustom && <span style={{ position: 'absolute', top: '9px', right: '9px', background: '#22c55e', color: 'white', borderRadius: '5px', padding: '2px 6px', fontSize: '9px', fontWeight: 800 }}>CUSTOM</span>}
-                                    {isDenied && <span style={{ position: 'absolute', top: '9px', right: '9px', background: '#ef4444', color: 'white', borderRadius: '5px', padding: '2px 6px', fontSize: '9px', fontWeight: 800 }}>REVOKED</span>}
+                                    {isDirty ? (
+                                        <span style={{ position: 'absolute', top: '9px', right: '9px', background: '#f59e0b', color: 'white', borderRadius: '5px', padding: '2px 6px', fontSize: '9px', fontWeight: 800 }}>
+                                            {isCustom ? 'UNSAVED CUSTOM' : isDenied ? 'UNSAVED REVOKE' : 'UNSAVED REMOVE'}
+                                        </span>
+                                    ) : (
+                                        <>
+                                            {isRole && <span style={{ position: 'absolute', top: '9px', right: '9px', background: '#6366f1', color: 'white', borderRadius: '5px', padding: '2px 6px', fontSize: '9px', fontWeight: 800 }}>ROLE</span>}
+                                            {isCustom && <span style={{ position: 'absolute', top: '9px', right: '9px', background: '#22c55e', color: 'white', borderRadius: '5px', padding: '2px 6px', fontSize: '9px', fontWeight: 800 }}>CUSTOM</span>}
+                                            {isDenied && <span style={{ position: 'absolute', top: '9px', right: '9px', background: '#ef4444', color: 'white', borderRadius: '5px', padding: '2px 6px', fontSize: '9px', fontWeight: 800 }}>REVOKED</span>}
+                                        </>
+                                    )}
                                     <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
                                         <div style={{ width: '20px', height: '20px', borderRadius: '50%', flexShrink: 0, marginTop: '2px', border: `2px solid ${isGranted ? currentWs.color : isDenied ? '#ef4444' : '#cbd5e1'}`, background: isGranted ? currentWs.color : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px' }}>
                                             {isGranted && <span style={{ color: 'white', lineHeight: 1 }}>✓</span>}
@@ -317,6 +363,73 @@ const UserPermissionManager = ({ hospitals = [] }) => {
                         })}
                     </div>
                 </div>
+                {/* ── Success Modal overlay inside detail view ── */}
+                {showSaveSuccess && (
+                    <div style={{
+                        position: 'fixed',
+                        inset: 0,
+                        background: 'rgba(15, 23, 42, 0.65)',
+                        backdropFilter: 'blur(8px)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        zIndex: 9999
+                    }} onClick={() => setShowSaveSuccess(false)}>
+                        <div style={{
+                            background: 'white',
+                            borderRadius: '24px',
+                            padding: '40px 36px',
+                            width: '90%',
+                            maxWidth: '380px',
+                            textAlign: 'center',
+                            boxShadow: '0 32px 64px rgba(0,0,0,0.25)',
+                            margin: 'auto',
+                            boxSizing: 'border-box'
+                        }} onClick={e => e.stopPropagation()}>
+                            <div style={{
+                                width: '76px',
+                                height: '76px',
+                                borderRadius: '50%',
+                                background: 'linear-gradient(135deg, #10b981, #059669)',
+                                color: 'white',
+                                fontSize: '36px',
+                                fontWeight: 900,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                margin: '0 auto 20px',
+                                boxShadow: '0 0 0 10px #ecfdf5, 0 8px 24px rgba(16, 185, 129, 0.35)'
+                            }}>✓</div>
+                            <h3 style={{ fontSize: '22px', fontWeight: 900, color: '#1e293b', margin: '0 0 10px', fontFamily: 'sans-serif' }}>Changes Saved!</h3>
+                            <p style={{ fontSize: '14px', color: '#64748b', margin: '0 0 28px', lineHeight: '1.5', fontFamily: 'sans-serif' }}>
+                                Permissions for <strong>{selectedUser?.name}</strong> have been updated successfully.
+                            </p>
+                            <button onClick={() => setShowSaveSuccess(false)} style={{
+                                width: '100%',
+                                padding: '13px',
+                                background: 'linear-gradient(135deg, #10b981, #059669)',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '12px',
+                                fontSize: '15px',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)',
+                                transition: 'all 0.2s',
+                                fontFamily: 'sans-serif'
+                            }}
+                            onMouseEnter={e => {
+                                e.currentTarget.style.transform = 'translateY(-2px)';
+                                e.currentTarget.style.boxShadow = '0 8px 20px rgba(16, 185, 129, 0.45)';
+                            }}
+                            onMouseLeave={e => {
+                                e.currentTarget.style.transform = 'none';
+                                e.currentTarget.style.boxShadow = '0 4px 14px rgba(16, 185, 129, 0.35)';
+                            }}
+                            >OK, Got it!</button>
+                        </div>
+                    </div>
+                )}
             </div>
         );
     }

@@ -64,13 +64,110 @@ const io = new Server(server, {
 
 app.set('io', io);
 
-io.on('connection', (socket) => {
-    console.log('New client connected', socket.id);
+const jwt = require('jsonwebtoken');
+const mongoose = require('mongoose');
+const Role = require('./src/models/role.model');
+const { JWT_SECRET } = require('./src/config/jwt');
 
-    // Clients can join a room based on their user ID or role to receive targeted events
+// Enforce JWT Handshake Authentication
+io.use(async (socket, next) => {
+    try {
+        let token = socket.handshake.auth?.token || socket.handshake.headers?.authorization;
+        if (token && token.startsWith('Bearer ')) {
+            token = token.split(' ')[1];
+        }
+        if (!token) {
+            token = socket.handshake.query?.token;
+        }
+
+        if (!token) {
+            return next(new Error('Authentication error: No token provided'));
+        }
+
+        const decoded = jwt.verify(token, JWT_SECRET);
+        socket.user = decoded;
+
+        // Resolve role name
+        if (decoded.roleId && mongoose.Types.ObjectId.isValid(decoded.roleId)) {
+            const role = await Role.findById(decoded.roleId).select('name').lean();
+            if (role) {
+                socket.user.roleName = role.name;
+            }
+        } else if (decoded.roleId) {
+            socket.user.roleName = decoded.roleId;
+        }
+
+        next();
+    } catch (err) {
+        return next(new Error('Authentication error: Invalid token'));
+    }
+});
+
+io.on('connection', (socket) => {
+    console.log('New authenticated client connected', socket.id, socket.user?.email);
+
+    // Enforce Tenant & Role Scoping on Room Joining
     socket.on('join', (room) => {
-        socket.join(room);
-        console.log(`Socket ${socket.id} joined room ${room}`);
+        if (!socket.user) {
+            console.warn(`Socket ${socket.id} attempted to join without user payload`);
+            return socket.emit('error_message', { message: 'Authentication required' });
+        }
+
+        const uId = socket.user.userId || socket.user.patientId;
+        const hId = socket.user.hospitalId || socket.user.clinicId;
+        const userRole = String(socket.user.roleName || socket.user.roleId || socket.user.sub || '').toLowerCase();
+        
+        let authorized = false;
+
+        // 1. Own personal user room
+        if (room === uId) {
+            authorized = true;
+        }
+        // 2. Platform / Central Admin override
+        else if (['centraladmin', 'superadmin'].includes(userRole)) {
+            authorized = true;
+        }
+        // 3. Hospital scope room (hospital_hospitalId)
+        else if (room === `hospital_${hId}`) {
+            authorized = true;
+        }
+        // 4. Role room (reception, pharmacist, lab, patient)
+        else if (['reception', 'receptionist', 'receptiondeskmanager', 'pharmacy', 'pharmacist', 'lab', 'laboratory', 'labtechnician', 'doctor', 'patient'].includes(room)) {
+            const matchReception = ['reception', 'receptionist', 'receptiondeskmanager'].includes(room) &&
+                ['reception', 'receptionist', 'receptiondeskmanager'].includes(userRole);
+            const matchPharmacy = ['pharmacy', 'pharmacist'].includes(room) &&
+                ['pharmacy', 'pharmacist'].includes(userRole);
+            const matchLab = ['lab', 'laboratory', 'labtechnician'].includes(room) &&
+                ['lab', 'laboratory', 'labtechnician'].includes(userRole);
+            const matchDocOrPatient = (room === 'doctor' && userRole.includes('doctor')) || (room === 'patient' && userRole === 'patient');
+
+            if (matchReception || matchPharmacy || matchLab || matchDocOrPatient) {
+                authorized = true;
+            }
+        }
+        // 5. Tenant-scoped Role room (hospital_hospitalId_role)
+        else if (room.startsWith(`hospital_${hId}_`)) {
+            const requestedRole = room.replace(`hospital_${hId}_`, '').toLowerCase();
+            const matchReception = ['reception', 'receptionist', 'receptiondeskmanager'].includes(requestedRole) &&
+                ['reception', 'receptionist', 'receptiondeskmanager'].includes(userRole);
+            const matchPharmacy = ['pharmacy', 'pharmacist'].includes(requestedRole) &&
+                ['pharmacy', 'pharmacist'].includes(userRole);
+            const matchLab = ['lab', 'laboratory', 'labtechnician'].includes(requestedRole) &&
+                ['lab', 'laboratory', 'labtechnician'].includes(userRole);
+            const matchDocOrPatient = (requestedRole === 'doctor' && userRole.includes('doctor')) || (requestedRole === 'patient' && userRole === 'patient');
+
+            if (matchReception || matchPharmacy || matchLab || matchDocOrPatient) {
+                authorized = true;
+            }
+        }
+
+        if (authorized) {
+            socket.join(room);
+            console.log(`Socket ${socket.id} authorized and joined room ${room}`);
+        } else {
+            console.warn(`Unauthorized room join attempt to "${room}" by ${socket.user.email} (${userRole})`);
+            socket.emit('error_message', { message: 'Unauthorized room access' });
+        }
     });
 
     socket.on('disconnect', () => {

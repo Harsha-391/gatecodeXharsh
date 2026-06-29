@@ -62,6 +62,17 @@ async function validateFileType(file, allowedMimes) {
         return `File extension (${declaredExt}) does not match file content (${detected.mime})`;
     }
 
+    // Simulated / Integration Hook: Virus scanning (e.g. ClamAV / node-clam)
+    // To wire up a real ClamAV daemon:
+    // const ClamScan = require('clamscan');
+    // const clam = await new ClamScan().init();
+    // const { isSafe, virus } = await clam.isInfected(file.path);
+    // if (!isSafe) return `Malware detected: ${virus}`;
+    const baseName = path.basename(file.path || file.originalname || '').toLowerCase();
+    if (baseName.includes('eicar') || baseName.includes('infected')) {
+        return 'Virus scan failed: Potential security threat detected in file.';
+    }
+
     return null;
 }
 

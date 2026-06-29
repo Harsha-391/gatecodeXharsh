@@ -208,8 +208,20 @@ router.post('/login', loginLimiter, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Email and password are required' });
     }
 
+    if (typeof email !== 'string' || typeof password !== 'string') {
+      return res.status(400).json({ success: false, message: 'Email and password must be valid strings' });
+    }
+
     const normalizedEmail = email.toLowerCase().trim();
     const user = await User.findOne({ email: normalizedEmail });
+
+    if (user && user.lockUntil && user.lockUntil > Date.now()) {
+      const remainingTime = Math.ceil((user.lockUntil.getTime() - Date.now()) / (60 * 1000));
+      return res.status(423).json({
+        success: false,
+        message: `Too many failed login attempts. Your account is temporarily locked. Try again in ${remainingTime} minute(s).`
+      });
+    }
 
     if (!user) {
       try {
@@ -333,6 +345,14 @@ router.post('/login', loginLimiter, async (req, res) => {
 
     const isPasswordValid = await user.comparePassword(password);
     if (!isPasswordValid) {
+      user.loginAttempts = (user.loginAttempts || 0) + 1;
+      let locked = false;
+      if (user.loginAttempts >= 5) {
+        user.lockUntil = new Date(Date.now() + 15 * 60 * 1000); // 15 mins lock
+        locked = true;
+      }
+      await user.save();
+
       try {
         const AuditLogModel = require('../models/auditLog.model');
         await AuditLogModel.create({
@@ -343,12 +363,22 @@ router.post('/login', loginLimiter, async (req, res) => {
             action: 'FAILED_LOGIN',
             severity: 'warning',
             success: false,
-            reason: 'Incorrect password',
+            reason: locked ? 'Incorrect password (account locked)' : 'Incorrect password',
             ip: req.ip || '',
             userAgent: req.headers['user-agent'] || ''
         });
       } catch (logErr) {}
-      return res.status(401).json({ success: false, message: 'Invalid email or password' });
+      
+      const errMsg = locked 
+        ? 'Too many failed login attempts. Your account has been temporarily locked. Try again in 15 minutes.'
+        : 'Invalid email or password';
+      return res.status(401).json({ success: false, message: errMsg });
+    }
+
+    if (user.loginAttempts > 0 || user.lockUntil) {
+      user.loginAttempts = 0;
+      user.lockUntil = undefined;
+      await user.save();
     }
 
     // STRICT HOSPITAL ROW-LEVEL SECURITY CHECK

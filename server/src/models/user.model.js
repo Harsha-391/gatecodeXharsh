@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+const { encrypt, decrypt } = require('../utils/encryption');
 
 const userSchema = new mongoose.Schema({
     name: { type: String, required: true },
@@ -36,7 +37,14 @@ const userSchema = new mongoose.Schema({
     city: String,
 
     // Identity Verification (KYC)
-    aadhaarNumber: { type: String, unique: true, sparse: true, trim: true },
+    aadhaarNumber: { 
+        type: String, 
+        unique: true, 
+        sparse: true, 
+        trim: true,
+        get: decrypt,
+        set: encrypt
+    },
     isAadhaarVerified: { type: Boolean, default: false },
 
     // Clinical Profile
@@ -77,7 +85,13 @@ const userSchema = new mongoose.Schema({
     tokenVersion: { type: Number, default: 0 },
     isActive: { type: Boolean, default: true },
     counterName: { type: String, default: 'Counter 1' },
-}, { timestamps: true });
+    loginAttempts: { type: Number, default: 0, required: true },
+    lockUntil: { type: Date },
+}, { 
+    timestamps: true,
+    toJSON: { getters: true },
+    toObject: { getters: true }
+});
 
 userSchema.index({ hospitalId: 1 });
 userSchema.index({ createdAt: 1 });

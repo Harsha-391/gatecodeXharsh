@@ -5,6 +5,8 @@ const path = require('path');
 const helmet = require('helmet');
 const mongoSanitize = require('express-mongo-sanitize');
 const hpp = require('hpp');
+const { v4: uuidv4 } = require('uuid');
+const { recordApiMetric, getPrometheusMetrics } = require('./utils/telemetry');
 
 const { generalLimiter } = require('./middleware/rateLimiter');
 
@@ -44,6 +46,71 @@ const mfaRoutes         = require('./routes/mfa.routes');
 
 const app = express();
 
+// Disable Express fingerprinting header
+app.disable('x-powered-by');
+
+// Observability Middleware: Request IDs & Structured Metrics
+app.use((req, res, next) => {
+    const reqId = req.headers['x-request-id'] || uuidv4();
+    req.id = reqId;
+    res.setHeader('x-request-id', reqId);
+
+    const start = Date.now();
+    res.on('finish', () => {
+        const duration = Date.now() - start;
+        if (!req.path.startsWith('/uploads') && req.path !== '/metrics' && req.path !== '/health') {
+            recordApiMetric(req.method, req.path, duration, res.statusCode);
+        }
+    });
+
+    next();
+});
+
+// Structured JSON Logging Middleware (Production only)
+app.use((req, res, next) => {
+    if (process.env.NODE_ENV === 'production') {
+        const start = Date.now();
+        res.on('finish', () => {
+            const logObj = {
+                timestamp: new Date().toISOString(),
+                requestId: req.id,
+                method: req.method,
+                path: req.originalUrl || req.path,
+                status: res.statusCode,
+                ip: req.ip || 'unknown',
+                userAgent: req.headers['user-agent'] || 'unknown',
+                latencyMs: Date.now() - start,
+                responseSize: res.getHeader('content-length') || 0
+            };
+            console.log(JSON.stringify(logObj));
+        });
+    }
+    next();
+});
+
+// API v1 Routing Alias Rewrite Middleware
+app.use((req, res, next) => {
+    if (req.url.startsWith('/api/v1/')) {
+        req.url = req.url.replace('/api/v1/', '/api/');
+    }
+    next();
+});
+
+// ── Slowloris DoS protection — Request and Response Timeout ─────────────────
+app.use((req, res, next) => {
+    req.setTimeout(30000, () => {
+        const err = new Error('Request Timeout');
+        err.status = 408;
+        next(err);
+    });
+    res.setTimeout(30000, () => {
+        const err = new Error('Service Timeout');
+        err.status = 503;
+        next(err);
+    });
+    next();
+});
+
 // ── Security headers ──────────────────────────────────────────────────────────
 app.use(helmet({
     crossOriginResourcePolicy: { policy: 'cross-origin' },
@@ -61,7 +128,15 @@ app.use(helmet({
         },
     },
     hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
+    referrerPolicy: { policy: 'no-referrer' },
+    frameguard: { action: 'deny' },
 }));
+
+// Apply Permissions-Policy header
+app.use((req, res, next) => {
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), interest-cohort=()');
+    next();
+});
 
 // ── CORS ──────────────────────────────────────────────────────────────────────
 const LOCALHOST_RE = /^https?:\/\/([a-z0-9-]+\.)?(localhost|127\.0\.0\.1)(:\d+)?$/i;
@@ -105,6 +180,32 @@ app.use(cors({
 // ── Body parsing (with size limits) ──────────────────────────────────────────
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: false, limit: '10mb' }));
+
+// ── Prototype Pollution Protection ───────────────────────────────────────────
+app.use((req, res, next) => {
+    let detected = false;
+    const sanitize = (obj) => {
+        if (!obj || typeof obj !== 'object') return;
+        for (const key in obj) {
+            if (Object.prototype.hasOwnProperty.call(obj, key)) {
+                if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+                    detected = true;
+                    delete obj[key];
+                } else if (typeof obj[key] === 'object') {
+                    sanitize(obj[key]);
+                }
+            }
+        }
+    };
+    sanitize(req.body);
+    sanitize(req.query);
+    sanitize(req.params);
+    if (detected) {
+        const { logSecurityEvent } = require('./utils/securityLogger');
+        logSecurityEvent('PROTOTYPE_POLLUTION_ATTEMPT', { details: 'Dangerous prototype key stripped from payload' }, req);
+    }
+    next();
+});
 
 // ── NoSQL injection protection — strip $ and . from req.body/params/query ────
 app.use(mongoSanitize());
@@ -155,6 +256,52 @@ app.use('/api/patient-app', patientAppRoutes);
 app.use('/api/patient-local', patientLocalRoutes);
 app.use('/api/mfa', mfaRoutes);
 
+// ── Health Check Endpoint ───────────────────────────────────────────────────
+app.get('/health', async (req, res) => {
+    try {
+        const mongoose = require('mongoose');
+        const dbState = mongoose.connection.readyState;
+        const dbStatus = dbState === 1 ? 'CONNECTED' : dbState === 2 ? 'CONNECTING' : 'DISCONNECTED';
+        
+        let activeTenants = 0;
+        try {
+            const { getActiveConnections } = require('./db/tenantDb');
+            if (getActiveConnections) {
+                const conns = getActiveConnections();
+                activeTenants = conns ? conns.length : 0;
+            }
+        } catch (_) {}
+
+        res.json({
+            status: 'UP',
+            timestamp: new Date().toISOString(),
+            environment: process.env.NODE_ENV || 'production',
+            uptime: process.uptime(),
+            database: {
+                status: dbStatus,
+                readyState: dbState
+            },
+            tenantPool: {
+                activeConnectionsCount: activeTenants
+            },
+            system: {
+                memoryUsage: process.memoryUsage(),
+                cpuUsage: process.cpuUsage(),
+                platform: process.platform,
+                nodeVersion: process.version
+            }
+        });
+    } catch (err) {
+        res.status(500).json({ status: 'DOWN', error: err.message });
+    }
+});
+
+// Prometheus Metrics Endpoint
+app.get('/metrics', (req, res) => {
+    res.set('Content-Type', 'text/plain; version=0.0.4; charset=utf-8');
+    res.send(getPrometheusMetrics());
+});
+
 app.get('/', (req, res) => {
     res.send('API is running...');
 });
@@ -163,9 +310,21 @@ app.get('/', (req, res) => {
 app.use((err, req, res, next) => {
     console.error(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl} —`, err.stack || err.message);
     const status = err.status || err.statusCode || 500;
+    
+    let clientMessage = err.message || 'Request failed';
+    if (status === 500) {
+        clientMessage = 'An unexpected error occurred. Please try again.';
+    } else {
+        const dbKeywords = ['mongodb', 'mongoose', 'mongo', 'find', 'connect', 'connection', 'schema', 'collection', 'database', 'replica', 'cluster'];
+        const isDbError = dbKeywords.some(kw => clientMessage.toLowerCase().includes(kw));
+        if (isDbError) {
+            clientMessage = 'A database error occurred. Please contact support.';
+        }
+    }
+
     res.status(status).json({
         success: false,
-        message: status === 500 ? 'An unexpected error occurred. Please try again.' : (err.message || 'Request failed'),
+        message: clientMessage,
     });
 });
 

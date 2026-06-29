@@ -23,6 +23,7 @@ const { getTenantModels } = require('../db/tenantModels');
 const { JWT_SECRET } = require('../config/jwt');
 const auditLog = require('../middleware/audit.middleware');
 const validatePassword = require('../utils/validatePassword');
+const { hospitalCreationLimiter } = require('../middleware/rateLimiter');
 
 const getModels = (req) => {
     if (req.tenantDb) {
@@ -268,7 +269,7 @@ async function seedDefaultRolesForHospital(hospitalId) {
 }
 
 // Create a new hospital
-router.post('/', verifyCentralAdmin, auditLog('HOSPITAL_UPDATE', null, { severity: 'warning', dataCategory: 'Administrative' }), async (req, res) => {
+router.post('/', hospitalCreationLimiter, verifyCentralAdmin, auditLog('HOSPITAL_UPDATE', null, { severity: 'warning', dataCategory: 'Administrative' }), async (req, res) => {
     try {
         const { name, address, city, state, phone, email, website, logo, departments, appointmentFee, slug: customSlug } = req.body;
         if (!name) return res.status(400).json({ success: false, message: 'Hospital name is required' });

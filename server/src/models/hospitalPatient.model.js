@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { encrypt, decrypt } = require('../utils/encryption');
 
 const hospitalPatientSchema = new mongoose.Schema({
     hospitalId: {
@@ -33,8 +34,20 @@ const hospitalPatientSchema = new mongoose.Schema({
     medicalNotes:      { type: String, default: '' },
 
     // Identity Verification (KYC)
-    aadhaarNumber:     { type: String, trim: true },
+    aadhaarNumber: { 
+        type: String, 
+        trim: true,
+        get: decrypt,
+        set: encrypt
+    },
     isAadhaarVerified: { type: Boolean, default: false },
+
+    // Additional PII/KYC Data (Encrypted)
+    panNumber:      { type: String, trim: true, get: decrypt, set: encrypt },
+    passportNumber: { type: String, trim: true, get: decrypt, set: encrypt },
+    bankAccount:    { type: String, trim: true, get: decrypt, set: encrypt },
+    salary:         { type: String, trim: true, get: decrypt, set: encrypt },
+    upiId:          { type: String, trim: true, get: decrypt, set: encrypt },
 
     // Clinical / IVF Profile
     patientType:      { type: String, enum: ['Primary', 'Partner'], default: 'Primary' },
@@ -57,7 +70,11 @@ const hospitalPatientSchema = new mongoose.Schema({
     }],
 
     isActive: { type: Boolean, default: true },
-}, { timestamps: true });
+}, { 
+    timestamps: true,
+    toJSON: { getters: true },
+    toObject: { getters: true }
+});
 
 // patientId unique per hospital
 hospitalPatientSchema.index({ hospitalId: 1, patientId: 1 }, { unique: true });
