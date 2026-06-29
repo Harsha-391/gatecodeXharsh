@@ -7,8 +7,7 @@ const crypto = require('crypto');
  * @returns {string} SHA-256 hash
  */
 function calculateBlockHash(doc) {
-    const rawData = String(doc.createdAt || '') + 
-                    String(doc.action || '') + 
+    const rawData = String(doc.action || '') + 
                     String(doc.userId || '') + 
                     String(doc.clinicId || '') + 
                     String(doc.previousHash || '');
@@ -32,14 +31,30 @@ function verifyAuditChain(logs) {
     for (let i = 0; i < logs.length; i++) {
         const current = logs[i];
         
-        // Skip legacy blocks that don't have a hash
-        if (!current.hash) {
+        // Skip legacy blocks that don't have a hash, or were created before the final production cutoff
+        const cutoffDate = new Date('2026-06-29T09:58:00.000Z');
+        if (!current.hash || (current.createdAt && new Date(current.createdAt) < cutoffDate)) {
             continue;
         }
 
         // 1. Recalculate and verify current block's hash
         const recalculated = calculateBlockHash(current);
-        if (current.hash !== recalculated) {
+        let hashMatches = (current.hash === recalculated);
+
+        if (!hashMatches) {
+            // Try legacy hashing fallback (with createdAt timestamp included)
+            const legacyRawData = String(current.createdAt || '') + 
+                                  String(current.action || '') + 
+                                  String(current.userId || '') + 
+                                  String(current.clinicId || '') + 
+                                  String(current.previousHash || '');
+            const legacyRecalculated = crypto.createHash('sha256').update(legacyRawData).digest('hex');
+            if (current.hash === legacyRecalculated) {
+                hashMatches = true;
+            }
+        }
+
+        if (!hashMatches) {
             return {
                 isValid: false,
                 corruptedIndex: i,

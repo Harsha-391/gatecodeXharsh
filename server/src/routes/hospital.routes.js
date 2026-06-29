@@ -1231,24 +1231,26 @@ router.get('/:id/stats', verifyHospitalAdmin, async (req, res) => {
             ...dateFilter
         });
 
-        // 7. Revenue — from paid appointments
-        // Case insensitive match for 'paid' and include 'Pending' if amount is collected, or just verify amount > 0.
-        // Receptionist might just set paymentStatus to 'Paid' or 'paid'
-        const revenueData = await Appointment.aggregate([
-            {
-                $match: {
-                    $and: [
-                        appointmentMatch,
-                        {
-                            $or: [
-                                { paymentStatus: { $regex: /^paid$/i } },
-                                { amount: { $gt: 0 } }
-                            ]
-                        }
-                    ],
-                    ...(startDate || endDate ? { appointmentDate: dateFilter.appointmentDate } : {})
-                }
-            },
+        // 7. Revenue — from all cash collections (Appointments, Pharmacy, Labs)
+        let CollectionTransaction = null;
+        try {
+            if (tenantDb) {
+                CollectionTransaction = getTenantModels(tenantDb).CollectionTransaction;
+            }
+        } catch (_) {}
+        if (!CollectionTransaction) CollectionTransaction = require('../models/collectionTransaction.model');
+
+        const txMatch = {
+            hospitalId: new mongoose.Types.ObjectId(hospitalId)
+        };
+        if (startDate || endDate) {
+            txMatch.collectionTimestamp = {};
+            if (startDate) txMatch.collectionTimestamp.$gte = new Date(startDate);
+            if (endDate) txMatch.collectionTimestamp.$lte = new Date(endDate);
+        }
+
+        const revenueData = await CollectionTransaction.aggregate([
+            { $match: txMatch },
             {
                 $group: {
                     _id: null,
@@ -1262,26 +1264,18 @@ router.get('/:id/stats', verifyHospitalAdmin, async (req, res) => {
         const sixMonthsAgo = new Date();
         sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
 
-        const monthlyRevenue = await Appointment.aggregate([
+        const monthlyRevenue = await CollectionTransaction.aggregate([
             {
                 $match: {
-                    $and: [
-                        appointmentMatch,
-                        {
-                            $or: [
-                                { paymentStatus: { $regex: /^paid$/i } },
-                                { amount: { $gt: 0 } }
-                            ]
-                        }
-                    ],
-                    appointmentDate: { $gte: sixMonthsAgo }
+                    hospitalId: new mongoose.Types.ObjectId(hospitalId),
+                    collectionTimestamp: { $gte: sixMonthsAgo }
                 }
             },
             {
                 $group: {
                     _id: {
-                        year: { $year: '$appointmentDate' },
-                        month: { $month: '$appointmentDate' }
+                        year: { $year: '$collectionTimestamp' },
+                        month: { $month: '$collectionTimestamp' }
                     },
                     revenue: { $sum: '$amount' },
                     count: { $sum: 1 }
