@@ -1234,6 +1234,7 @@ router.get('/:id/stats', verifyHospitalAdmin, async (req, res) => {
         // 7. Revenue — from all cash collections (Appointments, Pharmacy, Labs)
         let CollectionTransaction = null;
         try {
+            const tenantDb = await getTenantConnection(String(hospitalId));
             if (tenantDb) {
                 CollectionTransaction = getTenantModels(tenantDb).CollectionTransaction;
             }
