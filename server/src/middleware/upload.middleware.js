@@ -37,7 +37,7 @@ const upload = multer({
  */
 const verifyUploadedFile = async (req, res, next) => {
     if (!req.file) return next();
-    const err = await validateFileType(req.file, ALLOWED_MIMES);
+    const err = await validateFileType(req.file, ALLOWED_MIMES, req);
     if (err) {
         try { fs.unlinkSync(req.file.path); } catch (_) {}
         return res.status(400).json({ success: false, message: err });

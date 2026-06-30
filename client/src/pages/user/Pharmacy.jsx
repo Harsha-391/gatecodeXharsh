@@ -54,7 +54,16 @@ const Pharmacy = () => {
     try {
       setIsLoading(true);
       // Try to fetch from API first
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://hms-h939.onrender.com'}/api/pharmacy/my-orders`, {
+      const getApiBase = () => {
+        if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
+        if (typeof window !== 'undefined') {
+            const hn = window.location.hostname;
+            if (hn === 'localhost' || hn.endsWith('.localhost')) return '';
+        }
+        return 'https://hms-h939.onrender.com';
+      };
+      const BASE = getApiBase();
+      const response = await fetch(`${BASE}/api/pharmacy/my-orders`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`

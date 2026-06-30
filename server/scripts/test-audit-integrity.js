@@ -32,8 +32,10 @@ async function runAuditIntegrityTest() {
 
         // Fetch a patient ID from Hospital's tenant DB
         const { getTenantModels } = require('../src/db/tenantModels');
+        const { getTenantDbName } = require('../src/db/tenantDb');
         const baseUri = mongoUrl.substring(0, mongoUrl.lastIndexOf('/'));
-        const conn = await mongoose.createConnection(`${baseUri}/hms_hospital_${hospital._id}?retryWrites=true&w=majority`).asPromise();
+        const dbName = getTenantDbName(hospital._id.toString(), hospital.tenantKey || `${hospital.originalSubdomain || hospital.slug}-${hospital._id}`);
+        const conn = await mongoose.createConnection(`${baseUri}/${dbName}?retryWrites=true&w=majority`).asPromise();
         const tenantModels = getTenantModels(conn);
         
         let testPatient = await tenantModels.User.findOne({ role: 'patient' });

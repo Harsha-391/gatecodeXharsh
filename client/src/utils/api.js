@@ -1,7 +1,17 @@
 import axios from 'axios';
 
 // Base URL from Environment (Vercel / Local)
-const baseURL = import.meta.env.VITE_API_URL || 'https://hms-h939.onrender.com';
+const getBaseURL = () => {
+    if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
+    if (typeof window !== 'undefined') {
+        const hostname = window.location.hostname;
+        if (hostname === 'localhost' || hostname.endsWith('.localhost')) {
+            return ''; // Use relative path to leverage Vite's proxy (extremely fast)
+        }
+    }
+    return 'https://hms-h939.onrender.com';
+};
+const baseURL = getBaseURL();
 
 const apiClient = axios.create({
     baseURL: baseURL,
@@ -279,6 +289,10 @@ export const receptionAPI = {
         const response = await apiClient.patch(`/api/reception/appointments/${id}/cancel`);
         return response.data;
     },
+    markNoShow: async (id) => {
+        const response = await apiClient.patch(`/api/reception/appointments/${id}/no-show`);
+        return response.data;
+    },
     confirmPayment: async (id, paymentMethod, amount) => {
         const response = await apiClient.patch(`/api/reception/appointments/${id}/confirm-payment`, { paymentMethod, amount });
         return response.data;
@@ -346,6 +360,7 @@ export const administratorAPI = {
     getAnalytics: async () => (await apiClient.get('/api/administrator/analytics')).data,
     getAuditLogs: async (params = {}) => (await apiClient.get('/api/administrator/audit-logs', { params })).data,
     getAuditLogSessionDuration: async (sessionId) => (await apiClient.get(`/api/administrator/audit-logs/session-duration/${sessionId}`)).data,
+    getActiveSessions: async () => (await apiClient.get('/api/administrator/audit-logs/active-sessions')).data,
     getExpenses: async () => (await apiClient.get('/api/administrator/expenses')).data,
     createExpense: async (data) => (await apiClient.post('/api/administrator/expenses', data)).data,
     deleteExpense: async (id) => (await apiClient.delete(`/api/administrator/expenses/${id}`)).data,

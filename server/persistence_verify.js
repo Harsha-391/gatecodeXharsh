@@ -30,7 +30,8 @@ async function runVerification() {
         }
 
         const hospitalId = hospital._id.toString();
-        const tenantDbName = `hms_hospital_${hospitalId}`;
+        const { getTenantDbName } = require('./src/db/tenantDb');
+        const tenantDbName = getTenantDbName(hospitalId, hospital.tenantKey || `${hospital.originalSubdomain || hospital.slug}-${hospital._id}`);
         console.log(`--- DATABASE CONFIGURATION ---`);
         console.log(`Master DB Name: HSM`);
         console.log(`Active Hospital ID: ${hospitalId}`);

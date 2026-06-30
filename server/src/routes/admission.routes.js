@@ -4,6 +4,7 @@ const { verifyToken } = require('../middleware/auth.middleware');
 const { resolveTenant } = require('../middleware/tenantMiddleware');
 const MasterAdmission = require('../models/admission.model');
 const { getTenantModels } = require('../db/tenantModels');
+const auditLog = require('../middleware/audit.middleware');
 
 // Admission access: reception, accountant, admin
 const verifyAdmissionAccess = async (req, res, next) => {
@@ -55,7 +56,11 @@ router.get('/beds-rooms', verifyAdmissionAccess, async (req, res) => {
 });
 
 // POST /api/admissions — Admit a patient (receptionist)
-router.post('/', verifyAdmissionAccess, async (req, res) => {
+router.post('/', verifyAdmissionAccess, auditLog('ADMISSION_CREATED', (req, body) => ({
+    model: 'Admission',
+    id: body.admission?._id,
+    label: `Patient Admitted: ${body.admission?.patientName || ''}`
+}), { dataCategory: 'PHI', severity: 'info' }), async (req, res) => {
     try {
         const { patientId, appointmentId, ward, bedNumber, selectedFacilities = [], admissionDate, notes, patientName, patientPhone, requestedDepartment, priority } = req.body;
         if (!patientId) return res.status(400).json({ success: false, message: 'patientId is required' });
@@ -186,7 +191,20 @@ router.get('/patient/:patientId', verifyAdmissionAccess, async (req, res) => {
 });
 
 // PUT /api/admissions/:id — Update ward, bed, notes, admissionDate
-router.put('/:id', verifyAdmissionAccess, async (req, res) => {
+router.put('/:id', verifyAdmissionAccess, auditLog((req) => (req.body.ward || req.body.bedNumber ? 'BED_CHANGED' : 'UPDATE'), (req, body) => ({
+    model: 'Admission',
+    id: req.params.id,
+    label: `Admission updated: ${body.admission?.patientName || ''}`,
+    before: req.oldAdmission || null,
+    after: body.admission || null
+}), { dataCategory: 'PHI', severity: 'warning' }), async (req, res, next) => {
+    try {
+        const Admission = getAdmission(req);
+        const adm = await Admission.findById(req.params.id).lean();
+        if (adm) req.oldAdmission = adm;
+    } catch (_) {}
+    next();
+}, async (req, res) => {
     try {
         const { ward, bedNumber, notes, admissionDate } = req.body;
         const Admission = getAdmission(req);
@@ -256,7 +274,20 @@ router.put('/:id', verifyAdmissionAccess, async (req, res) => {
 });
 
 // PUT /api/admissions/:id/discharge — Discharge a patient
-router.put('/:id/discharge', verifyAdmissionAccess, async (req, res) => {
+router.put('/:id/discharge', verifyAdmissionAccess, auditLog('DISCHARGE_COMPLETED', (req, body) => ({
+    model: 'Admission',
+    id: req.params.id,
+    label: `Patient Discharged: ${body.admission?.patientName || ''}`,
+    before: req.oldAdmissionDischarge || null,
+    after: body.admission || null
+}), { dataCategory: 'PHI', severity: 'warning' }), async (req, res, next) => {
+    try {
+        const Admission = getAdmission(req);
+        const adm = await Admission.findById(req.params.id).lean();
+        if (adm) req.oldAdmissionDischarge = adm;
+    } catch (_) {}
+    next();
+}, async (req, res) => {
     try {
         const { dischargeDate, notes, overrideDues } = req.body;
         const Admission = getAdmission(req);

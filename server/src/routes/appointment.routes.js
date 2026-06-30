@@ -177,8 +177,48 @@ router.patch('/reception/cancel/:id', verifyToken, resolveTenant, auditLog('CANC
     }
 });
 
-// ==========================================
-// 2. GENERAL APPOINTMENT ROUTES
+// Mark Appointment as No-Show
+router.patch('/reception/no-show/:id', verifyToken, resolveTenant, auditLog('NO_SHOW_APPOINTMENT', (req) => ({ model: 'Appointment', id: req.params.id, label: 'Appointment marked as no-show' })), async (req, res) => {
+    try {
+        if (!checkAccess(req.user, ['reception', 'admin', 'hospitaladmin'], 'appointment_manage')) {
+            return res.status(403).json({ success: false, message: 'Access denied' });
+        }
+        const { Appointment } = getModels(req);
+        const appointment = await Appointment.findById(req.params.id);
+        if (!appointment) return res.status(404).json({ success: false, message: 'Appointment not found' });
+
+        if (['completed', 'Admitted', 'cancelled'].includes(appointment.status)) {
+            return res.status(400).json({ success: false, message: `Cannot mark a ${appointment.status} appointment as no-show.` });
+        }
+
+        appointment.status = 'no-show';
+        await appointment.save();
+
+        const io = req.app.get('io');
+        if (io) {
+            const hId = appointment.hospitalId || req.user.hospitalId;
+            const docIdStr = appointment.doctorId ? appointment.doctorId.toString() : '';
+            const docUserIdStr = appointment.doctorUserId ? appointment.doctorUserId.toString() : '';
+            io.to('receptionist').to('reception').emit('appointment_updated', appointment);
+            if (docIdStr) io.to(docIdStr).emit('appointment_updated', appointment);
+            if (docUserIdStr) io.to(docUserIdStr).emit('appointment_updated', appointment);
+            io.to('doctor').emit('appointment_updated', appointment);
+            if (hId) {
+                const hospRoom = `hospital_${hId}`;
+                io.to(hospRoom).emit('appointment_updated', appointment);
+                io.to(`${hospRoom}_receptionist`).to(`${hospRoom}_reception`).emit('appointment_updated', appointment);
+                if (docIdStr) io.to(`${hospRoom}_${docIdStr}`).emit('appointment_updated', appointment);
+                if (docUserIdStr) io.to(`${hospRoom}_${docUserIdStr}`).emit('appointment_updated', appointment);
+                io.to(`${hospRoom}_doctor`).emit('appointment_updated', appointment);
+            }
+        }
+
+        res.json({ success: true, message: 'Appointment marked as no-show', appointment });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Error marking appointment as no-show' });
+    }
+});
+
 // ==========================================
 
 // Create Appointment — saved to tenant DB

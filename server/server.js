@@ -197,6 +197,10 @@ server.listen(PORT, () => {
             tunnelClient.setApp(app);
             tunnelClient.connect();
         }
+
+        // Start nightly no-show auto-expiry job (runs at 23:30 every day, all modes)
+        const { scheduleNoShowJob } = require('./src/jobs/noShowAutoExpiry.job');
+        scheduleNoShowJob();
     }, 3000);
 });
 // Trigger Restart 7

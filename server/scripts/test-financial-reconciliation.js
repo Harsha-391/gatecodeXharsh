@@ -20,8 +20,10 @@ async function runFinancialReconciliation() {
         const adminUser = await User.findOne({ hospitalId: hospital._id, role: 'hospitaladmin' });
 
         const { getTenantModels } = require('../src/db/tenantModels');
+        const { getTenantDbName } = require('../src/db/tenantDb');
         const baseUri = mongoUrl.substring(0, mongoUrl.lastIndexOf('/'));
-        const conn = await mongoose.createConnection(`${baseUri}/hms_hospital_${hospital._id}?retryWrites=true&w=majority`).asPromise();
+        const dbName = getTenantDbName(hospital._id.toString(), hospital.tenantKey || `${hospital.originalSubdomain || hospital.slug}-${hospital._id}`);
+        const conn = await mongoose.createConnection(`${baseUri}/${dbName}?retryWrites=true&w=majority`).asPromise();
         const models = getTenantModels(conn);
         await Promise.all(Object.values(models).map(m => m.ensureIndexes()));
 

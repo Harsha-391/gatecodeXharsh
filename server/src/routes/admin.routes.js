@@ -167,7 +167,7 @@ router.get('/roles', verifyToken, async (req, res) => {
 });
 
 // Create a New Role (scoped to hospital)
-router.post('/roles', verifyAdminOrSuperAdmin, auditLog('ROLE_CHANGE', null, { severity: 'warning', dataCategory: 'Administrative' }), async (req, res) => {
+router.post('/roles', verifyAdminOrSuperAdmin, auditLog('ROLE_CREATED', null, { severity: 'warning', dataCategory: 'Administrative' }), async (req, res) => {
     try {
         const { name, permissions, description, dashboardPath, navLinks } = req.body;
         if (!name) return res.status(400).json({ success: false, message: 'Role name is required' });
@@ -202,7 +202,7 @@ router.post('/roles', verifyAdminOrSuperAdmin, auditLog('ROLE_CHANGE', null, { s
 });
 
 // Update an Existing Role
-router.put('/roles/:roleId', verifyAdminOrSuperAdmin, auditLog('ROLE_CHANGE', (req) => ({ model: 'Role', id: req.params.roleId, label: 'Role updated' }), { severity: 'warning', dataCategory: 'Administrative' }), async (req, res) => {
+router.put('/roles/:roleId', verifyAdminOrSuperAdmin, auditLog('ROLE_UPDATED', (req) => ({ model: 'Role', id: req.params.roleId, label: 'Role updated' }), { severity: 'warning', dataCategory: 'Administrative' }), async (req, res) => {
     try {
         const { roleId } = req.params;
         const { name, permissions, description, dashboardPath, navLinks } = req.body;
@@ -238,7 +238,7 @@ router.put('/roles/:roleId', verifyAdminOrSuperAdmin, auditLog('ROLE_CHANGE', (r
 });
 
 // Delete a Role
-router.delete('/roles/:roleId', verifyAdminOrSuperAdmin, auditLog('ROLE_CHANGE', (req) => ({ model: 'Role', id: req.params.roleId, label: 'Role deleted' }), { severity: 'critical', dataCategory: 'Administrative' }), async (req, res) => {
+router.delete('/roles/:roleId', verifyAdminOrSuperAdmin, auditLog('ROLE_DELETED', (req) => ({ model: 'Role', id: req.params.roleId, label: 'Role deleted' }), { severity: 'critical', dataCategory: 'Administrative' }), async (req, res) => {
     try {
         const { roleId } = req.params;
         const roleDoc = await Role.findById(roleId);
@@ -990,7 +990,7 @@ const KNOWN_PERMISSIONS = [
  * Only Super Admin / Central Admin can call this.
  * Permissions remain scoped to the user's hospital.
  */
-router.put('/users/:userId/permissions', verifyToken, verifyAdminOrSuperAdmin, auditLog('PERMISSION_CHANGE', (req) => ({ model: 'User', id: req.params.userId, label: 'Custom permissions updated' }), { severity: 'critical', dataCategory: 'Administrative' }), async (req, res) => {
+router.put('/users/:userId/permissions', verifyToken, verifyAdminOrSuperAdmin, auditLog('PERMISSION_GRANTED', (req) => ({ model: 'User', id: req.params.userId, label: 'Custom permissions updated' }), { severity: 'critical', dataCategory: 'Administrative' }), async (req, res) => {
     try {
         const { userId } = req.params;
         const { customPermissions, deniedPermissions } = req.body;
@@ -1114,11 +1114,10 @@ router.get('/dashboard-stats', verifyToken, verifyAdminOrSuperAdmin, resolveTena
         // 4. Count patients
         const totalPatients = await PatientModel.countDocuments({ hospitalId });
 
-        // 5. Today's Appointments & Revenue
-        const todayStart = new Date();
-        todayStart.setUTCHours(0, 0, 0, 0);
-        const tomorrowStart = new Date(todayStart);
-        tomorrowStart.setUTCDate(tomorrowStart.getUTCDate() + 1);
+        // 5. Today's Appointments
+        const todayStr = new Date().toDateString();
+        const todayStart = new Date(); todayStart.setUTCHours(0, 0, 0, 0);
+        const tomorrowStart = new Date(todayStart); tomorrowStart.setUTCDate(tomorrowStart.getUTCDate() + 1);
 
         const todayApts = await AppointmentModel.find({
             hospitalId,
@@ -1127,9 +1126,19 @@ router.get('/dashboard-stats', verifyToken, verifyAdminOrSuperAdmin, resolveTena
 
         const todayAppointments = todayApts.length;
         const pendingPayments = todayApts.filter(a => (a.paymentStatus || '').toLowerCase() !== 'paid').length;
-        const todayRevenue = todayApts
-            .filter(a => a.status === 'completed' || (a.paymentStatus || '').toLowerCase() === 'paid')
-            .reduce((sum, a) => sum + (Number(a.amount) || 0), 0);
+
+        // 6. Today's Revenue — from CollectionTransaction (same source as billing/accountant dashboard)
+        let CollectionTransactionModel = require('../models/collectionTransaction.model');
+        if (req.tenantDb) {
+            const { getTenantModels } = require('../db/tenantModels');
+            CollectionTransactionModel = getTenantModels(req.tenantDb).CollectionTransaction;
+        }
+        const allTransactions = await CollectionTransactionModel.find({ hospitalId }).lean();
+        let todayRevenue = 0;
+        allTransactions.forEach(t => {
+            const payDate = new Date(t.collectionTimestamp);
+            if (payDate.toDateString() === todayStr) todayRevenue += t.amount || 0;
+        });
 
         res.json({
             success: true,

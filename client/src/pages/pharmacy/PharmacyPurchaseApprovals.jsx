@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { pharmacyAPI, administratorAPI } from '../../utils/api';
 import { useAuth } from '../../store/hooks';
 import {
-    FiRefreshCw, FiSearch, FiFilter, FiCheckCircle, FiXCircle,
+    FiRefreshCw, FiSearch, FiFilter, FiXCircle,
     FiClock, FiPackage, FiChevronDown, FiCalendar, FiUser,
     FiAlertTriangle, FiTrendingUp, FiBox
 } from 'react-icons/fi';
@@ -11,7 +11,6 @@ import './PharmacyPurchaseApprovals.css';
 const statusConfig = {
     'Approval Pending': { cls: 'status-pending', icon: <FiClock />, label: 'Pending' },
     'Ordered':          { cls: 'status-ordered',  icon: <FiPackage />, label: 'Ordered' },
-    'Approved':         { cls: 'status-approved', icon: <FiCheckCircle />, label: 'Approved' },
     'Rejected':         { cls: 'status-rejected', icon: <FiXCircle />, label: 'Rejected' },
 };
 
@@ -29,7 +28,7 @@ const PharmacyPurchaseApprovals = () => {
     const [showFilterMenu, setShowFilterMenu] = useState(false);
 
     // KPI counts
-    const [kpis, setKpis] = useState({ pending: 0, ordered: 0, approved: 0, rejected: 0 });
+    const [kpis, setKpis] = useState({ pending: 0, ordered: 0, rejected: 0 });
 
     const fetchRequests = useCallback(async () => {
         setLoading(true);
@@ -54,7 +53,6 @@ const PharmacyPurchaseApprovals = () => {
             setKpis({
                 pending:  data.filter(r => r.status === 'Approval Pending').length,
                 ordered:  data.filter(r => r.status === 'Ordered').length,
-                approved: data.filter(r => r.status === 'Approved').length,
                 rejected: data.filter(r => r.status === 'Rejected').length,
             });
         } catch (err) {
@@ -138,14 +136,6 @@ const PharmacyPurchaseApprovals = () => {
                         <span className="kpi-lbl">Ordered</span>
                     </div>
                 </div>
-                <div className={`ppa-kpi-card approved ${statusFilter === 'Approved' ? 'kpi-active' : ''}`}
-                    onClick={() => setStatusFilter(statusFilter === 'Approved' ? 'all' : 'Approved')}>
-                    <div className="kpi-icon"><FiCheckCircle /></div>
-                    <div className="kpi-body">
-                        <span className="kpi-num">{kpis.approved}</span>
-                        <span className="kpi-lbl">Approved</span>
-                    </div>
-                </div>
                 <div className={`ppa-kpi-card rejected ${statusFilter === 'Rejected' ? 'kpi-active' : ''}`}
                     onClick={() => setStatusFilter(statusFilter === 'Rejected' ? 'all' : 'Rejected')}>
                     <div className="kpi-icon"><FiXCircle /></div>
@@ -175,7 +165,7 @@ const PharmacyPurchaseApprovals = () => {
                     </button>
                     {showFilterMenu && (
                         <div className="ppa-filter-dropdown">
-                            {['all', 'Approval Pending', 'Ordered', 'Approved', 'Rejected'].map(s => (
+                            {['all', 'Approval Pending', 'Ordered', 'Rejected'].map(s => (
                                 <div
                                     key={s}
                                     className={`ppa-filter-option ${statusFilter === s ? 'active' : ''}`}

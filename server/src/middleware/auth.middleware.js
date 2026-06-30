@@ -2,7 +2,7 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/user.model');
 const Role = require('../models/role.model');
 const TokenBlacklist = require('../models/tokenBlacklist.model');
-
+const { parseUserAgent } = require('../utils/userAgentParser');
 const { JWT_SECRET } = require('../config/jwt');
 
 /**
@@ -116,6 +116,31 @@ exports.verifyToken = async (req, res, next) => {
 
         next();
     } catch (error) {
+        try {
+            const AuditLog = require('../models/auditLog.model');
+            const mongoose = require('mongoose');
+            const ua = req.headers['user-agent'] || '';
+            const parsed = parseUserAgent(ua);
+            await AuditLog.create({
+                clinicId: new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
+                userId: null,
+                userName: 'Anonymous',
+                userEmail: '',
+                role: 'None',
+                action: 'JWT_FAILURE',
+                severity: 'critical',
+                dataCategory: 'System',
+                requestMethod: req.method,
+                requestPath: req.originalUrl || req.path,
+                ip: req.ip || '',
+                userAgent: ua,
+                browser: parsed.browser,
+                os: parsed.os,
+                device: parsed.device,
+                success: false,
+                reason: `JWT verification failed: ${error.message}`
+            });
+        } catch (_) {}
         return res.status(401).json({ success: false, message: 'Invalid token' });
     }
 };
@@ -152,19 +177,24 @@ exports.requirePermission = (...requiredPermissions) => {
                 try {
                     const AuditLog = require('../models/auditLog.model');
                     const mongoose = require('mongoose');
+                    const ua = req.headers['user-agent'] || '';
+                    const parsed = parseUserAgent(ua);
                     await AuditLog.create({
                         clinicId: req.user.hospitalId || req.hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
                         userId: req.user._id,
                         userName: req.user.name || req.user.email || 'Unknown',
                         userEmail: req.user.email || '',
                         role: req.user._roleData?.name || String(req.user.role || ''),
-                        action: 'ACCESS_DENIED',
+                        action: 'UNAUTHORIZED_ACCESS',
                         severity: 'critical',
                         dataCategory: 'System',
                         requestMethod: req.method,
                         requestPath: req.originalUrl || req.path,
                         ip: req.ip || '',
-                        userAgent: req.headers['user-agent'] || '',
+                        userAgent: ua,
+                        browser: parsed.browser,
+                        os: parsed.os,
+                        device: parsed.device,
                         success: false,
                         reason: `Access denied. Required permission: ${requiredPermissions.join(' or ')}`
                     });
@@ -196,19 +226,24 @@ exports.verifySuperAdmin = async (req, res, next) => {
                 try {
                     const AuditLog = require('../models/auditLog.model');
                     const mongoose = require('mongoose');
+                    const ua = req.headers['user-agent'] || '';
+                    const parsed = parseUserAgent(ua);
                     await AuditLog.create({
                         clinicId: req.user.hospitalId || req.hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
                         userId: req.user._id,
                         userName: req.user.name || req.user.email || 'Unknown',
                         userEmail: req.user.email || '',
                         role: req.user._roleData?.name || String(req.user.role || ''),
-                        action: 'ACCESS_DENIED',
+                        action: 'UNAUTHORIZED_ACCESS',
                         severity: 'critical',
                         dataCategory: 'System',
                         requestMethod: req.method,
                         requestPath: req.originalUrl || req.path,
                         ip: req.ip || '',
-                        userAgent: req.headers['user-agent'] || '',
+                        userAgent: ua,
+                        browser: parsed.browser,
+                        os: parsed.os,
+                        device: parsed.device,
                         success: false,
                         reason: 'Central Admin access required'
                     });
@@ -249,19 +284,24 @@ exports.verifyAdminOrSuperAdmin = async (req, res, next) => {
             try {
                 const AuditLog = require('../models/auditLog.model');
                 const mongoose = require('mongoose');
+                const ua = req.headers['user-agent'] || '';
+                const parsed = parseUserAgent(ua);
                 await AuditLog.create({
                     clinicId: req.user.hospitalId || req.hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
                     userId: req.user._id,
                     userName: req.user.name || req.user.email || 'Unknown',
                     userEmail: req.user.email || '',
                     role: req.user._roleData?.name || String(req.user.role || ''),
-                    action: 'ACCESS_DENIED',
+                    action: 'UNAUTHORIZED_ACCESS',
                     severity: 'critical',
                     dataCategory: 'System',
                     requestMethod: req.method,
                     requestPath: req.originalUrl || req.path,
                     ip: req.ip || '',
-                    userAgent: req.headers['user-agent'] || '',
+                    userAgent: ua,
+                    browser: parsed.browser,
+                    os: parsed.os,
+                    device: parsed.device,
                     success: false,
                     reason: 'Admin access required'
                 });

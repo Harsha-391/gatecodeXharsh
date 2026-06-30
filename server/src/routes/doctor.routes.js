@@ -28,7 +28,8 @@ const getModels = (req) => {
             Inventory: m.Inventory,
             HospitalPatient: m.HospitalPatient,
             LabTest: m.LabTest,
-            Notification: m.Notification
+            Notification: m.Notification,
+            ClinicalVisit: m.ClinicalVisit
         };
     }
     return {
@@ -39,7 +40,8 @@ const getModels = (req) => {
         Inventory: MasterInventory,
         HospitalPatient: MasterHospitalPatient,
         LabTest: require('../models/labTest.model'),
-        Notification: require('../models/notification.model')
+        Notification: require('../models/notification.model'),
+        ClinicalVisit: require('../models/clinicalVisit.model')
     };
 };
 
@@ -356,7 +358,7 @@ router.get('/appointments/:id', verifyToken, resolveTenant, async (req, res) => 
 // 5. GET Appointments List (for this doctor)
 router.get('/appointments', verifyToken, resolveTenant, async (req, res) => {
     try {
-        const { Appointment } = getModels(req);
+        const { Appointment, ClinicalVisit } = getModels(req);
         const doctorUserId = req.user.id || req.user.userId;
         const query = await getDoctorQuery(doctorUserId, req.user.hospitalId);
 
@@ -394,7 +396,23 @@ router.get('/appointments', verifyToken, resolveTenant, async (req, res) => {
             .populate('userId', 'name email phone patientId fertilityProfile')
             .sort({ appointmentDate: 1, appointmentTime: 1 })
             .lean();
-        res.json({ success: true, appointments });
+
+        const appointmentIds = appointments.map(a => a._id);
+        const visits = await ClinicalVisit.find({ appointmentId: { $in: appointmentIds } }).select('appointmentId status').lean();
+        const visitMap = {};
+        visits.forEach(v => {
+            if (v.appointmentId) {
+                visitMap[v.appointmentId.toString()] = v.status || 'check_in';
+            }
+        });
+
+        const appointmentsWithVisit = appointments.map(a => ({
+            ...a,
+            checkedIn: !!visitMap[a._id.toString()],
+            visitStatus: visitMap[a._id.toString()] || null
+        }));
+
+        res.json({ success: true, appointments: appointmentsWithVisit });
     } catch (error) {
         console.error('Doctor appointments fetch error:', error);
         res.status(500).json({ success: false, message: 'Error fetching appointments' });

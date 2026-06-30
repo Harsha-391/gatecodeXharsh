@@ -543,7 +543,15 @@ const UnifiedPatientProfile = () => {
                         ) : (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '16px' }}>
                                 {patientData.pastReports.map((report) => {
-                                    const BASE = import.meta.env.VITE_API_URL || 'https://hms-h939.onrender.com';
+                                    const getBase = () => {
+                                        if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
+                                        if (typeof window !== 'undefined') {
+                                            const hn = window.location.hostname;
+                                            if (hn === 'localhost' || hn.endsWith('.localhost')) return '';
+                                        }
+                                        return 'https://hms-h939.onrender.com';
+                                    };
+                                    const BASE = getBase();
                                     const url = report.url || report.fileUrl || (report.filename ? `${BASE}/uploads/patient-reports/${encodeURIComponent(report.filename)}` : null);
                                     return (
                                         <div key={report._id} style={{ padding: '10px', background: '#fdf4ff', borderRadius: '8px', border: '1px solid #f3e8ff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

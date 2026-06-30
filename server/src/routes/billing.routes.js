@@ -78,61 +78,92 @@ const syncInvoicePaymentStatus = async (invoice, req, paymentMethod = 'Cash') =>
         invoice.paymentStatus = 'Pending';
     }
 
-    // 2. Settle items
-    // If the invoice is fully paid, all its items should be marked as Paid
-    if (invoice.paymentStatus === 'Paid') {
-        for (const item of invoice.items) {
-            if (item.paymentStatus !== 'Paid') {
-                item.paymentStatus = 'Paid';
-                if (item.itemId) {
-                    try {
-                        if (item.itemType === 'Consultation') {
-                            await Appointment.findByIdAndUpdate(item.itemId, { paymentStatus: 'Paid' });
-                        } else if (item.itemType === 'Laboratory') {
-                            await LabReport.findByIdAndUpdate(item.itemId, { paymentStatus: 'PAID', paymentMode: paymentMethod.toUpperCase() });
-                        } else if (item.itemType === 'Pharmacy') {
-                            await PharmacyOrder.findByIdAndUpdate(item.itemId, { paymentStatus: 'Paid' });
-                        } else if (item.itemType === 'Facility') {
-                            await FacilityCharge.findByIdAndUpdate(item.itemId, { paymentStatus: 'Paid' });
-                        } else if (item.itemType === 'Admission') {
-                            await Admission.findByIdAndUpdate(item.itemId, { paymentStatus: 'Paid' });
-                        }
-                    } catch (err) {
-                        console.error(`Error syncing item ${item.itemId} payment status:`, err);
-                    }
-                }
+    // 2. Settle items using pool-based allocation
+    const insurancePaid = (invoice.payments || []).filter(p => p.method === 'Insurance').reduce((s, p) => s + (p.amount || 0), 0);
+    const otherPaid = (invoice.payments || []).filter(p => p.method !== 'Insurance').reduce((s, p) => s + (p.amount || 0), 0);
+
+    let insurancePool = insurancePaid;
+    let otherPool = otherPaid;
+
+    // Track status for each item
+    const itemStatuses = invoice.items.map(item => ({
+        item,
+        status: 'Pending'
+    }));
+
+    // Group A: Admission and Facility
+    const groupA = itemStatuses.filter(i => i.item.itemType === 'Admission' || i.item.itemType === 'Facility');
+    // Group B: Consultation, Laboratory, Pharmacy, and others
+    const groupB = itemStatuses.filter(i => i.item.itemType !== 'Admission' && i.item.itemType !== 'Facility');
+
+    // 1. Pay Group A using insurancePool
+    for (const entry of groupA) {
+        const amt = entry.item.totalAmount || 0;
+        if (insurancePool >= amt) {
+            entry.status = 'Paid';
+            insurancePool -= amt;
+        }
+    }
+
+    // 2. Pay Group B using otherPool
+    for (const entry of groupB) {
+        const amt = entry.item.totalAmount || 0;
+        if (otherPool >= amt) {
+            entry.status = 'Paid';
+            otherPool -= amt;
+        }
+    }
+
+    // 3. Pay remaining Group B using leftover insurancePool
+    for (const entry of groupB) {
+        if (entry.status === 'Pending') {
+            const amt = entry.item.totalAmount || 0;
+            if (insurancePool >= amt) {
+                entry.status = 'Paid';
+                insurancePool -= amt;
             }
         }
-    } else {
-        // If partially paid, settle items proportionally based on the total amount paid
-        let runningAmount = invoice.amountPaid;
-        for (const item of invoice.items) {
-            const itemOutstanding = item.totalAmount;
-            if (runningAmount >= itemOutstanding) {
-                if (item.paymentStatus !== 'Paid') {
-                    item.paymentStatus = 'Paid';
-                    if (item.itemId) {
-                        try {
-                            if (item.itemType === 'Consultation') {
-                                await Appointment.findByIdAndUpdate(item.itemId, { paymentStatus: 'Paid' });
-                            } else if (item.itemType === 'Laboratory') {
-                                await LabReport.findByIdAndUpdate(item.itemId, { paymentStatus: 'PAID', paymentMode: paymentMethod.toUpperCase() });
-                            } else if (item.itemType === 'Pharmacy') {
-                                await PharmacyOrder.findByIdAndUpdate(item.itemId, { paymentStatus: 'Paid' });
-                            } else if (item.itemType === 'Facility') {
-                                await FacilityCharge.findByIdAndUpdate(item.itemId, { paymentStatus: 'Paid' });
-                            } else if (item.itemType === 'Admission') {
-                                await Admission.findByIdAndUpdate(item.itemId, { paymentStatus: 'Paid' });
-                            }
-                        } catch (err) {
-                            console.error(`Error syncing item ${item.itemId} payment status:`, err);
-                        }
-                    }
+    }
+
+    // 4. Pay remaining Group A using leftover otherPool
+    for (const entry of groupA) {
+        if (entry.status === 'Pending') {
+            const amt = entry.item.totalAmount || 0;
+            if (otherPool >= amt) {
+                entry.status = 'Paid';
+                otherPool -= amt;
+            }
+        }
+    }
+
+    // Now, update database models for all items
+    for (const entry of itemStatuses) {
+        const item = entry.item;
+        const newStatus = entry.status;
+
+        // Update the item status in the invoice items array
+        item.paymentStatus = newStatus;
+
+        if (item.itemId) {
+            try {
+                if (item.itemType === 'Consultation') {
+                    await Appointment.findByIdAndUpdate(item.itemId, { paymentStatus: newStatus });
+                } else if (item.itemType === 'Laboratory') {
+                    const labStatus = newStatus === 'Paid' ? 'PAID' : 'PENDING';
+                    const labMode = newStatus === 'Paid' ? (insurancePaid > 0 ? 'INSURANCE' : 'CASH') : null;
+                    await LabReport.findByIdAndUpdate(item.itemId, { 
+                        paymentStatus: labStatus, 
+                        paymentMode: labMode 
+                    });
+                } else if (item.itemType === 'Pharmacy') {
+                    await PharmacyOrder.findByIdAndUpdate(item.itemId, { paymentStatus: newStatus });
+                } else if (item.itemType === 'Facility') {
+                    await FacilityCharge.findByIdAndUpdate(item.itemId, { paymentStatus: newStatus });
+                } else if (item.itemType === 'Admission') {
+                    await Admission.findByIdAndUpdate(item.itemId, { paymentStatus: newStatus });
                 }
-                runningAmount -= itemOutstanding;
-            } else {
-                // If this item cannot be fully paid, we don't proceed to next items
-                break;
+            } catch (err) {
+                console.error(`Error syncing item ${item.itemId} payment status:`, err);
             }
         }
     }
@@ -275,7 +306,6 @@ router.get('/patient/:identifier', verifyBillingAccess, async (req, res) => {
                     { patientId: patient.mrn }
                 ].filter(Boolean),
                 status: { $in: ['Sample Collected', 'In Testing', 'Report Ready', 'Completed'] },
-                paymentStatus: { $in: ['PENDING', 'Pending'] },
                 ...hFilter
             }).sort({ createdAt: -1 }).lean(),
             // Pharmacy orders (only if orderStatus is Completed, i.e., medicines are dispensed)
@@ -286,13 +316,11 @@ router.get('/patient/:identifier', verifyBillingAccess, async (req, res) => {
                     { patientId: patient.mrn }
                 ].filter(Boolean),
                 orderStatus: 'Completed',
-                paymentStatus: { $in: ['Pending', 'Unpaid'] },
                 ...hFilter
             }).sort({ createdAt: -1 }).lean(),
             // Facility charges
             FacilityCharge.find({
                 patientId: patient._id,
-                paymentStatus: { $in: ['Pending', 'Unpaid'] },
                 ...hFilter
             }).sort({ createdAt: -1 }).lean(),
             // Admissions
@@ -346,42 +374,42 @@ router.get('/patient/:identifier', verifyBillingAccess, async (req, res) => {
             await Appointment.updateMany({ _id: { $in: appointmentsToHeal } }, { $set: { paymentStatus: 'Paid' } });
         }
 
-        // 2. Lab Reports (Exclude paid ones from pending list)
+        // 2. Lab Reports
         const labReportsToHeal = [];
-        let finalLabReports = [];
         for (const lr of labReports) {
             if (paidItemIds.Laboratory.has(lr._id.toString())) {
-                labReportsToHeal.push(lr._id);
-            } else {
-                finalLabReports.push(lr);
+                if (lr.paymentStatus !== 'PAID') {
+                    labReportsToHeal.push(lr._id);
+                    lr.paymentStatus = 'PAID';
+                }
             }
         }
         if (labReportsToHeal.length > 0) {
             await LabReport.updateMany({ _id: { $in: labReportsToHeal } }, { $set: { paymentStatus: 'PAID' } });
         }
 
-        // 3. Pharmacy Orders (Exclude paid ones from pending list)
+        // 3. Pharmacy Orders
         const pharmacyOrdersToHeal = [];
-        let finalPharmacyOrders = [];
         for (const po of pharmacyOrders) {
             if (paidItemIds.Pharmacy.has(po._id.toString())) {
-                pharmacyOrdersToHeal.push(po._id);
-            } else {
-                finalPharmacyOrders.push(po);
+                if (po.paymentStatus !== 'Paid') {
+                    pharmacyOrdersToHeal.push(po._id);
+                    po.paymentStatus = 'Paid';
+                }
             }
         }
         if (pharmacyOrdersToHeal.length > 0) {
             await PharmacyOrder.updateMany({ _id: { $in: pharmacyOrdersToHeal } }, { $set: { paymentStatus: 'Paid' } });
         }
 
-        // 4. Facility Charges (Exclude paid ones from pending list)
+        // 4. Facility Charges
         const facilityChargesToHeal = [];
-        let finalFacilityCharges = [];
         for (const fc of facilityCharges) {
             if (paidItemIds.Facility.has(fc._id.toString())) {
-                facilityChargesToHeal.push(fc._id);
-            } else {
-                finalFacilityCharges.push(fc);
+                if (fc.paymentStatus !== 'Paid') {
+                    facilityChargesToHeal.push(fc._id);
+                    fc.paymentStatus = 'Paid';
+                }
             }
         }
         if (facilityChargesToHeal.length > 0) {
@@ -402,11 +430,8 @@ router.get('/patient/:identifier', verifyBillingAccess, async (req, res) => {
             await Admission.updateMany({ _id: { $in: admissionsToHeal } }, { $set: { paymentStatus: 'Paid' } });
         }
 
-        // Assign filtered/healed arrays
+        // Assign arrays
         appointments = finalAppointments;
-        labReports = finalLabReports;
-        pharmacyOrders = finalPharmacyOrders;
-        facilityCharges = finalFacilityCharges;
 
         // Heal and calculate pricing for lab reports dynamically
         const allLabTests = await LabTest.find({}).lean();
@@ -534,7 +559,7 @@ router.get('/patient/:identifier', verifyBillingAccess, async (req, res) => {
 });
 
 // 2. Generate Consolidated Invoice
-router.post('/invoice', verifyBillingAccess, auditLog('CREATE_BILL', (req, body) => ({
+router.post('/invoice', verifyBillingAccess, auditLog('INVOICE_CREATED', (req, body) => ({
     model: 'Invoice',
     id: body.invoice?._id || null,
     label: body.invoice ? `Invoice ${body.invoice.invoiceNumber}` : 'Invoice generation',
@@ -625,7 +650,7 @@ router.post('/invoice', verifyBillingAccess, auditLog('CREATE_BILL', (req, body)
 });
 
 // 3. Process Payments (Collect payment on an Invoice)
-router.post('/invoice/:id/payment', verifyBillingAccess, auditLog('CONFIRM_PAYMENT', (req, body) => ({
+router.post('/invoice/:id/payment', verifyBillingAccess, auditLog('PAYMENT_COLLECTED', (req, body) => ({
     model: 'Invoice',
     id: req.params.id,
     label: body.invoice ? `Payment of ₹${req.body.amount} collected on Invoice ${body.invoice.invoiceNumber}` : 'Payment collection',
@@ -638,7 +663,7 @@ router.post('/invoice/:id/payment', verifyBillingAccess, auditLog('CONFIRM_PAYME
             return res.status(400).json({ success: false, message: 'Payment amount and payment method are required.' });
         }
 
-        const { Invoice, BillingActivityLog, Appointment, LabReport, PharmacyOrder, FacilityCharge, Admission } = getModels(req);
+        const { Invoice, BillingActivityLog, Appointment, LabReport, PharmacyOrder, FacilityCharge, Admission, HospitalPatient, ClinicPatient, User } = getModels(req);
         const invoice = await Invoice.findById(id);
         if (!invoice) return res.status(404).json({ success: false, message: 'Invoice not found.' });
 
@@ -747,7 +772,7 @@ router.post('/invoice/:id/payment', verifyBillingAccess, auditLog('CONFIRM_PAYME
 });
 
 // 4. Cancel Invoice
-router.put('/invoice/:id/cancel', verifyBillingAccess, auditLog('UPDATE_BILL', (req, body) => ({
+router.put('/invoice/:id/cancel', verifyBillingAccess, auditLog('PAYMENT_CANCELLED', (req, body) => ({
     model: 'Invoice',
     id: req.params.id,
     label: body.invoice ? `Invoice ${body.invoice.invoiceNumber} cancelled` : 'Invoice cancellation',
@@ -831,7 +856,7 @@ router.get('/refunds', verifyBillingAccess, async (req, res) => {
 });
 
 // 7. Request Refund
-router.post('/refunds', verifyBillingAccess, auditLog('UPDATE_BILL', (req, body) => ({
+router.post('/refunds', verifyBillingAccess, auditLog('REFUND_REQUESTED', (req, body) => ({
     model: 'Refund',
     id: body.refund?._id || null,
     label: body.refund ? `Refund of ₹${body.refund.amount} requested for ${body.refund.patientName}` : 'Refund request',
@@ -931,7 +956,7 @@ router.post('/refunds', verifyBillingAccess, auditLog('UPDATE_BILL', (req, body)
 });
 
 // 8. Approve/Process Refund
-router.put('/refunds/:id/approve', verifyBillingAccess, auditLog('UPDATE_BILL', (req, body) => ({
+router.put('/refunds/:id/approve', verifyBillingAccess, auditLog('REFUND_APPROVED', (req, body) => ({
     model: 'Refund',
     id: req.params.id,
     label: body.refund ? `Refund of ₹${body.refund.amount} approved for ${body.refund.patientName}` : 'Refund approval',
@@ -1057,7 +1082,7 @@ router.put('/refunds/:id/approve', verifyBillingAccess, auditLog('UPDATE_BILL', 
 });
 
 // 8.5. Reject Refund Request
-router.put('/refunds/:id/reject', verifyBillingAccess, auditLog('UPDATE_BILL', (req, body) => ({
+router.put('/refunds/:id/reject', verifyBillingAccess, auditLog('REFUND_REJECTED', (req, body) => ({
     model: 'Refund',
     id: req.params.id,
     label: body.refund ? `Refund of ₹${body.refund.amount} rejected for ${body.refund.patientName}` : 'Refund rejection',
@@ -1151,7 +1176,7 @@ router.get('/activity-logs', verifyBillingAccess, async (req, res) => {
 });
 
 // 10. Direct / Pay endpoint (Backward Compatibility)
-router.put('/pay', verifyBillingAccess, auditLog('CONFIRM_PAYMENT', (req) => ({
+router.put('/pay', verifyBillingAccess, auditLog('PAYMENT_COLLECTED', (req) => ({
     model: 'Invoice',
     label: `Bulk payment settle: ${req.body.paymentMode || 'Cash'}`,
 }), { dataCategory: 'Financial', severity: 'warning' }), async (req, res) => {
@@ -1343,11 +1368,12 @@ router.post('/facility-charge', verifyBillingAccess, async (req, res) => {
 // 12. Revenue Analytics & Reports
 router.get('/analytics', verifyBillingAccess, async (req, res) => {
     try {
-        const { Invoice, CollectionTransaction } = getModels(req);
+        const { Invoice, CollectionTransaction, Appointment } = getModels(req);
         const hFilter = req.user.hospitalId ? { hospitalId: req.user.hospitalId } : {};
 
         const invoices = await Invoice.find({ ...hFilter, paymentStatus: { $ne: 'Cancelled' } }).lean();
         const transactions = await CollectionTransaction.find(hFilter).lean();
+        const appointments = await Appointment.find({ ...hFilter, paymentStatus: 'Paid' }).lean();
 
         let todayRevenue = 0;
         let monthlyRevenue = 0;
@@ -1359,6 +1385,7 @@ router.get('/analytics', verifyBillingAccess, async (req, res) => {
         let labRevenue = 0;
         let pharmacyRevenue = 0;
         let admissionRevenue = 0;
+        let appointmentRevenue = 0;
 
         let cashCollections = 0;
         let upiCollections = 0;
@@ -1380,6 +1407,7 @@ router.get('/analytics', verifyBillingAccess, async (req, res) => {
             }
         });
 
+        // 1. Process existing transactions
         transactions.forEach(t => {
             const payDate = new Date(t.collectionTimestamp);
             if (payDate.toDateString() === todayStr) {
@@ -1403,6 +1431,33 @@ router.get('/analytics', verifyBillingAccess, async (req, res) => {
             else if (t.paymentMethod === 'Bank Transfer') bankCollections += t.amount || 0;
         });
 
+        // 2. Sum up total appointment revenue directly from all paid appointments (multi-reception support)
+        appointments.forEach(a => {
+            appointmentRevenue += a.amount || 0;
+        });
+
+        // 3. Reconcile general metrics for any paid appointments that are missing collection transaction logs
+        const txAppointmentIds = new Set(transactions.filter(t => t.appointmentId).map(t => String(t.appointmentId)));
+        appointments.forEach(a => {
+            if (!txAppointmentIds.has(String(a._id))) {
+                const apptDate = new Date(a.createdAt || a.updatedAt || a.appointmentDate);
+                const amt = a.amount || 0;
+                
+                if (apptDate.toDateString() === todayStr) {
+                    todayRevenue += amt;
+                }
+                if (apptDate.getMonth() === currentMonth && apptDate.getFullYear() === currentYear) {
+                    monthlyRevenue += amt;
+                }
+
+                const pMethod = a.paymentMethod || 'Cash';
+                if (pMethod === 'Cash') cashCollections += amt;
+                else if (pMethod === 'UPI') upiCollections += amt;
+                else if (pMethod === 'Card') cardCollections += amt;
+                else if (pMethod === 'Bank Transfer') bankCollections += amt;
+            }
+        });
+
         res.json({
             success: true,
             analytics: {
@@ -1415,6 +1470,7 @@ router.get('/analytics', verifyBillingAccess, async (req, res) => {
                 labRevenue,
                 pharmacyRevenue,
                 admissionRevenue,
+                appointmentRevenue,
                 totalCollections: cashCollections + upiCollections + cardCollections + bankCollections,
                 cashCollections,
                 upiCollections,
@@ -1488,9 +1544,10 @@ router.post('/insurance/claims', verifyBillingAccess, async (req, res) => {
 });
 
 // PUT /billing/insurance/claims/:id — update claim status
+// PUT /billing/insurance/claims/:id — update claim status
 router.put('/insurance/claims/:id', verifyBillingAccess, async (req, res) => {
     try {
-        const { InsuranceClaim } = getModels(req);
+        const { InsuranceClaim, Invoice } = getModels(req);
         const hFilter = req.user.hospitalId ? { hospitalId: req.user.hospitalId } : {};
         const { status, approvedAmount, rejectionReason } = req.body;
 
@@ -1504,6 +1561,83 @@ router.put('/insurance/claims/:id', verifyBillingAccess, async (req, res) => {
         if (['Approved', 'Rejected'].includes(status)) claim.actionDate = new Date();
 
         await claim.save();
+
+        // Apply approved insurance claim to the linked invoice
+        if (status === 'Approved') {
+            const invoice = await Invoice.findOne({ invoiceNumber: claim.invoiceNumber, ...hFilter });
+            if (invoice) {
+                const approvedAmt = Number(approvedAmount !== undefined ? approvedAmount : (claim.approvedAmount || claim.claimAmount || 0));
+                if (approvedAmt > 0) {
+                    const paymentExists = (invoice.payments || []).some(
+                        p => p.reference === claim.claimNumber && p.method === 'Insurance'
+                    );
+                    if (!paymentExists) {
+                        const year = new Date().getFullYear();
+                        const timestamp = Date.now();
+                        const receiptNumber = `REC-${year}-${String(timestamp).slice(-6)}`;
+
+                        const newPayment = {
+                            receiptNumber,
+                            amount: approvedAmt,
+                            date: new Date(),
+                            method: 'Insurance',
+                            reference: claim.claimNumber,
+                            collectedBy: req.user._id,
+                            collectedByName: req.user.name || 'Staff'
+                        };
+
+                        if (!invoice.payments) invoice.payments = [];
+                        invoice.payments.push(newPayment);
+                        invoice.amountPaid += approvedAmt;
+                        invoice.outstandingAmount = Math.max(0, invoice.grandTotal - invoice.amountPaid);
+
+                        // Sync payment status for invoice items (e.g. Admission or Lab)
+                        await syncInvoicePaymentStatus(invoice, req, 'Insurance');
+                        await invoice.save();
+
+                        // Log Collection Transaction
+                        const MasterCollectionTransaction = require('../models/collectionTransaction.model');
+                        const transactionData = {
+                            hospitalId: invoice.hospitalId,
+                            patientId: invoice.patientId,
+                            patientName: invoice.patientName,
+                            patientPhone: '',
+                            patientIdStr: '',
+                            invoiceNumber: invoice.invoiceNumber,
+                            amount: approvedAmt,
+                            paymentMethod: 'Insurance',
+                            collectedByUserId: req.user._id,
+                            collectedByName: req.user.name || 'Staff',
+                            counterName: req.user.counterName && req.user.counterName !== 'Counter 1' ? req.user.counterName : (req.user.name || 'Counter 1'),
+                            collectionType: 'Insurance Settle',
+                            collectionTimestamp: new Date()
+                        };
+
+                        const { HospitalPatient, ClinicPatient, User } = getModels(req);
+                        const patientUser = await HospitalPatient.findById(invoice.patientId) ||
+                                            (ClinicPatient ? await ClinicPatient.findById(invoice.patientId) : null) ||
+                                            await User.findById(invoice.patientId);
+                        if (patientUser) {
+                            transactionData.patientPhone = patientUser.phone || '';
+                            transactionData.patientIdStr = patientUser.patientId || patientUser.mrn || 'WALK-IN';
+                        }
+
+                        const masterTx = new MasterCollectionTransaction(transactionData);
+                        await masterTx.save();
+
+                        if (req.tenantDb) {
+                            const TenantCollectionTransaction = getTenantModels(req.tenantDb).CollectionTransaction;
+                            const tenantTx = new TenantCollectionTransaction({
+                                ...transactionData,
+                                _id: masterTx._id
+                            });
+                            await tenantTx.save();
+                        }
+                    }
+                }
+            }
+        }
+
         res.json({ success: true, claim, message: `Claim ${status || 'updated'} successfully` });
     } catch (err) {
         console.error('Insurance claim update error:', err);

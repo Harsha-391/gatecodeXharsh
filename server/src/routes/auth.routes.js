@@ -13,6 +13,7 @@ const { verifyToken } = require('../middleware/auth.middleware');
 const TokenBlacklist = require('../models/tokenBlacklist.model');
 const auditLog = require('../middleware/audit.middleware');
 const { v4: uuidv4 } = require('uuid');
+const { parseUserAgent } = require('../utils/userAgentParser');
 
 /**
  * Helper: Build user response with full role data
@@ -226,6 +227,8 @@ router.post('/login', loginLimiter, async (req, res) => {
     if (!user) {
       try {
         const AuditLogModel = require('../models/auditLog.model');
+        const ua = req.headers['user-agent'] || '';
+        const parsed = parseUserAgent(ua);
         await AuditLogModel.create({
             clinicId: hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
             userName: normalizedEmail,
@@ -234,7 +237,10 @@ router.post('/login', loginLimiter, async (req, res) => {
             success: false,
             reason: 'User not found',
             ip: req.ip || '',
-            userAgent: req.headers['user-agent'] || ''
+            userAgent: ua,
+            browser: parsed.browser,
+            os: parsed.os,
+            device: parsed.device
         });
       } catch (logErr) {}
       return res.status(401).json({ success: false, message: 'Invalid email or password' });
@@ -243,6 +249,8 @@ router.post('/login', loginLimiter, async (req, res) => {
     if (user.isActive === false) {
       try {
         const AuditLogModel = require('../models/auditLog.model');
+        const ua = req.headers['user-agent'] || '';
+        const parsed = parseUserAgent(ua);
         await AuditLogModel.create({
             clinicId: user.hospitalId || hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
             userId: user._id,
@@ -252,7 +260,10 @@ router.post('/login', loginLimiter, async (req, res) => {
             success: false,
             reason: 'Account is disabled',
             ip: req.ip || '',
-            userAgent: req.headers['user-agent'] || ''
+            userAgent: ua,
+            browser: parsed.browser,
+            os: parsed.os,
+            device: parsed.device
         });
       } catch (logErr) {}
       return res.status(403).json({ success: false, message: 'Account is disabled. Contact administrator.' });
@@ -262,6 +273,8 @@ router.post('/login', loginLimiter, async (req, res) => {
     if (user.role === 'superadmin' || user.role === 'centraladmin') {
       try {
         const AuditLogModel = require('../models/auditLog.model');
+        const ua = req.headers['user-agent'] || '';
+        const parsed = parseUserAgent(ua);
         await AuditLogModel.create({
             clinicId: user.hospitalId || hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
             userId: user._id,
@@ -272,7 +285,10 @@ router.post('/login', loginLimiter, async (req, res) => {
             success: false,
             reason: 'Bypassed Central Admin login portal',
             ip: req.ip || '',
-            userAgent: req.headers['user-agent'] || ''
+            userAgent: ua,
+            browser: parsed.browser,
+            os: parsed.os,
+            device: parsed.device
         });
       } catch (logErr) {}
       return res.status(401).json({ success: false, message: 'Invalid email or password' });
@@ -355,6 +371,8 @@ router.post('/login', loginLimiter, async (req, res) => {
 
       try {
         const AuditLogModel = require('../models/auditLog.model');
+        const ua = req.headers['user-agent'] || '';
+        const parsed = parseUserAgent(ua);
         await AuditLogModel.create({
             clinicId: user.hospitalId || hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
             userId: user._id,
@@ -365,8 +383,28 @@ router.post('/login', loginLimiter, async (req, res) => {
             success: false,
             reason: locked ? 'Incorrect password (account locked)' : 'Incorrect password',
             ip: req.ip || '',
-            userAgent: req.headers['user-agent'] || ''
+            userAgent: ua,
+            browser: parsed.browser,
+            os: parsed.os,
+            device: parsed.device
         });
+        if (locked) {
+          await AuditLogModel.create({
+              clinicId: user.hospitalId || hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
+              userId: user._id,
+              userName: user.name,
+              role: roleData?.name || '',
+              action: 'ACCOUNT_LOCKED',
+              severity: 'critical',
+              success: true,
+              reason: 'Account locked due to 5 consecutive failed login attempts',
+              ip: req.ip || '',
+              userAgent: ua,
+              browser: parsed.browser,
+              os: parsed.os,
+              device: parsed.device
+          });
+        }
       } catch (logErr) {}
       
       const errMsg = locked 
@@ -492,16 +530,21 @@ router.post('/login', loginLimiter, async (req, res) => {
     // Log successful login
     try {
       const AuditLogModel = require('../models/auditLog.model');
+      const ua = req.headers['user-agent'] || '';
+      const parsed = parseUserAgent(ua);
       await AuditLogModel.create({
           clinicId: user.hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
           userId: user._id,
           userName: user.name,
           role: roleData.name,
-          action: 'STAFF_LOGIN',
+          action: user.patientId ? 'PATIENT_LOGIN' : 'STAFF_LOGIN',
           success: true,
           sessionId: jti,
           ip: req.ip || '',
-          userAgent: req.headers['user-agent'] || ''
+          userAgent: ua,
+          browser: parsed.browser,
+          os: parsed.os,
+          device: parsed.device
       });
     } catch (logErr) {}
 
@@ -659,7 +702,7 @@ router.put('/profile', verifyToken, async (req, res) => {
 });
 
 // PUT /api/auth/change-password — change password for the currently-logged-in user
-router.put('/change-password', verifyToken, async (req, res) => {
+router.put('/change-password', verifyToken, auditLog('PASSWORD_CHANGED', null, { severity: 'warning', dataCategory: 'Administrative' }), async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
     if (!currentPassword || !newPassword) {

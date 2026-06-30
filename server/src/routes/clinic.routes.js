@@ -115,25 +115,8 @@ const getClinicCode = async (req, hospitalId) => {
 
 // Upsert subscription record and increment new patient count
 const trackNewPatient = async (req, clinicId) => {
-    const { Hospital, ClinicPatient, ClinicSubscription } = req.models || getModels(req);
-    const now = new Date();
-    const month = now.getMonth() + 1;
-    const year  = now.getFullYear();
-    const clinic = await Hospital.findById(clinicId).select('subscription');
-    const rate   = clinic?.subscription?.ratePerPatient || 0;
-    const total  = await ClinicPatient.countDocuments({ clinicId });
-
-    await ClinicSubscription.findOneAndUpdate(
-        { clinicId, month, year },
-        {
-            $inc: { newPatientCount: 1 },
-            $set: { totalPatientCount: total, ratePerPatient: rate },
-        },
-        { upsert: true, new: true }
-    ).then(sub => {
-        sub.totalAmount = sub.newPatientCount * sub.ratePerPatient;
-        return sub.save();
-    }).catch(() => {});
+    const { trackNewPatient: tracker } = require('../utils/subscriptionTracker');
+    await tracker(req, clinicId);
 };
 
 // ─────────────────────────────────────────────

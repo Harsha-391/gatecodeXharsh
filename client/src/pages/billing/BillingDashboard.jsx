@@ -13,11 +13,13 @@ import './BillingDashboard.css';
 
 const getAdmAmt = (a) => {
     if (!a) return 0;
-    const days = Math.max(1, Math.ceil(Math.abs(new Date().setHours(0,0,0,0) - new Date(a.admissionDate).setHours(0,0,0,0)) / (1000 * 60 * 60 * 24)) + 1);
+    const end = a.dischargeDate ? new Date(a.dischargeDate) : new Date();
+    const days = Math.max(1, Math.ceil(Math.abs(end.setHours(0,0,0,0) - new Date(a.admissionDate).setHours(0,0,0,0)) / (1000 * 60 * 60 * 24)) + 1);
     const bedAmt = (a.dailyWardCharge || 0) * days;
     const facilitiesAmt = Number(a.totalAmount || 0);
     return bedAmt + facilitiesAmt;
 };
+
 
 const fmt = (n) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 0 }).format(n || 0);
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
@@ -420,6 +422,12 @@ const BillingDashboard = ({ tab }) => {
         e.preventDefault();
         if (!activeInvoice) return;
         if (payAmount <= 0) return alert('Enter a valid amount.');
+        if (paymentMode !== 'Cash') {
+            const refLen = payReference.trim().length;
+            if (refLen < 6 || refLen > 22) {
+                return alert('Transaction Reference must be between 6 and 22 characters.');
+            }
+        }
 
         setPaying(true);
         try {
@@ -1287,8 +1295,8 @@ const BillingDashboard = ({ tab }) => {
                                 <h4>{fmt(analytics?.pharmacyRevenue)}</h4>
                             </div>
                             <div className="stat-card mini-card">
-                                <span className="stat-label">Admission Revenue</span>
-                                <h4>{fmt(analytics?.admissionRevenue)}</h4>
+                                <span className="stat-label">Appointment Revenue</span>
+                                <h4>{fmt(analytics?.appointmentRevenue)}</h4>
                             </div>
                         </div>
 
@@ -1452,228 +1460,251 @@ const BillingDashboard = ({ tab }) => {
                                         )}
 
                                         {/* 2. Laboratory Charges */}
-                                        {billing.labReports?.length > 0 && (
-                                            <div className="charge-category dept-lab">
-                                                <div className="dept-header">
-                                                    <span className="dept-badge dept-badge-lab">🧪 Laboratory Diagnostics</span>
-                                                    <span className="dept-pending-count">{billing.labReports.length} order(s) pending</span>
-                                                </div>
-                                                {billing.labReports.map(l => (
-                                                    <div key={l._id} className="charge-item-card">
-                                                        <div className="charge-item-select-row">
-                                                            <input
-                                                                type="checkbox"
-                                                                checked={selectedItems.labReports.includes(l._id)}
-                                                                onChange={() => toggleItem('labReports', l._id)}
-                                                                id={`lab-${l._id}`}
-                                                            />
-                                                            <label htmlFor={`lab-${l._id}`} className="charge-item-main-label">
-                                                                <div className="charge-item-title">
-                                                                    <span className="item-dept-icon">🧬</span>
-                                                                    <strong>Lab Test Order</strong>
-                                                                    <span className={`item-status-pill pill-${(l.paymentStatus||'pending').toLowerCase()}`}>{l.paymentStatus || 'Pending'}</span>
-                                                                </div>
-                                                                {/* Itemized Test Breakdown */}
-                                                                <div className="itemized-breakdown">
-                                                                    <div className="breakdown-header-row">
-                                                                        <span>Test Name</span><span>Status</span>
+                                        {(() => {
+                                            const pendingLabs = (billing.labReports || []).filter(l => l.paymentStatus !== 'PAID' && l.paymentStatus !== 'Paid');
+                                            if (pendingLabs.length === 0) return null;
+                                            return (
+                                                <div className="charge-category dept-lab">
+                                                    <div className="dept-header">
+                                                        <span className="dept-badge dept-badge-lab">🧪 Laboratory Diagnostics</span>
+                                                        <span className="dept-pending-count">{pendingLabs.length} order(s) pending</span>
+                                                    </div>
+                                                    {pendingLabs.map(l => (
+                                                        <div key={l._id} className="charge-item-card">
+                                                            <div className="charge-item-select-row">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={selectedItems.labReports.includes(l._id)}
+                                                                    onChange={() => toggleItem('labReports', l._id)}
+                                                                    id={`lab-${l._id}`}
+                                                                />
+                                                                <label htmlFor={`lab-${l._id}`} className="charge-item-main-label">
+                                                                    <div className="charge-item-title">
+                                                                        <span className="item-dept-icon">🧬</span>
+                                                                        <strong>Lab Test Order</strong>
+                                                                        <span className={`item-status-pill pill-${(l.paymentStatus||'pending').toLowerCase()}`}>{l.paymentStatus || 'Pending'}</span>
                                                                     </div>
-                                                                    {(l.testNames || []).map((test, idx) => (
-                                                                        <div key={idx} className="breakdown-item-row">
-                                                                            <span className="breakdown-item-name">
-                                                                                <span className="dot-indicator dot-lab"></span>
-                                                                                {test}
-                                                                            </span>
-                                                                            <span className="breakdown-item-status">{l.status || 'Pending'}</span>
+                                                                    {/* Itemized Test Breakdown */}
+                                                                    <div className="itemized-breakdown">
+                                                                        <div className="breakdown-header-row">
+                                                                            <span>Test Name</span><span>Status</span>
                                                                         </div>
-                                                                    ))}
+                                                                        {(l.testNames || []).map((test, idx) => (
+                                                                            <div key={idx} className="breakdown-item-row">
+                                                                                <span className="breakdown-item-name">
+                                                                                    <span className="dot-indicator dot-lab"></span>
+                                                                                    {test}
+                                                                                </span>
+                                                                                <span className="breakdown-item-status">{l.status || 'Pending'}</span>
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                    <div className="charge-item-details-grid" style={{marginTop:'8px'}}>
+                                                                        <div className="cid-row"><span className="cid-label">Order Date</span><span className="cid-val">{fmtDate(l.createdAt)}</span></div>
+                                                                        <div className="cid-row"><span className="cid-label">Sample</span><span className="cid-val">{l.sampleType || 'Not collected yet'}</span></div>
+                                                                        <div className="cid-row"><span className="cid-label">Total Tests</span><span className="cid-val">{(l.testNames||[]).length} test(s)</span></div>
+                                                                    </div>
+                                                                </label>
+                                                                <div className="charge-item-amount">
+                                                                    <span className="amount-label">Lab Charges</span>
+                                                                    <strong className="amount-val">{fmt(l.amount || 0)}</strong>
                                                                 </div>
-                                                                <div className="charge-item-details-grid" style={{marginTop:'8px'}}>
-                                                                    <div className="cid-row"><span className="cid-label">Order Date</span><span className="cid-val">{fmtDate(l.createdAt)}</span></div>
-                                                                    <div className="cid-row"><span className="cid-label">Sample</span><span className="cid-val">{l.sampleType || 'Not collected yet'}</span></div>
-                                                                    <div className="cid-row"><span className="cid-label">Total Tests</span><span className="cid-val">{(l.testNames||[]).length} test(s)</span></div>
-                                                                </div>
-                                                            </label>
-                                                            <div className="charge-item-amount">
-                                                                <span className="amount-label">Lab Charges</span>
-                                                                <strong className="amount-val">{fmt(l.amount || 0)}</strong>
                                                             </div>
                                                         </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
+                                                    ))}
+                                                </div>
+                                            );
+                                        })()}
 
                                         {/* 3. Pharmacy Charges */}
-                                        {billing.pharmacyOrders?.length > 0 && (
-                                            <div className="charge-category dept-pharmacy">
-                                                <div className="dept-header">
-                                                    <span className="dept-badge dept-badge-pharmacy">💊 Pharmacy — Dispensed Medicines</span>
-                                                    <span className="dept-pending-count">{billing.pharmacyOrders.length} order(s) pending</span>
-                                                </div>
-                                                {billing.pharmacyOrders.map(p => (
-                                                    <div key={p._id} className="charge-item-card">
-                                                        <div className="charge-item-select-row">
-                                                            <input
-                                                                type="checkbox"
-                                                                checked={selectedItems.pharmacyOrders.includes(p._id)}
-                                                                onChange={() => toggleItem('pharmacyOrders', p._id)}
-                                                                id={`pharm-${p._id}`}
-                                                            />
-                                                            <label htmlFor={`pharm-${p._id}`} className="charge-item-main-label">
-                                                                <div className="charge-item-title">
-                                                                    <span className="item-dept-icon">🏥</span>
-                                                                    <strong>Pharmacy Dispensing Order</strong>
-                                                                    <span className={`item-status-pill pill-${(p.paymentStatus||'pending').toLowerCase()}`}>{p.paymentStatus || 'Pending'}</span>
-                                                                </div>
-                                                                {/* Itemized Medicine Breakdown */}
-                                                                <div className="itemized-breakdown">
-                                                                    <div className="breakdown-header-row">
-                                                                        <span>Medicine Name</span><span>Qty</span><span>Unit Price</span><span>Subtotal</span>
+                                        {(() => {
+                                            const pendingPharmacy = (billing.pharmacyOrders || []).filter(p => p.paymentStatus !== 'Paid');
+                                            if (pendingPharmacy.length === 0) return null;
+                                            return (
+                                                <div className="charge-category dept-pharmacy">
+                                                    <div className="dept-header">
+                                                        <span className="dept-badge dept-badge-pharmacy">💊 Pharmacy — Dispensed Medicines</span>
+                                                        <span className="dept-pending-count">{pendingPharmacy.length} order(s) pending</span>
+                                                    </div>
+                                                    {pendingPharmacy.map(p => (
+                                                        <div key={p._id} className="charge-item-card">
+                                                            <div className="charge-item-select-row">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={selectedItems.pharmacyOrders.includes(p._id)}
+                                                                    onChange={() => toggleItem('pharmacyOrders', p._id)}
+                                                                    id={`pharm-${p._id}`}
+                                                                />
+                                                                <label htmlFor={`pharm-${p._id}`} className="charge-item-main-label">
+                                                                    <div className="charge-item-title">
+                                                                        <span className="item-dept-icon">🏥</span>
+                                                                        <strong>Pharmacy Dispensing Order</strong>
+                                                                        <span className={`item-status-pill pill-${(p.paymentStatus||'pending').toLowerCase()}`}>{p.paymentStatus || 'Pending'}</span>
                                                                     </div>
-                                                                    {(p.items || []).map((med, idx) => (
-                                                                        <div key={idx} className="breakdown-item-row breakdown-item-row-4col">
+                                                                    {/* Itemized Medicine Breakdown */}
+                                                                    <div className="itemized-breakdown">
+                                                                        <div className="breakdown-header-row">
+                                                                            <span>Medicine Name</span><span>Qty</span><span>Unit Price</span><span>Subtotal</span>
+                                                                        </div>
+                                                                        {(p.items || []).map((med, idx) => (
+                                                                            <div key={idx} className="breakdown-item-row breakdown-item-row-4col">
+                                                                                <span className="breakdown-item-name">
+                                                                                    <span className="dot-indicator dot-pharmacy"></span>
+                                                                                    {med.name || med.medicineName || 'Unknown Medicine'}
+                                                                                </span>
+                                                                                <span className="breakdown-qty">×{med.qty || med.quantity || 1}</span>
+                                                                                <span className="breakdown-price">{fmt(med.price || 0)}</span>
+                                                                                <span className="breakdown-subtotal">{fmt((med.qty || med.quantity || 1) * (med.price || 0))}</span>
+                                                                            </div>
+                                                                        ))}
+                                                                        <div className="breakdown-total-row">
+                                                                            <span>Order Total</span>
+                                                                            <strong>{fmt(p.totalAmount)}</strong>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="charge-item-details-grid" style={{marginTop:'8px'}}>
+                                                                        <div className="cid-row"><span className="cid-label">Dispensed On</span><span className="cid-val">{fmtDate(p.createdAt)}</span></div>
+                                                                        <div className="cid-row"><span className="cid-label">Items Count</span><span className="cid-val">{(p.items||[]).length} medicine(s)</span></div>
+                                                                    </div>
+                                                                </label>
+                                                                <div className="charge-item-amount">
+                                                                    <span className="amount-label">Pharmacy Total</span>
+                                                                    <strong className="amount-val">{fmt(p.totalAmount)}</strong>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            );
+                                        })()}
+
+                                        {/* 4. Facility Charges */}
+                                        {(() => {
+                                            const pendingFacilities = (billing.facilityCharges || []).filter(f => f.paymentStatus !== 'Paid');
+                                            if (pendingFacilities.length === 0) return null;
+                                            return (
+                                                <div className="charge-category dept-facility">
+                                                    <div className="dept-header">
+                                                        <span className="dept-badge dept-badge-facility">🏨 Facility & Room Charges</span>
+                                                        <span className="dept-pending-count">{pendingFacilities.length} charge(s) pending</span>
+                                                    </div>
+                                                    {pendingFacilities.map(f => (
+                                                        <div key={f._id} className="charge-item-card">
+                                                            <div className="charge-item-select-row">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={selectedItems.facilityCharges.includes(f._id)}
+                                                                    onChange={() => toggleItem('facilityCharges', f._id)}
+                                                                    id={`fac-${f._id}`}
+                                                                />
+                                                                <label htmlFor={`fac-${f._id}`} className="charge-item-main-label">
+                                                                    <div className="charge-item-title">
+                                                                        <span className="item-dept-icon">🛏️</span>
+                                                                        <strong>{f.facilityName}</strong>
+                                                                        <span className={`item-status-pill pill-${(f.paymentStatus||'pending').toLowerCase()}`}>{f.paymentStatus || 'Pending'}</span>
+                                                                    </div>
+                                                                    <div className="itemized-breakdown">
+                                                                        <div className="breakdown-item-row breakdown-item-row-4col">
                                                                             <span className="breakdown-item-name">
-                                                                                <span className="dot-indicator dot-pharmacy"></span>
-                                                                                {med.name || med.medicineName || 'Unknown Medicine'}
+                                                                                <span className="dot-indicator dot-facility"></span>
+                                                                                {f.facilityName}
                                                                             </span>
-                                                                            <span className="breakdown-qty">×{med.qty || med.quantity || 1}</span>
-                                                                            <span className="breakdown-price">{fmt(med.price || 0)}</span>
-                                                                            <span className="breakdown-subtotal">{fmt((med.qty || med.quantity || 1) * (med.price || 0))}</span>
+                                                                            <span className="breakdown-qty">{f.daysUsed} day(s)</span>
+                                                                            <span className="breakdown-price">{fmt(f.pricePerDay)}/day</span>
+                                                                            <span className="breakdown-subtotal">{fmt(f.totalAmount)}</span>
+                                                                        </div>
+                                                                        <div className="breakdown-total-row">
+                                                                            <span>Facility Total</span>
+                                                                            <strong>{fmt(f.totalAmount)}</strong>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="charge-item-details-grid" style={{marginTop:'8px'}}>
+                                                                        <div className="cid-row"><span className="cid-label">Days Used</span><span className="cid-val">{f.daysUsed} day(s)</span></div>
+                                                                        <div className="cid-row"><span className="cid-label">Rate/Day</span><span className="cid-val">{fmt(f.pricePerDay)}</span></div>
+                                                                    </div>
+                                                                </label>
+                                                                <div className="charge-item-amount">
+                                                                    <span className="amount-label">Facility Total</span>
+                                                                    <strong className="amount-val">{fmt(f.totalAmount)}</strong>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            );
+                                        })()}
+
+                                        {/* 5. IPD Admissions */}
+                                        {(() => {
+                                            const pendingAdmissions = billing.admissions?.filter(a => a.status === 'Admitted' || a.paymentStatus !== 'Paid') || [];
+                                            if (pendingAdmissions.length === 0) return null;
+                                            return (
+                                                <div className="charge-category dept-admission">
+                                                    <div className="dept-header">
+                                                        <span className="dept-badge dept-badge-admission">🏥 IPD Hospitalization</span>
+                                                        <span className="dept-pending-count">{pendingAdmissions.length} pending</span>
+                                                    </div>
+                                                    {pendingAdmissions.map(a => (
+                                                        <div key={a._id} className={`charge-item-card ${a.status === 'Admitted' ? 'admission-card-active' : 'admission-card-past'}`}>
+                                                            <div className="admission-ipd-header">
+                                                                <div className="admission-ipd-info">
+                                                                    <span className="item-dept-icon">🛏️</span>
+                                                                    <div>
+                                                                        <strong>Ward: {a.ward}</strong>  —  Bed: <strong>{a.bedNumber}</strong> ({a.status})
+                                                                        <div style={{fontSize:'12px',color:'#64748b',marginTop:'2px'}}>
+                                                                            Admitted: {fmtDate(a.admissionDate)}
+                                                                            {a.status === 'Discharged' && `  |  Discharged: ${fmtDate(a.dischargeDate)}`}
+                                                                            {`  |  Dept: ${a.requestedDepartment || '—'}  |  Priority: `}
+                                                                            <span style={{color: a.priority==='Urgent'?'#dc2626':a.priority==='Critical'?'#7c3aed':'#16a34a', fontWeight:'600'}}>{a.priority}</span>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                                {a.status === 'Admitted' && (
+                                                                    <button className="btn-discharge-red" onClick={() => handleDischargePatient(a._id)}>Discharge Patient</button>
+                                                                )}
+                                                            </div>
+                                                            {/* Facility breakdown inside admission */}
+                                                            {a.selectedFacilities?.length > 0 && (
+                                                                <div className="itemized-breakdown" style={{margin:'10px 0 4px 0'}}>
+                                                                    <div className="breakdown-header-row">
+                                                                        <span>Facility / Service</span><span>Days</span><span>Rate/Day</span><span>Amount</span>
+                                                                    </div>
+                                                                    {a.selectedFacilities.map((fac, idx) => (
+                                                                        <div key={idx} className="breakdown-item-row breakdown-item-row-4col">
+                                                                            <span className="breakdown-item-name"><span className="dot-indicator dot-admission"></span>{fac.facilityName}</span>
+                                                                            <span className="breakdown-qty">{fac.days} day(s)</span>
+                                                                            <span className="breakdown-price">{fmt(fac.pricePerDay)}</span>
+                                                                            <span className="breakdown-subtotal">{fmt(fac.totalAmount)}</span>
                                                                         </div>
                                                                     ))}
                                                                     <div className="breakdown-total-row">
-                                                                        <span>Order Total</span>
-                                                                        <strong>{fmt(p.totalAmount)}</strong>
+                                                                        <span>Admission Total</span>
+                                                                        <strong>{fmt(getAdmAmt(a))}</strong>
                                                                     </div>
                                                                 </div>
-                                                                <div className="charge-item-details-grid" style={{marginTop:'8px'}}>
-                                                                    <div className="cid-row"><span className="cid-label">Dispensed On</span><span className="cid-val">{fmtDate(p.createdAt)}</span></div>
-                                                                    <div className="cid-row"><span className="cid-label">Items Count</span><span className="cid-val">{(p.items||[]).length} medicine(s)</span></div>
-                                                                </div>
+                                                            )}
+                                                            <label className="charge-item-select-row" style={{marginTop:'8px', background:'#f0fdf4', borderRadius:'8px', padding:'10px 12px'}}>
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={selectedItems.admissions.includes(a._id)}
+                                                                    onChange={() => toggleItem('admissions', a._id)}
+                                                                    disabled={a.paymentStatus === 'Paid'}
+                                                                />
+                                                                <span style={{flex:1, fontSize:'13px', fontWeight:'500'}}>Include Consolidated Admission Fees in Invoice</span>
+                                                                <strong className="amount-val">{fmt(getAdmAmt(a))}</strong>
                                                             </label>
-                                                            <div className="charge-item-amount">
-                                                                <span className="amount-label">Pharmacy Total</span>
-                                                                <strong className="amount-val">{fmt(p.totalAmount)}</strong>
-                                                            </div>
                                                         </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-
-                                        {/* 4. Facility Charges */}
-                                        {billing.facilityCharges?.length > 0 && (
-                                            <div className="charge-category dept-facility">
-                                                <div className="dept-header">
-                                                    <span className="dept-badge dept-badge-facility">🏨 Facility & Room Charges</span>
-                                                    <span className="dept-pending-count">{billing.facilityCharges.length} charge(s) pending</span>
+                                                    ))}
                                                 </div>
-                                                {billing.facilityCharges.map(f => (
-                                                    <div key={f._id} className="charge-item-card">
-                                                        <div className="charge-item-select-row">
-                                                            <input
-                                                                type="checkbox"
-                                                                checked={selectedItems.facilityCharges.includes(f._id)}
-                                                                onChange={() => toggleItem('facilityCharges', f._id)}
-                                                                id={`fac-${f._id}`}
-                                                            />
-                                                            <label htmlFor={`fac-${f._id}`} className="charge-item-main-label">
-                                                                <div className="charge-item-title">
-                                                                    <span className="item-dept-icon">🛏️</span>
-                                                                    <strong>{f.facilityName}</strong>
-                                                                    <span className={`item-status-pill pill-${(f.paymentStatus||'pending').toLowerCase()}`}>{f.paymentStatus || 'Pending'}</span>
-                                                                </div>
-                                                                <div className="itemized-breakdown">
-                                                                    <div className="breakdown-item-row breakdown-item-row-4col">
-                                                                        <span className="breakdown-item-name">
-                                                                            <span className="dot-indicator dot-facility"></span>
-                                                                            {f.facilityName}
-                                                                        </span>
-                                                                        <span className="breakdown-qty">{f.daysUsed} day(s)</span>
-                                                                        <span className="breakdown-price">{fmt(f.pricePerDay)}/day</span>
-                                                                        <span className="breakdown-subtotal">{fmt(f.totalAmount)}</span>
-                                                                    </div>
-                                                                    <div className="breakdown-total-row">
-                                                                        <span>Facility Total</span>
-                                                                        <strong>{fmt(f.totalAmount)}</strong>
-                                                                    </div>
-                                                                </div>
-                                                                <div className="charge-item-details-grid" style={{marginTop:'8px'}}>
-                                                                    <div className="cid-row"><span className="cid-label">Days Used</span><span className="cid-val">{f.daysUsed} day(s)</span></div>
-                                                                    <div className="cid-row"><span className="cid-label">Rate/Day</span><span className="cid-val">{fmt(f.pricePerDay)}</span></div>
-                                                                </div>
-                                                            </label>
-                                                            <div className="charge-item-amount">
-                                                                <span className="amount-label">Facility Total</span>
-                                                                <strong className="amount-val">{fmt(f.totalAmount)}</strong>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-
-                                        {/* 5. IPD Admissions */}
-                                        {billing.admissions?.filter(a => a.status === 'Admitted').length > 0 && (
-                                            <div className="charge-category dept-admission">
-                                                <div className="dept-header">
-                                                    <span className="dept-badge dept-badge-admission">🏥 IPD Hospitalization (Active)</span>
-                                                    <span className="dept-pending-count">{billing.admissions.filter(a=>a.status==='Admitted').length} active</span>
-                                                </div>
-                                                {billing.admissions.filter(a => a.status === 'Admitted').map(a => (
-                                                    <div key={a._id} className="charge-item-card admission-card-active">
-                                                        <div className="admission-ipd-header">
-                                                            <div className="admission-ipd-info">
-                                                                <span className="item-dept-icon">🛏️</span>
-                                                                <div>
-                                                                    <strong>Ward: {a.ward}</strong>  —  Bed: <strong>{a.bedNumber}</strong>
-                                                                    <div style={{fontSize:'12px',color:'#64748b',marginTop:'2px'}}>Admitted: {fmtDate(a.admissionDate)}  |  Dept: {a.requestedDepartment || '—'}  |  Priority: <span style={{color: a.priority==='Urgent'?'#dc2626':a.priority==='Critical'?'#7c3aed':'#16a34a', fontWeight:'600'}}>{a.priority}</span></div>
-                                                                </div>
-                                                            </div>
-                                                            <button className="btn-discharge-red" onClick={() => handleDischargePatient(a._id)}>Discharge Patient</button>
-                                                        </div>
-                                                        {/* Facility breakdown inside admission */}
-                                                        {a.selectedFacilities?.length > 0 && (
-                                                            <div className="itemized-breakdown" style={{margin:'10px 0 4px 0'}}>
-                                                                <div className="breakdown-header-row">
-                                                                    <span>Facility / Service</span><span>Days</span><span>Rate/Day</span><span>Amount</span>
-                                                                </div>
-                                                                {a.selectedFacilities.map((fac, idx) => (
-                                                                    <div key={idx} className="breakdown-item-row breakdown-item-row-4col">
-                                                                        <span className="breakdown-item-name"><span className="dot-indicator dot-admission"></span>{fac.facilityName}</span>
-                                                                        <span className="breakdown-qty">{fac.days} day(s)</span>
-                                                                        <span className="breakdown-price">{fmt(fac.pricePerDay)}</span>
-                                                                        <span className="breakdown-subtotal">{fmt(fac.totalAmount)}</span>
-                                                                    </div>
-                                                                ))}
-                                                                <div className="breakdown-total-row">
-                                                                    <span>Admission Total</span>
-                                                                    <strong>{fmt(getAdmAmt(a))}</strong>
-                                                                </div>
-                                                            </div>
-                                                        )}
-                                                        <label className="charge-item-select-row" style={{marginTop:'8px', background:'#f0fdf4', borderRadius:'8px', padding:'10px 12px'}}>
-                                                            <input
-                                                                type="checkbox"
-                                                                checked={selectedItems.admissions.includes(a._id)}
-                                                                onChange={() => toggleItem('admissions', a._id)}
-                                                                disabled={a.paymentStatus === 'Paid'}
-                                                            />
-                                                            <span style={{flex:1, fontSize:'13px', fontWeight:'500'}}>Include Consolidated Admission Fees in Invoice</span>
-                                                            <strong className="amount-val">{fmt(getAdmAmt(a))}</strong>
-                                                        </label>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
+                                            );
+                                        })()}
 
                                         {/* No charges notice */}
                                         {billing.appointments?.filter(a=>a.paymentStatus!=='Paid').length === 0 &&
                                          !billing.labReports?.length &&
                                          !billing.pharmacyOrders?.length &&
                                          !billing.facilityCharges?.length &&
-                                         !billing.admissions?.filter(a=>a.status==='Admitted').length && (
+                                         !billing.admissions?.filter(a => a.status === 'Admitted' || a.paymentStatus !== 'Paid').length && (
                                             <div className="no-charges-notice">
                                                 <span>✅</span>
                                                 <p>No pending un-invoiced charges for this patient.</p>
@@ -2351,23 +2382,37 @@ const BillingDashboard = ({ tab }) => {
                             </div>
                             <div className="form-group" style={{ marginBottom: '16px' }}>
                                 <label className="staff-label">Payment Mode</label>
-                                <select value={paymentMode} onChange={e => setPaymentMode(e.target.value)} className="staff-input">
+                                <select 
+                                    value={paymentMode} 
+                                    onChange={e => {
+                                        setPaymentMode(e.target.value);
+                                        if (e.target.value === 'Cash') {
+                                            setPayReference('');
+                                        }
+                                    }} 
+                                    className="staff-input"
+                                >
                                     <option value="Cash">Cash</option>
                                     <option value="Card">Card</option>
                                     <option value="UPI">UPI / QR</option>
                                     <option value="Bank Transfer">Bank Transfer</option>
                                 </select>
                             </div>
-                            <div className="form-group" style={{ marginBottom: '20px' }}>
-                                <label className="staff-label">Transaction Reference (Optional)</label>
-                                <input
-                                    type="text"
-                                    placeholder="UPI Txn ID or Card Auth Code"
-                                    value={payReference}
-                                    onChange={e => setPayReference(e.target.value)}
-                                    className="staff-input"
-                                />
-                            </div>
+                            {paymentMode !== 'Cash' && (
+                                <div className="form-group" style={{ marginBottom: '20px' }}>
+                                    <label className="staff-label">Transaction Reference</label>
+                                    <input
+                                        type="text"
+                                        placeholder="UPI Txn ID or Card Auth Code"
+                                        value={payReference}
+                                        onChange={e => setPayReference(e.target.value)}
+                                        required
+                                        minLength={6}
+                                        maxLength={22}
+                                        className="staff-input"
+                                    />
+                                </div>
+                            )}
                             <div className="modal-buttons">
                                 <button type="submit" className="btn-save" disabled={paying}>
                                     {paying ? 'Processing...' : 'Settle Payment'}

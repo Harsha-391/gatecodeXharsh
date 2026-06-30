@@ -193,6 +193,7 @@ const ReceptionDashboard = () => {
     const confirmedToday = todayAppointments.filter(a => a.status === 'confirmed').length;
     const completedToday = todayAppointments.filter(a => a.status === 'completed').length;
     const cancelledToday = todayAppointments.filter(a => a.status === 'cancelled').length;
+    const noShowToday = todayAppointments.filter(a => a.status === 'no-show').length;
     const revenueToday = todayAppointments
         .filter(a => a.status === 'completed' || (a.paymentStatus || '').toLowerCase() === 'paid')
         .reduce((sum, a) => sum + (Number(a.amount) || 0), 0);
@@ -864,6 +865,16 @@ const ReceptionDashboard = () => {
             if (res.success) fetchAppointments();
         } catch (err) {
             alert(err.response?.data?.message || 'Failed to cancel appointment.');
+        }
+    };
+
+    const handleNoShow = async (appointmentId) => {
+        if (!window.confirm('Mark this patient as No-Show? This records that the patient did not attend their appointment.')) return;
+        try {
+            const res = await receptionAPI.markNoShow(appointmentId);
+            if (res.success) fetchAppointments();
+        } catch (err) {
+            alert(err.response?.data?.message || 'Failed to mark as no-show.');
         }
     };
 
@@ -3167,6 +3178,7 @@ const ReceptionDashboard = () => {
                                 { key: 'pending', label: 'Pending', color: '#d97706' },
                                 { key: 'confirmed', label: 'Confirmed', color: '#059669' },
                                 { key: 'completed', label: 'Completed', color: '#1d4ed8' },
+                                { key: 'no-show', label: 'No-Show 👻', color: '#6b7280' },
                                 { key: 'cancelled', label: 'Cancelled', color: '#dc2626' },
                                 { key: 'report_follow_up', label: 'Report Follow-ups 📝', color: '#8b5cf6' },
                             ].map(f => (
@@ -3390,6 +3402,23 @@ const ReceptionDashboard = () => {
                                                                 🏥 Admitted
                                                             </span>
                                                         )}
+                                                        {apt.visitStatus === 'check_in_late' && (
+                                                            <span style={{
+                                                                background: '#fef3c7',
+                                                                color: '#d97706',
+                                                                fontSize: '10px',
+                                                                fontWeight: 800,
+                                                                padding: '2px 8px',
+                                                                borderRadius: '12px',
+                                                                border: '1px solid #fde68a',
+                                                                display: 'inline-flex',
+                                                                alignItems: 'center',
+                                                                gap: '3px',
+                                                                marginLeft: '4px'
+                                                            }} title="Patient arrived and checked in late for their scheduled slot">
+                                                                ⚠️ Late Arrival
+                                                            </span>
+                                                        )}
                                                     </div>
                                                     <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>📱 {apt.userId?.phone || apt.patientPhone || '-'} {apt.userId?.patientId || apt.patientId ? `| ${apt.userId?.patientId || apt.patientId}` : ''}</div>
                                                 </td>
@@ -3417,8 +3446,8 @@ const ReceptionDashboard = () => {
                                                 <td style={{ padding: '12px 16px' }}>
                                                     <span style={{
                                                         padding: '4px 12px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 700, textTransform: 'capitalize',
-                                                        background: apt.status === 'confirmed' ? '#dcfce7' : apt.status === 'completed' ? '#dbeafe' : apt.status === 'cancelled' ? '#fee2e2' : '#fef3c7',
-                                                        color: apt.status === 'confirmed' ? '#166534' : apt.status === 'completed' ? '#1e40af' : apt.status === 'cancelled' ? '#991b1b' : '#92400e'
+                                                        background: apt.status === 'confirmed' ? '#dcfce7' : apt.status === 'completed' ? '#dbeafe' : apt.status === 'cancelled' ? '#fee2e2' : apt.status === 'no-show' ? '#f1f5f9' : '#fef3c7',
+                                                        color: apt.status === 'confirmed' ? '#166534' : apt.status === 'completed' ? '#1e40af' : apt.status === 'cancelled' ? '#991b1b' : apt.status === 'no-show' ? '#475569' : '#92400e'
                                                     }}>{apt.status}</span>
                                                 </td>
                                                 <td style={{ padding: '12px 16px' }}>
@@ -3470,6 +3499,13 @@ const ReceptionDashboard = () => {
                                                                     <button onClick={() => handleRescheduleClick(apt)}
                                                                         style={{ padding: '5px 10px', fontSize: '0.72rem', background: '#fffbeb', color: '#b45309', border: '1px solid #fde68a', borderRadius: '6px', cursor: 'pointer', fontWeight: 600 }}>
                                                                         🔄 Reschedule
+                                                                    </button>
+                                                                )}
+                                                                {apt.status !== 'cancelled' && apt.status !== 'completed' && apt.status !== 'no-show' && (
+                                                                    <button onClick={() => handleNoShow(apt._id)}
+                                                                        title="Patient did not attend this appointment"
+                                                                        style={{ padding: '5px 10px', fontSize: '0.72rem', background: '#f3f4f6', color: '#6b7280', border: '1px solid #d1d5db', borderRadius: '6px', cursor: 'pointer', fontWeight: 600 }}>
+                                                                        👻 No Show
                                                                     </button>
                                                                 )}
                                                                 {apt.status !== 'cancelled' && apt.status !== 'completed' && (

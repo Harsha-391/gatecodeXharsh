@@ -1,4 +1,5 @@
 const AuditLog = require('../models/auditLog.model');
+const { parseUserAgent } = require('../utils/userAgentParser');
 
 /**
  * auditLog(action, getTargetFn?, options?)
@@ -72,7 +73,7 @@ const auditLog = (action, getTargetFn, options = {}) => {
                         sessionId,
                         requestMethod: req.method || '',
                         requestPath:   req.originalUrl || req.path || '',
-                        action,
+                        action:        typeof action === 'function' ? action(req, body) : action,
                         severity,
                         dataCategory:  options.dataCategory || '',
                         targetModel:   target.model || '',
@@ -84,6 +85,9 @@ const auditLog = (action, getTargetFn, options = {}) => {
                         },
                         ip:            req.ip || req.connection?.remoteAddress || '',
                         userAgent:     req.headers['user-agent'] || '',
+                        browser:       parseUserAgent(req.headers['user-agent'] || '').browser,
+                        os:            parseUserAgent(req.headers['user-agent'] || '').os,
+                        device:        parseUserAgent(req.headers['user-agent'] || '').device,
                         success:       statusCode < 400,
                         reason:        statusCode >= 400 ? (body?.message || `HTTP ${statusCode}`) : '',
                     });

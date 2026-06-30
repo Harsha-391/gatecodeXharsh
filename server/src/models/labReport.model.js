@@ -53,7 +53,7 @@ const labReportSchema = new mongoose.Schema({
   },
   paymentMode: {
     type: String,
-    enum: ['CASH', 'ONLINE', 'UPI', 'CARD', 'NONE'],
+    enum: ['CASH', 'ONLINE', 'UPI', 'CARD', 'NONE', 'INSURANCE'],
     default: 'NONE'
   },
   amount: {

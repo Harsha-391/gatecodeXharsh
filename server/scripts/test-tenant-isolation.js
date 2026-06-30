@@ -82,9 +82,11 @@ async function runPenetrationTest() {
 
         // Fetch one record from Hospital B's database to attempt accessing using Token A
         const { getTenantModels } = require('../src/db/tenantModels');
+        const { getTenantDbName } = require('../src/db/tenantDb');
         
         const baseUri = mongoUrl.substring(0, mongoUrl.lastIndexOf('/'));
-        const connB = await mongoose.createConnection(`${baseUri}/hms_hospital_${hospB._id}?retryWrites=true&w=majority`).asPromise();
+        const dbNameB = getTenantDbName(hospB._id.toString(), hospB.tenantKey || `${hospB.originalSubdomain || hospB.slug}-${hospB._id}`);
+        const connB = await mongoose.createConnection(`${baseUri}/${dbNameB}?retryWrites=true&w=majority`).asPromise();
         const modelsB = getTenantModels(connB);
         await Promise.all(Object.values(modelsB).map(m => m.ensureIndexes()));
         

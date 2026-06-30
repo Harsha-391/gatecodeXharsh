@@ -145,11 +145,57 @@ const IPDSettlement = () => {
         if (!billing) return 0;
         return (billing.facilityCharges || []).reduce((s, f) => s + (f.totalAmount || 0), 0);
     };
+    const isItemInvoiced = (itemId, itemType, invoices = []) => {
+        const typeMap = {
+            'consultation': ['consultation', 'appointment'],
+            'laboratory': ['laboratory', 'labreport', 'lab'],
+            'pharmacy': ['pharmacy', 'pharmacyorder'],
+            'facility': ['facility', 'facilitycharge'],
+            'admission': ['admission']
+        };
+        const targetTypes = typeMap[itemType.toLowerCase()] || [itemType.toLowerCase()];
+        return invoices.some(inv => 
+            (inv.items || []).some(item => 
+                String(item.itemId) === String(itemId) && 
+                targetTypes.includes(item.itemType.toLowerCase())
+            )
+        );
+    };
+
     const calcTotalPaid = () => {
         if (!billing) return 0;
         const invoicePaid = (billing.invoices || []).reduce((s, inv) => s + (inv.amountPaid || 0), 0);
         const admissionDirectPaid = (billing.admissions || []).reduce((s, a) => s + getAdmDirectPaid(a, billing.invoices), 0);
-        return invoicePaid + admissionDirectPaid;
+        
+        // Direct paid appointments (Consultations)
+        const apptDirectPaid = (billing.appointments || []).reduce((s, a) => {
+            const isPaid = ['paid', 'Paid'].includes(a.paymentStatus);
+            const invoiced = isItemInvoiced(a._id, 'consultation', billing.invoices);
+            return s + (isPaid && !invoiced ? (a.amount || 0) : 0);
+        }, 0);
+
+        // Direct paid lab reports
+        const labDirectPaid = (billing.labReports || []).reduce((s, l) => {
+            const isPaid = ['paid', 'PAID'].includes(l.paymentStatus);
+            const invoiced = isItemInvoiced(l._id, 'laboratory', billing.invoices);
+            return s + (isPaid && !invoiced ? (l.amount || 0) : 0);
+        }, 0);
+
+        // Direct paid pharmacy orders
+        const pharmacyDirectPaid = (billing.pharmacyOrders || []).reduce((s, p) => {
+            const isPaid = ['paid', 'Paid'].includes(p.paymentStatus);
+            const invoiced = isItemInvoiced(p._id, 'pharmacy', billing.invoices);
+            return s + (isPaid && !invoiced ? (p.totalAmount || 0) : 0);
+        }, 0);
+
+        // Direct paid facility charges
+        const facilityDirectPaid = (billing.facilityCharges || []).reduce((s, f) => {
+            const isPaid = ['paid', 'Paid'].includes(f.paymentStatus);
+            const invoiced = isItemInvoiced(f._id, 'facility', billing.invoices);
+            return s + (isPaid && !invoiced ? (f.totalAmount || 0) : 0);
+        }, 0);
+
+        return invoicePaid + admissionDirectPaid + apptDirectPaid + labDirectPaid + pharmacyDirectPaid + facilityDirectPaid;
     };
     const calcGrandTotal = () =>
         calcAdmissionCharges() + calcLabCharges() + calcPharmacyCharges() + calcDoctorCharges() + calcFacilityCharges();

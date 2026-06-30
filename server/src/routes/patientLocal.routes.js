@@ -243,9 +243,9 @@ router.post('/book', verifyPatientToken, async (req, res) => {
             tokenNumber,
             serviceName,
             notes,
+            paymentStatus:   'pending',
             appointmentDate: new Date(),
             status:          'pending',
-            paymentStatus:   'Unpaid',
             amount:          0,
         });
 

@@ -23,7 +23,7 @@ const invoiceSchema = new mongoose.Schema({
         receiptNumber: { type: String, required: true },
         amount: { type: Number, required: true },
         date: { type: Date, default: Date.now },
-        method: { type: String, enum: ['Cash', 'Card', 'UPI', 'Bank Transfer'], required: true },
+        method: { type: String, enum: ['Cash', 'Card', 'UPI', 'Bank Transfer', 'Insurance'], required: true },
         reference: { type: String, default: '' },
         collectedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
         collectedByName: { type: String, default: '' }

@@ -166,7 +166,15 @@ const Dashboard = () => {
 
     const fetchDashboardData = async (token) => {
         setIsLoading(true);
-        const API_BASE = import.meta.env.VITE_API_URL || 'https://hms-h939.onrender.com';
+        const getApiBase = () => {
+            if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
+            if (typeof window !== 'undefined') {
+                const hn = window.location.hostname;
+                if (hn === 'localhost' || hn.endsWith('.localhost')) return '';
+            }
+            return 'https://hms-h939.onrender.com';
+        };
+        const API_BASE = getApiBase();
         try {
             const appointmentsResponse = await fetch(`${API_BASE}/api/appointments/my-appointments`, {
                 headers: { 'Authorization': `Bearer ${token}` }

@@ -123,8 +123,15 @@ const Reports = () => {
         switch (activeTab) {
             case 'patients':
                 return {
-                    headers: ['Patient ID','Name','Email','Phone','Gender','DOB','Blood Group','City','Registered'],
-                    rows: tabData.map(p => [p.patientId||'—',p.name||'',p.email||'',p.phone||'',p.gender||'',fmtDate(p.dob),p.bloodGroup||'—',p.city||'—',fmtDate(p.createdAt)])
+                    headers: ['Patient ID', 'Name', 'Phone', 'Gender / DOB', 'Assigned Doctor', 'Registration Date'],
+                    rows: tabData.map(p => [
+                        p.patientId || '—',
+                        p.name || '',
+                        p.phone || '',
+                        `${p.gender || '—'} · ${fmtDate(p.dob)}`,
+                        p.doctorName || '—',
+                        fmtDate(p.createdAt)
+                    ])
                 };
             case 'appointments':
                 return {
@@ -256,8 +263,8 @@ const Reports = () => {
 
         switch (activeTab) {
             case 'patients': return (
-                <><table className="rep-table"><thead><tr><th>Patient ID</th><th>Name</th><th>Email</th><th>Phone</th><th>Gender / DOB</th><th>Blood</th><th>City</th><th>Registered</th></tr></thead>
-                <tbody>{paginated.map((p,i)=><tr key={i}><td><strong>{p.patientId||'—'}</strong></td><td><strong>{p.name}</strong></td><td>{p.email}</td><td>{p.phone||'—'}</td><td>{p.gender} · <span style={{color:'#64748b'}}>{fmtDate(p.dob)}</span></td><td><strong>{p.bloodGroup||'—'}</strong></td><td>{p.city||'—'}</td><td>{fmtDate(p.createdAt)}</td></tr>)}</tbody>
+                <><table className="rep-table"><thead><tr><th>Patient ID</th><th>Name</th><th>Phone</th><th>Gender / DOB</th><th>Assigned Doctor</th><th>Registration Date</th></tr></thead>
+                <tbody>{paginated.map((p,i)=><tr key={i}><td><strong>{p.patientId||'—'}</strong></td><td><strong>{p.name}</strong></td><td>{p.phone||'—'}</td><td>{p.gender} · <span style={{color:'#64748b'}}>{fmtDate(p.dob)}</span></td><td><strong>{p.doctorName||'—'}</strong></td><td>{fmtDate(p.createdAt)}</td></tr>)}</tbody>
                 </table>{renderPaginator()}</>
             );
             case 'appointments': return (

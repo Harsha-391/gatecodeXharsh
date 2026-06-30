@@ -13,7 +13,6 @@ async function run() {
     for (const r of masterRoles) {
         console.log(`Role: ${r.name}, Hospital: ${r.hospitalId}, Perms:`, r.permissions);
     }
-    
     const hospitals = await Hospital.find({});
     for (const hosp of hospitals) {
         console.log(`\n--- TENANT DB ROLES FOR ${hosp.name} ---`);

@@ -181,7 +181,7 @@ const AccountantDashboard = () => {
                                                     <span className="dept-val">{formatCurrency(amount)} ({pct}%)</span>
                                                 </div>
                                                 <div className="dept-bar">
-                                                    <div className="dept-bar-fill" style={{ width: `${pct}%`, background: dept === 'Consultation' ? '#3b82f6' : (dept === 'Laboratory' ? '#10b981' : (dept === 'Pharmacy' ? '#ec4899' : '#f59e0b')) }} />
+                                                    <div className="dept-bar-fill" style={{ width: `${pct}%`, background: dept === 'Consultation' ? '#3b82f6' : (dept === 'Laboratory' ? '#10b981' : (dept === 'Pharmacy' ? '#ec4899' : (dept === 'Insurance' ? '#8b5cf6' : '#f59e0b'))) }} />
                                                 </div>
                                             </div>
                                         );

@@ -45,7 +45,7 @@ router.post('/intake', verifyToken, resolveTenant, async (req, res) => {
             },
             status: 'ready_for_doctor'
         });
-
+        
         await visit.save();
         res.json({ success: true, data: visit });
     } catch (error) {

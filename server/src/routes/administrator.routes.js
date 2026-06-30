@@ -76,7 +76,8 @@ const getModels = (req) => {
         Resource: MasterResource,
         PharmacyPurchaseRequest: MasterPharmacyPurchaseRequest,
         Facility: require('../models/facility.model'),
-        AuditLog: require('../models/auditLog.model')
+        AuditLog: require('../models/auditLog.model'),
+        HospitalPatient: require('../models/hospitalPatient.model')
     };
 };
 
@@ -87,7 +88,7 @@ router.get('/stats', verifyAdministratorAccess, async (req, res) => {
         if (!hospitalId) return res.status(400).json({ success: false, message: 'Hospital context required' });
 
         const models = getModels(req);
-        const { User, Appointment, LabReport, PharmacyOrder, Admission, Invoice, Facility, AuditLog } = models;
+        const { User, Appointment, LabReport, PharmacyOrder, Admission, Invoice, Facility, AuditLog, CollectionTransaction } = models;
 
         const todayStart = new Date();
         todayStart.setHours(0, 0, 0, 0);
@@ -155,13 +156,24 @@ router.get('/stats', verifyAdministratorAccess, async (req, res) => {
 
         const availableBeds = Math.max(0, totalBeds - occupiedBeds);
 
-        // Revenue calculations
-        const invoicesToday = await Invoice.find({ hospitalId, invoiceDate: { $gte: todayStart, $lte: todayEnd } });
-        const revenueToday = invoicesToday.reduce((sum, inv) => sum + (inv.amountPaid || 0), 0);
+        // Revenue calculations — using CollectionTransaction (same source as billing dashboard)
+        const todayStr = new Date().toDateString();
+        const currentMonth = todayStart.getMonth();
+        const currentYear = todayStart.getFullYear();
+        const hFilter = { hospitalId };
+        const transactions = await CollectionTransaction.find(hFilter).lean();
+        let revenueToday = 0;
+        let revenueMonth = 0;
+        transactions.forEach(t => {
+            const payDate = new Date(t.collectionTimestamp);
+            if (payDate.toDateString() === todayStr)  revenueToday  += t.amount || 0;
+            if (payDate.getMonth() === currentMonth && payDate.getFullYear() === currentYear) revenueMonth += t.amount || 0;
+        });
 
-        const firstDayOfMonth = new Date(todayStart.getFullYear(), todayStart.getMonth(), 1);
-        const invoicesMonth = await Invoice.find({ hospitalId, invoiceDate: { $gte: firstDayOfMonth } });
-        const revenueMonth = invoicesMonth.reduce((sum, inv) => sum + (inv.amountPaid || 0), 0);
+        const pendingBillingAmount = await Invoice.aggregate([
+            { $match: { hospitalId: new mongoose.Types.ObjectId(String(hospitalId)), paymentStatus: { $in: ['Pending', 'Partially Paid'] } } },
+            { $group: { _id: null, total: { $sum: '$outstandingAmount' } } }
+        ]).then(r => r[0]?.total || 0);
 
         // Department performance
         const appointmentsDepts = await Appointment.aggregate([
@@ -202,6 +214,7 @@ router.get('/stats', verifyAdministratorAccess, async (req, res) => {
                 pendingLabTests,
                 pendingPharmacy,
                 pendingBilling,
+                pendingBillingAmount,
                 totalBeds,
                 availableBeds,
                 occupiedBeds,
@@ -1373,7 +1386,7 @@ router.get('/reports', verifyAdministratorAccess, auditLog('DATA_EXPORT', null, 
 
         const hospitalId = req.hospitalId || req.user.hospitalId;
         const models = getModels(req);
-        const { User, Appointment, Admission, Invoice, LabReport, PharmacyOrder, Doctor, InsuranceClaim, Service, AuditLog } = models;
+        const { User, HospitalPatient, Appointment, Admission, Invoice, LabReport, PharmacyOrder, Doctor, InsuranceClaim, Service, AuditLog } = models;
 
         // Optional date range filter
         const { startDate, endDate } = req.query;
@@ -1382,8 +1395,8 @@ router.get('/reports', verifyAdministratorAccess, auditLog('DATA_EXPORT', null, 
         if (endDate) dateFilter.$lte = new Date(new Date(endDate).setHours(23, 59, 59, 999));
 
         // 1. Prepare parallel queries concurrently to avoid sequential round-trip latency
-        const patientReportsPromise = User.find({ role: { $in: [null, 'patient', 'Patient'] }, hospitalId })
-            .select('name email phone patientId dob gender bloodGroup city createdAt')
+        const patientReportsPromise = HospitalPatient.find({ hospitalId })
+            .select('name email phone patientId dob gender bloodGroup city doctorName doctorId createdAt')
             .lean()
             .catch(() => []);
 
@@ -1667,6 +1680,129 @@ router.get('/analytics', verifyAdministratorAccess, async (req, res) => {
     }
 });
 
+// 13.5. Active Sessions & Stats for Audit Logs
+router.get('/audit-logs/active-sessions', verifyAdministratorAccess, async (req, res) => {
+    try {
+        const hospitalId = req.hospitalId || req.user.hospitalId;
+        const TokenBlacklist = require('../models/tokenBlacklist.model');
+        
+        // Fetch all successful logins in the last 24 hours
+        const timeLimit = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        const loginQuery = {
+            action: { $in: ['STAFF_LOGIN', 'PATIENT_LOGIN', 'MFA_SUCCESS'] },
+            success: true,
+            createdAt: { $gte: timeLimit }
+        };
+        if (hospitalId) loginQuery.clinicId = hospitalId;
+        
+        const sessions = await AuditLog.find(loginQuery)
+            .select('sessionId userId userName role ip browser os device createdAt')
+            .sort({ createdAt: -1 })
+            .lean();
+            
+        // Get all blacklisted jtis
+        const blacklisted = await TokenBlacklist.find({
+            createdAt: { $gte: timeLimit }
+        }).select('jti').lean();
+        const blacklistedJtis = new Set(blacklisted.map(b => b.jti));
+        
+        // Filter out logged-out sessions and de-duplicate by sessionId
+        const activeMap = new Map();
+        for (const sess of sessions) {
+            if (sess.sessionId && !blacklistedJtis.has(sess.sessionId)) {
+                if (!activeMap.has(sess.sessionId)) {
+                    activeMap.set(sess.sessionId, {
+                        sessionId: sess.sessionId,
+                        userId: sess.userId,
+                        userName: sess.userName,
+                        role: sess.role,
+                        ipAddress: sess.ip || '—',
+                        browser: sess.browser || '—',
+                        os: sess.os || '—',
+                        device: sess.device || '—',
+                        loginTime: sess.createdAt
+                    });
+                }
+            }
+        }
+        
+        res.json({ success: true, sessions: Array.from(activeMap.values()) });
+    } catch (err) {
+        console.error('Active sessions error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+router.get('/audit-logs/stats', verifyAdministratorAccess, async (req, res) => {
+    try {
+        const hospitalId = req.hospitalId || req.user.hospitalId;
+        const TokenBlacklist = require('../models/tokenBlacklist.model');
+        
+        const filter = {};
+        if (hospitalId) filter.clinicId = hospitalId;
+        
+        // 1. Failed attempts (last 7 days)
+        const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+        const failedFilter = {
+            ...filter,
+            action: { $in: ['FAILED_LOGIN', 'MFA_FAILURE', 'UNAUTHORIZED_ACCESS', 'JWT_FAILURE'] },
+            success: false,
+            createdAt: { $gte: sevenDaysAgo }
+        };
+        const failedAttempts = await AuditLog.countDocuments(failedFilter);
+        
+        // 2. Critical alerts
+        const criticalFilter = {
+            ...filter,
+            severity: 'critical'
+        };
+        const criticalAlerts = await AuditLog.countDocuments(criticalFilter);
+        
+        // 3. Data exports
+        const exportFilter = {
+            ...filter,
+            action: 'DATA_EXPORT'
+        };
+        const dataExports = await AuditLog.countDocuments(exportFilter);
+        
+        // 4. Active sessions count
+        const timeLimit = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        const loginQuery = {
+            ...filter,
+            action: { $in: ['STAFF_LOGIN', 'PATIENT_LOGIN', 'MFA_SUCCESS'] },
+            success: true,
+            createdAt: { $gte: timeLimit }
+        };
+        const loginLogs = await AuditLog.find(loginQuery).select('sessionId').lean();
+        const uniqueLogins = new Set(loginLogs.map(l => l.sessionId).filter(Boolean));
+        
+        const blacklisted = await TokenBlacklist.find({
+            createdAt: { $gte: timeLimit }
+        }).select('jti').lean();
+        const blacklistedJtis = new Set(blacklisted.map(b => b.jti));
+        
+        let activeSessionsCount = 0;
+        uniqueLogins.forEach(jti => {
+            if (!blacklistedJtis.has(jti)) {
+                activeSessionsCount++;
+            }
+        });
+        
+        res.json({
+            success: true,
+            stats: {
+                failedAttempts,
+                criticalAlerts,
+                dataExports,
+                activeSessions: activeSessionsCount
+            }
+        });
+    } catch (err) {
+        console.error('Audit stats error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
 // 14. Audit Logs timeline
 router.get('/audit-logs', verifyAdministratorAccess, async (req, res) => {
     try {
@@ -1702,6 +1838,9 @@ router.get('/audit-logs', verifyAdministratorAccess, async (req, res) => {
         }
         if (req.query.severity)  filter.severity = req.query.severity;
         if (req.query.userId)    filter.userId   = req.query.userId;
+        if (req.query.browser)   filter.browser  = new RegExp(`^${req.query.browser.trim()}$`, 'i');
+        if (req.query.os)        filter.os       = new RegExp(`^${req.query.os.trim()}$`, 'i');
+        if (req.query.sessionId) filter.sessionId = req.query.sessionId;
         if (req.query.dateFrom || req.query.dateTo) {
             filter.createdAt = {};
             if (req.query.dateFrom) filter.createdAt.$gte = new Date(req.query.dateFrom);
@@ -1755,7 +1894,11 @@ router.get('/audit-logs', verifyAdministratorAccess, async (req, res) => {
         const todayStart = new Date();
         todayStart.setHours(0, 0, 0, 0);
 
-        const [todayTotal, todayFailed, patientAccess, exports, updates, authSuccessfulLogins, authFailedLogins, authLogouts] = await Promise.all([
+        const [
+            todayTotal, todayFailed, patientAccess, exports, updates,
+            authSuccessfulLogins, authFailedLogins, authLogouts,
+            failedAttempts7d, criticalAlertsCount, activeSessionsCount
+        ] = await Promise.all([
             AuditLog.countDocuments({ clinicId: hospitalId, createdAt: { $gte: todayStart } }),
             AuditLog.countDocuments({ clinicId: hospitalId, success: false, createdAt: { $gte: todayStart } }),
             AuditLog.countDocuments({ clinicId: hospitalId, action: { $in: ['VIEW_PATIENT', 'PATIENT_ACCESS', 'VIEW_PRESCRIPTION'] }, createdAt: { $gte: todayStart } }),
@@ -1763,14 +1906,14 @@ router.get('/audit-logs', verifyAdministratorAccess, async (req, res) => {
             AuditLog.countDocuments({ clinicId: hospitalId, action: { $in: ['UPDATE_PATIENT', 'UPDATE', 'USER_UPDATE', 'ROLE_CHANGE', 'PERMISSION_CHANGE', 'SETTINGS_UPDATE', 'HOSPITAL_UPDATE'] }, createdAt: { $gte: todayStart } }),
             AuditLog.countDocuments({
                 clinicId: hospitalId,
-                action: { $in: ['STAFF_LOGIN', 'PATIENT_LOGIN', 'LOGIN'] },
+                action: { $in: ['STAFF_LOGIN', 'PATIENT_LOGIN', 'LOGIN', 'MFA_SUCCESS'] },
                 success: true,
                 createdAt: { $gte: todayStart }
             }),
             AuditLog.countDocuments({
                 clinicId: hospitalId,
                 $or: [
-                    { action: 'FAILED_LOGIN' },
+                    { action: { $in: ['FAILED_LOGIN', 'MFA_FAILURE', 'ACCESS_DENIED', 'UNAUTHORIZED_ACCESS', 'JWT_FAILURE'] } },
                     { action: { $in: ['STAFF_LOGIN', 'PATIENT_LOGIN', 'LOGIN', 'FAILED_ACCESS'] }, success: false }
                 ],
                 createdAt: { $gte: todayStart }
@@ -1780,7 +1923,51 @@ router.get('/audit-logs', verifyAdministratorAccess, async (req, res) => {
                 action: { $in: ['STAFF_LOGOUT', 'LOGOUT'] },
                 success: true,
                 createdAt: { $gte: todayStart }
-            })
+            }),
+            // 9. Failed attempts (last 7 days)
+            AuditLog.countDocuments({
+                clinicId: hospitalId,
+                action: { $in: ['FAILED_LOGIN', 'MFA_FAILURE', 'UNAUTHORIZED_ACCESS', 'JWT_FAILURE'] },
+                success: false,
+                createdAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) }
+            }),
+            // 10. Critical alerts
+            AuditLog.countDocuments({
+                clinicId: hospitalId,
+                severity: 'critical'
+            }),
+            // 11. Active sessions
+            (async () => {
+                try {
+                    const timeLimit = new Date(Date.now() - 24 * 60 * 60 * 1000);
+                    const loginLogs = await AuditLog.find({
+                        clinicId: hospitalId,
+                        action: { $in: ['STAFF_LOGIN', 'PATIENT_LOGIN', 'MFA_SUCCESS'] },
+                        success: true,
+                        createdAt: { $gte: timeLimit }
+                    }).select('sessionId').lean();
+                    const uniqueLogins = new Set(loginLogs.map(l => l.sessionId).filter(Boolean));
+                    
+                    const TokenBlacklist = require('../models/tokenBlacklist.model');
+                    const blacklisted = await TokenBlacklist.find({
+                        createdAt: { $gte: timeLimit }
+                    }).select('jti').lean();
+                    const blacklistedJtis = new Set(blacklisted.map(b => b.jti));
+                    
+                    let activeCount = 0;
+                    uniqueLogins.forEach(jti => {
+                        if (!blacklistedJtis.has(jti)) activeCount++;
+                    });
+                    return activeCount;
+                } catch (_) {
+                    return 0;
+                }
+            })()
+        ]);
+
+        const [uniqueBrowsers, uniqueOS] = await Promise.all([
+            AuditLog.distinct('browser', { clinicId: hospitalId }),
+            AuditLog.distinct('os', { clinicId: hospitalId })
         ]);
 
         res.json({
@@ -1795,8 +1982,15 @@ router.get('/audit-logs', verifyAdministratorAccess, async (req, res) => {
                 updates,
                 authSuccessfulLogins,
                 authFailedLogins,
-                authLogouts
+                authLogouts,
+                failedAttempts7d,
+                criticalAlertsCount,
+                activeSessionsCount
             },
+            meta: {
+                browsers: uniqueBrowsers.filter(Boolean),
+                os: uniqueOS.filter(Boolean)
+            }
         });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });

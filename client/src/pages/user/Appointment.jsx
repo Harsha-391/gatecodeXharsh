@@ -1200,6 +1200,23 @@ const StaffAppointmentManager = ({ user, servicesData, doctorsData, navigate }) 
     }
   };
 
+  const handleNoShowAppt = async (id) => {
+    if (window.confirm('Mark this patient as No-Show? This records that the patient did not attend.')) {
+      try {
+        const res = await receptionAPI.markNoShow(id);
+        if (res.success) {
+          alert('Appointment marked as No-Show.');
+          fetchAllAppointments();
+        } else {
+          alert(res.message || 'Action failed.');
+        }
+      } catch (err) {
+        console.error(err);
+        alert('Error marking appointment as no-show.');
+      }
+    }
+  };
+
   const submitReschedule = async (e) => {
     e.preventDefault();
     if (!rescheduleForm.date || !rescheduleForm.time) {
@@ -1508,6 +1525,7 @@ const StaffAppointmentManager = ({ user, servicesData, doctorsData, navigate }) 
                 <option value="pending">Pending</option>
                 <option value="confirmed">Confirmed</option>
                 <option value="completed">Completed</option>
+                <option value="no-show">No Show 👻</option>
                 <option value="cancelled">Cancelled</option>
                 <option value="report_follow_up">Report Follow-ups 📝</option>
               </select>
@@ -1592,11 +1610,13 @@ const StaffAppointmentManager = ({ user, servicesData, doctorsData, navigate }) 
                             background: 
                               appt.status === 'confirmed' ? '#ECFDF5' : 
                               appt.status === 'pending' ? '#FFFBEB' : 
-                              appt.status === 'completed' ? '#EFF6FF' : '#FEF2F2',
+                              appt.status === 'completed' ? '#EFF6FF' : 
+                              appt.status === 'no-show' ? '#F1F5F9' : '#FEF2F2',
                             color: 
                               appt.status === 'confirmed' ? '#059669' : 
                               appt.status === 'pending' ? '#D97706' : 
-                              appt.status === 'completed' ? '#1D4ED8' : '#DC2626'
+                              appt.status === 'completed' ? '#1D4ED8' : 
+                              appt.status === 'no-show' ? '#475569' : '#DC2626'
                           }}>
                             {appt.status?.toUpperCase()}
                           </span>
@@ -1662,12 +1682,22 @@ const StaffAppointmentManager = ({ user, servicesData, doctorsData, navigate }) 
                                   👁 Profile
                                 </button>
                                 {appt.checkedIn ? (
-                                  <span style={{
-                                    padding: '4px 10px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 700,
-                                    background: '#ECFDF5', color: '#059669', border: '1px solid #A7F3D0'
-                                  }}>
-                                    ✓ Checked In
-                                  </span>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'center' }}>
+                                    <span style={{
+                                      padding: '4px 10px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 700,
+                                      background: '#ECFDF5', color: '#059669', border: '1px solid #A7F3D0'
+                                    }}>
+                                      ✓ Checked In
+                                    </span>
+                                    {appt.visitStatus === 'check_in_late' && (
+                                      <span style={{
+                                        padding: '2px 8px', borderRadius: '12px', fontSize: '0.65rem', fontWeight: 800,
+                                        background: '#FEF3C7', color: '#D97706', border: '1px solid #FDE68A'
+                                      }} title="Patient arrived and checked in late for their scheduled slot">
+                                        ⚠️ Late Arrival
+                                      </span>
+                                    )}
+                                  </div>
                                 ) : (
                                   !isCancelled && !isCompleted && (
                                     <button 
@@ -1704,6 +1734,15 @@ const StaffAppointmentManager = ({ user, servicesData, doctorsData, navigate }) 
                                     style={{ padding: '6px 10px', fontSize: '0.75rem', fontWeight: 600, background: '#E0F2FE', color: '#0369A1', border: '1px solid #BAE6FD', borderRadius: '6px', cursor: 'pointer' }}
                                   >
                                     Admit
+                                  </button>
+                                )}
+                                 {appt.status !== 'cancelled' && appt.status !== 'completed' && appt.status !== 'no-show' && (
+                                  <button 
+                                    onClick={() => handleNoShowAppt(appt._id)}
+                                    style={{ padding: '6px 10px', fontSize: '0.75rem', fontWeight: 600, background: '#F3F4F6', color: '#6B7280', border: '1px solid #D1D5DB', borderRadius: '6px', cursor: 'pointer' }}
+                                    title="Patient did not attend this appointment"
+                                  >
+                                    👻 No Show
                                   </button>
                                 )}
                                 {!isCancelled && !isCompleted && (

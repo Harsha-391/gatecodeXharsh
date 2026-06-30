@@ -21,7 +21,7 @@ const ALLOWED_TYPES = {
  * @param {string[]} allowedMimes - list of allowed MIME types
  * @returns {Promise<string|null>} null if valid, error message if not
  */
-async function validateFileType(file, allowedMimes) {
+async function validateFileType(file, allowedMimes, req) {
     if (!file) return 'No file provided';
 
     const allowed = allowedMimes || Object.keys(ALLOWED_TYPES);
@@ -47,33 +47,54 @@ async function validateFileType(file, allowedMimes) {
 
     const detected = await fromBuffer(buffer);
 
+    let errorResult = null;
     if (!detected) {
-        return 'Unrecognised file format. Only PDF and images are allowed.';
+        errorResult = 'Unrecognised file format. Only PDF and images are allowed.';
+    } else if (!allowed.includes(detected.mime)) {
+        errorResult = `File content type not allowed. Detected: ${detected.mime}`;
+    } else {
+        const declaredExt = path.extname(file.originalname || '').toLowerCase();
+        const allowedExts = ALLOWED_TYPES[detected.mime] || [];
+        if (allowedExts.length && declaredExt && !allowedExts.includes(declaredExt)) {
+            errorResult = `File extension (${declaredExt}) does not match file content (${detected.mime})`;
+        } else {
+            const baseName = path.basename(file.path || file.originalname || '').toLowerCase();
+            if (baseName.includes('eicar') || baseName.includes('infected')) {
+                errorResult = 'Virus scan failed: Potential security threat detected in file.';
+            }
+        }
     }
 
-    if (!allowed.includes(detected.mime)) {
-        return `File content type not allowed. Detected: ${detected.mime}`;
+    if (errorResult && req) {
+        try {
+            const AuditLog = require('../models/auditLog.model');
+            const mongoose = require('mongoose');
+            const { parseUserAgent } = require('./userAgentParser');
+            const ua = req.headers['user-agent'] || '';
+            const parsed = parseUserAgent(ua);
+            await AuditLog.create({
+                clinicId: req.user?.hospitalId || req.hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
+                userId: req.user?._id || null,
+                userName: req.user?.name || 'Anonymous',
+                userEmail: req.user?.email || '',
+                role: req.user?._roleData?.name || String(req.user?.role || 'None'),
+                action: 'SUSPICIOUS_FILE_UPLOAD',
+                severity: 'critical',
+                dataCategory: 'System',
+                requestMethod: req.method,
+                requestPath: req.originalUrl || req.path,
+                ip: req.ip || '',
+                userAgent: ua,
+                browser: parsed.browser,
+                os: parsed.os,
+                device: parsed.device,
+                success: false,
+                reason: `Blocked file upload: ${errorResult}. Original file name: ${file.originalname || 'unknown'}`
+            });
+        } catch (_) {}
     }
 
-    // Extension sanity check
-    const declaredExt = path.extname(file.originalname || '').toLowerCase();
-    const allowedExts = ALLOWED_TYPES[detected.mime] || [];
-    if (allowedExts.length && declaredExt && !allowedExts.includes(declaredExt)) {
-        return `File extension (${declaredExt}) does not match file content (${detected.mime})`;
-    }
-
-    // Simulated / Integration Hook: Virus scanning (e.g. ClamAV / node-clam)
-    // To wire up a real ClamAV daemon:
-    // const ClamScan = require('clamscan');
-    // const clam = await new ClamScan().init();
-    // const { isSafe, virus } = await clam.isInfected(file.path);
-    // if (!isSafe) return `Malware detected: ${virus}`;
-    const baseName = path.basename(file.path || file.originalname || '').toLowerCase();
-    if (baseName.includes('eicar') || baseName.includes('infected')) {
-        return 'Virus scan failed: Potential security threat detected in file.';
-    }
-
-    return null;
+    return errorResult;
 }
 
 module.exports = validateFileType;

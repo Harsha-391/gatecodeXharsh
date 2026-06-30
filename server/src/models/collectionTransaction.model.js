@@ -11,7 +11,7 @@ const collectionTransactionSchema = new mongoose.Schema({
     amount: { type: Number, required: true },
     paymentMethod: { 
         type: String, 
-        enum: ['Cash', 'Card', 'UPI', 'Bank Transfer', 'Cheque', 'NEFT/RTGS'], 
+        enum: ['Cash', 'Card', 'UPI', 'Bank Transfer', 'Cheque', 'NEFT/RTGS', 'Insurance'], 
         required: true 
     },
     collectedByUserId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
@@ -26,6 +26,7 @@ const collectionTransactionSchema = new mongoose.Schema({
             'Lab Payment', 
             'Pharmacy Payment', 
             'Insurance Co-Pay', 
+            'Insurance Settle',
             'Miscellaneous Collection'
         ], 
         required: true 

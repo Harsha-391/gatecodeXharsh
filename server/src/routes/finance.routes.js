@@ -291,13 +291,15 @@ router.get('/revenue-analytics', verifyFinanceAccess, async (req, res) => {
         }
 
         // 3. Segmentations
-        const departmentRevenue = { Consultation: 0, Laboratory: 0, Pharmacy: 0, Admission: 0, Service: 0, Other: 0 };
+        const departmentRevenue = { Consultation: 0, Laboratory: 0, Pharmacy: 0, Admission: 0, Insurance: 0, Service: 0, Other: 0 };
         const doctorRevenue = {};
 
         // Aggregate department revenue & timelines from CollectionTransaction
         transactions.forEach(t => {
             let dept = 'Other';
-            if (t.collectionType === 'OPD Registration' || t.collectionType === 'Follow-up Consultation') {
+            if (t.collectionType === 'Insurance Settle' || t.paymentMethod === 'Insurance') {
+                dept = 'Insurance';
+            } else if (t.collectionType === 'OPD Registration' || t.collectionType === 'Follow-up Consultation') {
                 dept = 'Consultation';
             } else if (t.collectionType === 'Lab Payment') {
                 dept = 'Laboratory';

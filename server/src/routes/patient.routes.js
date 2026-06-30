@@ -109,11 +109,9 @@ router.get('/:id/full-history', verifyToken, resolveTenant, auditLog('VIEW_PATIE
             return res.status(400).json({ success: false, message: 'Invalid patient identifier' });
         }
 
-        const userQuery = isObjectId ? { _id: userId } : { patientId: userId };
-        // Always scope to hospital for data isolation
+        const userQuery = isObjectId ? { _id: new mongoose.Types.ObjectId(userId) } : { patientId: userId };
         if (req.user.hospitalId) userQuery.hospitalId = req.user.hospitalId;
         const user = await HospitalPatient.findOne(userQuery).lean();
-
         if (!user) {
             return res.status(404).json({ success: false, message: 'Patient not found' });
         }
@@ -201,6 +199,12 @@ router.post('/', verifyToken, resolveTenant, patientRegistrationLimiter, auditLo
 
         const user = new HospitalPatient(userData);
         await user.save();
+
+        // Track in subscription (non-blocking)
+        if (hospitalId) {
+            const { trackNewPatient } = require('../utils/subscriptionTracker');
+            trackNewPatient(req, hospitalId).catch(() => {});
+        }
 
         res.status(201).json({ success: true, user });
     } catch (err) {

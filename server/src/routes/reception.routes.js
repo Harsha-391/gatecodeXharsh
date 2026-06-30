@@ -139,6 +139,12 @@ router.post('/register', verifyToken, verifyReception, async (req, res) => {
         const newUser = new User(userData);
         await newUser.save();
 
+        // Track in subscription (non-blocking)
+        if (req.user.hospitalId) {
+            const { trackNewPatient } = require('../utils/subscriptionTracker');
+            trackNewPatient(req, req.user.hospitalId).catch(() => {});
+        }
+
         let newAppointment = null;
 
         if (autoCreateAppointment !== false) {
@@ -791,10 +797,30 @@ router.post('/check-in', verifyToken, verifyReception, async (req, res) => {
         const { ClinicalVisit, Appointment } = getModels(req);
         const io = req.app.get('io');
 
+        let status = 'check_in';
+        if (appointmentId) {
+            const appt = await Appointment.findById(appointmentId);
+            if (appt && appt.appointmentTime && !appt.appointmentTime.startsWith('token-')) {
+                const todayStr = new Date().toDateString();
+                const apptDateStr = new Date(appt.appointmentDate).toDateString();
+                if (todayStr === apptDateStr) {
+                    const [apptHour, apptMin] = appt.appointmentTime.split(':').map(Number);
+                    if (!isNaN(apptHour) && !isNaN(apptMin)) {
+                        const now = new Date();
+                        const apptTimeToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), apptHour, apptMin, 0, 0);
+                        const lateThreshold = new Date(apptTimeToday.getTime() + 10 * 60 * 1000); // 10 minutes grace period
+                        if (now > lateThreshold) {
+                            status = 'check_in_late';
+                        }
+                    }
+                }
+            }
+        }
+
         const visitData = {
             patientId,
             appointmentId: appointmentId || null,
-            status: 'check_in',
+            status,
             hospitalId: req.user.hospitalId || undefined
         };
 
@@ -808,7 +834,7 @@ router.post('/check-in', verifyToken, verifyReception, async (req, res) => {
 
         // Emit socket event to update Reception/Doctor grids
         if (io) {
-            const payload = { visitId: visit._id, patientId, status: 'check_in', appointmentId };
+            const payload = { visitId: visit._id, patientId, status, appointmentId };
             io.emit('patient_status_changed', payload);
 
             const hId = req.user.hospitalId || visit.hospitalId;

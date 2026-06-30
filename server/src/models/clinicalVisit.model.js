@@ -43,7 +43,7 @@ const clinicalVisitSchema = new mongoose.Schema({
 
     status: {
         type: String,
-        enum: ['check_in', 'with_nurse', 'ready_for_doctor', 'completed'],
+        enum: ['check_in', 'check_in_late', 'with_nurse', 'ready_for_doctor', 'completed'],
         default: 'check_in'
     }
 }, { timestamps: true });

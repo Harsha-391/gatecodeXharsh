@@ -34,7 +34,15 @@ const ReportsFilesTab = ({ appointment, labReports = [], onRecommendAdmission, o
         }
     }, [appointment?._id]); // eslint-disable-line
 
-    const BASE = import.meta.env.VITE_API_URL || 'https://hms-h939.onrender.com';
+    const getApiBase = () => {
+        if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
+        if (typeof window !== 'undefined') {
+            const hn = window.location.hostname;
+            if (hn === 'localhost' || hn.endsWith('.localhost')) return '';
+        }
+        return 'https://hms-h939.onrender.com';
+    };
+    const BASE = getApiBase();
     const prescriptions = appointment?.prescriptions || [];
     const allFiles = [
         ...prescriptions.map(p => ({ ...p, source: 'appointment' })),

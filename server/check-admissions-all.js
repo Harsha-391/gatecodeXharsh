@@ -35,7 +35,7 @@ async function run() {
                 console.log(`  Created At: ${adm.createdAt}`);
             });
         }
-
+        
         await mongoose.disconnect();
         console.log('\nDisconnected.');
     } catch (err) {

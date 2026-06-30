@@ -5,6 +5,7 @@ const { getTenantModels } = require('../db/tenantModels');
 const { verifyToken } = require('../middleware/auth.middleware');
 const Role = require('../models/role.model');
 const MasterPharmacyPurchaseRequest = require('../models/pharmacyPurchaseRequest.model');
+const auditLog = require('../middleware/audit.middleware');
 
 const getModels = (req) => {
     if (req.tenantDb) {
@@ -69,7 +70,11 @@ router.get('/purchase-requests', verifyToken, resolveTenant, async (req, res) =>
 });
 
 // POST new medicine
-router.post('/inventory', verifyToken, resolveTenant, async (req, res) => {
+router.post('/inventory', verifyToken, resolveTenant, auditLog('STOCK_LEVEL_CHANGED', (req, body) => ({
+    model: 'Inventory',
+    id: body.data?._id,
+    label: `Stock Added: ${body.data?.name} (Qty: ${body.data?.quantity})`
+}), { dataCategory: 'Administrative', severity: 'info' }), async (req, res) => {
     try {
         const { Inventory } = getModels(req);
         const newItem = new Inventory({
@@ -90,7 +95,20 @@ router.post('/inventory', verifyToken, resolveTenant, async (req, res) => {
 });
 
 // UPDATE inventory item
-router.put('/inventory/:id', verifyToken, resolveTenant, async (req, res) => {
+router.put('/inventory/:id', verifyToken, resolveTenant, auditLog('STOCK_LEVEL_CHANGED', (req, body) => ({
+    model: 'Inventory',
+    id: req.params.id,
+    label: `Stock Updated: ${body.data?.name} (Qty: ${body.data?.quantity})`,
+    before: req.oldInventoryItem || null,
+    after: body.data || null
+}), { dataCategory: 'Administrative', severity: 'warning' }), async (req, res, next) => {
+    try {
+        const { Inventory } = getModels(req);
+        const item = await Inventory.findById(req.params.id).lean();
+        if (item) req.oldInventoryItem = item;
+    } catch (_) {}
+    next();
+}, async (req, res) => {
     try {
         const { Inventory } = getModels(req);
         const updateQuery = { _id: req.params.id };
@@ -117,7 +135,18 @@ router.put('/inventory/:id', verifyToken, resolveTenant, async (req, res) => {
 });
 
 // DELETE medicine
-router.delete('/inventory/:id', verifyToken, resolveTenant, async (req, res) => {
+router.delete('/inventory/:id', verifyToken, resolveTenant, auditLog('STOCK_LEVEL_CHANGED', (req) => ({
+    model: 'Inventory',
+    id: req.params.id,
+    label: `Stock Deleted: ${req.oldInventoryItem?.name || ''}`
+}), { dataCategory: 'Administrative', severity: 'critical' }), async (req, res, next) => {
+    try {
+        const { Inventory } = getModels(req);
+        const item = await Inventory.findById(req.params.id).lean();
+        if (item) req.oldInventoryItem = item;
+    } catch (_) {}
+    next();
+}, async (req, res) => {
     try {
         const { Inventory } = getModels(req);
         const deleteQuery = { _id: req.params.id };
@@ -140,7 +169,11 @@ router.delete('/inventory/:id', verifyToken, resolveTenant, async (req, res) => 
 });
 
 // POST raise purchase request
-router.post('/purchase-request', verifyToken, resolveTenant, async (req, res) => {
+router.post('/purchase-request', verifyToken, resolveTenant, auditLog('STOCK_LEVEL_CHANGED', (req, body) => ({
+    model: 'PharmacyPurchaseRequest',
+    id: body.data?._id,
+    label: `Purchase Requested: ${body.data?.item} (Qty: ${body.data?.qty})`
+}), { dataCategory: 'Administrative', severity: 'info' }), async (req, res) => {
     try {
         const { PharmacyPurchaseRequest } = getModels(req);
         const { item, qty } = req.body;

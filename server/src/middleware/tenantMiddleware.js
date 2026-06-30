@@ -60,8 +60,34 @@ exports.resolveTenant = async (req, res, next) => {
  * Use for routes that MUST have a hospital context (patient records, billing, etc.)
  */
 exports.requireTenant = async (req, res, next) => {
-    await exports.resolveTenant(req, res, () => {
+    await exports.resolveTenant(req, res, async () => {
         if (!req.tenantDb) {
+            try {
+                const AuditLog = require('../models/auditLog.model');
+                const mongoose = require('mongoose');
+                const { parseUserAgent } = require('../utils/userAgentParser');
+                const ua = req.headers['user-agent'] || '';
+                const parsed = parseUserAgent(ua);
+                await AuditLog.create({
+                    clinicId: new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
+                    userId: req.user?._id || null,
+                    userName: req.user?.name || 'Anonymous',
+                    userEmail: req.user?.email || '',
+                    role: req.user?._roleData?.name || String(req.user?.role || 'None'),
+                    action: 'CROSS_TENANT_BLOCK',
+                    severity: 'critical',
+                    dataCategory: 'System',
+                    requestMethod: req.method,
+                    requestPath: req.originalUrl || req.path,
+                    ip: req.ip || '',
+                    userAgent: ua,
+                    browser: parsed.browser,
+                    os: parsed.os,
+                    device: parsed.device,
+                    success: false,
+                    reason: 'Operation requires a tenant hospital database context but none was resolved.'
+                });
+            } catch (_) {}
             return res.status(400).json({
                 success: false,
                 message: 'This operation requires a hospital context. Ensure you are logged in as hospital staff.',

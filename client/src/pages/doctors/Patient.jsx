@@ -184,13 +184,13 @@ const Patient = () => {
 
     const todayStr = new Date().toDateString();
     const todayAppts = filtered.filter(a =>
-        new Date(a.appointmentDate).toDateString() === todayStr
+        new Date(a.appointmentDate).toDateString() === todayStr && a.checkedIn === true
     );
     const upcomingAppts = filtered.filter(a => {
         const d = new Date(a.appointmentDate);
         const today = new Date();
         today.setHours(0,0,0,0);
-        return d >= today && (a.status === 'pending' || a.status === 'confirmed');
+        return d >= today && (a.status === 'pending' || (a.status === 'confirmed' && !a.checkedIn));
     });
     const completedTodayAppts = filtered.filter(a =>
         a.status === 'completed' && new Date(a.appointmentDate).toDateString() === todayStr
@@ -223,8 +223,9 @@ const Patient = () => {
             completed: { bg: '#dbeafe', color: '#1e40af' },
             cancelled: { bg: '#fee2e2', color: '#991b1b' },
             pending: { bg: '#fef3c7', color: '#92400e' },
+            'no-show': { bg: '#334155', color: '#cbd5e1' }
         };
-        return map[status] || { bg: '#f1f5f9', color: '#475569' };
+        return map[status] || { bg: '#1e293b', color: '#94a3b8' };
     };
 
     // ─── STYLES ─────────────────────────────────────────────────────
@@ -403,7 +404,22 @@ const Patient = () => {
                                                 <td style={{ ...S.td, color: '#475569', fontWeight: '600', fontSize: '0.82rem' }}>{idx + 1}</td>
                                                 <td style={S.td}>
                                                     <div>
-                                                        <div style={{ color: 'rgb(58 69 80)', fontWeight: '700', fontSize: '0.88rem' }}>{apt.userId?.name || 'Walk-in'}</div>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                            <div style={{ color: 'rgb(58 69 80)', fontWeight: '700', fontSize: '0.88rem' }}>{apt.userId?.name || 'Walk-in'}</div>
+                                                            {apt.visitStatus === 'check_in_late' && (
+                                                                <span style={{
+                                                                    background: '#FEF3C7',
+                                                                    color: '#D97706',
+                                                                    fontSize: '9px',
+                                                                    fontWeight: 800,
+                                                                    padding: '2px 6px',
+                                                                    borderRadius: '8px',
+                                                                    border: '1px solid #FDE68A'
+                                                                }}>
+                                                                    ⚠️ Late Arrival
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                         <div style={{ color: '#64748b', fontSize: '0.75rem' }}>MRN: {apt.userId?.patientId || apt.patientId || 'N/A'}</div>
                                                     </div>
                                                 </td>

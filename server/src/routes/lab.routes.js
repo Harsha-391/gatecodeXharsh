@@ -332,7 +332,7 @@ router.post('/upload-report/:reportId', verifyToken, resolveTenant, verifyLab, u
 
         if (!req.file) return res.status(400).json({ message: 'No file uploaded.' });
 
-        const typeErr = await validateFileType(req.file, ALLOWED_MIMES);
+        const typeErr = await validateFileType(req.file, ALLOWED_MIMES, req);
         if (typeErr) return res.status(400).json({ success: false, message: typeErr });
 
         // RLS: scope by hospitalId so lab staff can only upload to their hospital's reports
@@ -456,7 +456,7 @@ router.post('/create', verifyToken, resolveTenant, verifyLab, upload.single('rep
 
         let fileResult = null;
         if (req.file) {
-            const typeErr = await validateFileType(req.file, ALLOWED_MIMES);
+            const typeErr = await validateFileType(req.file, ALLOWED_MIMES, req);
             if (typeErr) return res.status(400).json({ success: false, message: typeErr });
 
             // Upload to ImageKit

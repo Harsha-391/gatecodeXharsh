@@ -1326,6 +1326,12 @@ select.staff-input {
     background: linear-gradient(to right, #fff5f5, #ffffff);
 }
 
+.charge-item-card.admission-card-past {
+    border: 1px solid #cbd5e1;
+    background: linear-gradient(to right, #f8fafc, #ffffff);
+}
+
+
 .admission-ipd-header {
     display: flex;
     align-items: flex-start;

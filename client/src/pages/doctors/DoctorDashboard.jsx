@@ -164,7 +164,7 @@ const DoctorDashboard = () => {
                     style={{ flex: 1, minWidth: '200px', padding: '10px 14px', borderRadius: '8px', border: '1.5px solid #e2e8f0', fontSize: '0.9rem', outline: 'none' }}
                 />
                 <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                    {['all', 'pending', 'confirmed', 'completed', 'cancelled'].map(s => (
+                    {['all', 'pending', 'confirmed', 'completed', 'cancelled', 'no-show'].map(s => (
                         <button key={s} onClick={() => setStatusFilter(s)}
                             style={{
                                 padding: '6px 14px', borderRadius: '8px', border: '1.5px solid', cursor: 'pointer', fontWeight: 600, fontSize: '0.78rem',
@@ -172,7 +172,7 @@ const DoctorDashboard = () => {
                                 background: statusFilter === s ? '#f0fdf4' : '#fff',
                                 color: statusFilter === s ? '#0d9488' : '#64748b'
                             }}>
-                            {s === 'all' ? 'All' : s.charAt(0).toUpperCase() + s.slice(1)}
+                            {s === 'all' ? 'All' : s === 'no-show' ? 'No Show 👻' : s.charAt(0).toUpperCase() + s.slice(1)}
                         </button>
                     ))}
                 </div>
@@ -253,7 +253,22 @@ const DoctorDashboard = () => {
                                         <div style={{ fontSize: '0.78rem', color: '#94a3b8' }}>{apt.appointmentTime || '-'}</div>
                                     </td>
                                     <td style={{ padding: '12px 16px' }}>
-                                        <div style={{ fontWeight: 700, fontSize: '0.88rem', color: '#1e293b' }}>{apt.userId?.name || 'Walk-in Patient'}</div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <div style={{ fontWeight: 700, fontSize: '0.88rem', color: '#1e293b' }}>{apt.userId?.name || 'Walk-in Patient'}</div>
+                                            {apt.visitStatus === 'check_in_late' && (
+                                                <span style={{
+                                                    background: '#FEF3C7',
+                                                    color: '#D97706',
+                                                    fontSize: '9px',
+                                                    fontWeight: 800,
+                                                    padding: '2px 6px',
+                                                    borderRadius: '8px',
+                                                    border: '1px solid #FDE68A'
+                                                }}>
+                                                    ⚠️ Late Arrival
+                                                </span>
+                                            )}
+                                        </div>
                                         <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
                                             {apt.userId?.phone ? `📱 ${apt.userId.phone}` : ''}
                                             {apt.userId?.patientId ? ` | ${apt.userId.patientId}` : apt.patientId ? ` | ${apt.patientId}` : ''}
@@ -263,8 +278,8 @@ const DoctorDashboard = () => {
                                     <td style={{ padding: '12px 16px' }}>
                                         <span style={{
                                             padding: '4px 12px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 700, textTransform: 'capitalize',
-                                            background: apt.status === 'confirmed' ? '#dcfce7' : apt.status === 'completed' ? '#dbeafe' : apt.status === 'cancelled' ? '#fee2e2' : '#fef3c7',
-                                            color: apt.status === 'confirmed' ? '#166534' : apt.status === 'completed' ? '#1e40af' : apt.status === 'cancelled' ? '#991b1b' : '#92400e'
+                                            background: apt.status === 'confirmed' ? '#dcfce7' : apt.status === 'completed' ? '#dbeafe' : apt.status === 'cancelled' ? '#fee2e2' : apt.status === 'no-show' ? '#f1f5f9' : '#fef3c7',
+                                            color: apt.status === 'confirmed' ? '#166534' : apt.status === 'completed' ? '#1e40af' : apt.status === 'cancelled' ? '#991b1b' : apt.status === 'no-show' ? '#475569' : '#92400e'
                                         }}>{apt.status}</span>
                                     </td>
                                     <td style={{ padding: '12px 16px' }}>

@@ -10,6 +10,7 @@ const { otpLimiter } = require('../middleware/rateLimiter');
 const User = require('../models/user.model');
 const Role = require('../models/role.model');
 const Hospital = require('../models/hospital.model');
+const { parseUserAgent } = require('../utils/userAgentParser');
 
 // POST /api/mfa/setup — generate a TOTP secret and return a QR code
 router.post('/setup', verifyToken, async (req, res) => {
@@ -94,17 +95,22 @@ router.post('/complete-login', otpLimiter, async (req, res) => {
                         AuditLogModel = getTenantModels(tenantDb).AuditLog;
                     }
                 }
+                const ua = req.headers['user-agent'] || '';
+                const parsed = parseUserAgent(ua);
                 await AuditLogModel.create({
                     clinicId: user.hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
                     userId: user._id,
                     userName: user.name || user.email,
                     role: user.role,
-                    action: 'FAILED_LOGIN',
+                    action: 'MFA_FAILURE',
                     severity: 'warning',
                     success: false,
                     reason: 'Invalid MFA code',
                     ip: req.ip || '',
-                    userAgent: req.headers['user-agent'] || ''
+                    userAgent: ua,
+                    browser: parsed.browser,
+                    os: parsed.os,
+                    device: parsed.device
                 });
             } catch (_) {}
             return res.status(401).json({ success: false, message: 'Invalid MFA code' });
@@ -179,16 +185,21 @@ router.post('/complete-login', otpLimiter, async (req, res) => {
                     AuditLogModel = getTenantModels(tenantDb).AuditLog;
                 }
             }
+            const ua = req.headers['user-agent'] || '';
+            const parsed = parseUserAgent(ua);
             await AuditLogModel.create({
                 clinicId: user.hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
                 userId: user._id,
                 userName: user.name || user.email,
                 role: roleData.name,
-                action: 'STAFF_LOGIN',
+                action: 'MFA_SUCCESS',
                 success: true,
                 sessionId: jti,
                 ip: req.ip || '',
-                userAgent: req.headers['user-agent'] || ''
+                userAgent: ua,
+                browser: parsed.browser,
+                os: parsed.os,
+                device: parsed.device
             });
         } catch (_) {}
 

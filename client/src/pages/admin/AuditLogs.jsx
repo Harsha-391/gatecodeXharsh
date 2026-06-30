@@ -76,6 +76,50 @@ const formatReason = (log) => {
     return null;
 };
 
+const renderChanges = (before, after) => {
+    if (!before && !after) return null;
+    const b = before || {};
+    const a = after || {};
+    const allKeys = Array.from(new Set([...Object.keys(b), ...Object.keys(a)]));
+    const changes = [];
+    
+    const ignoredKeys = ['_id', 'id', 'createdAt', 'updatedAt', '__v', 'hospitalId', 'password', 'mfaSecret', 'tokenVersion', 'tv', 'roleId'];
+    
+    for (const key of allKeys) {
+        if (ignoredKeys.includes(key)) continue;
+        const valBefore = b[key];
+        const valAfter = a[key];
+        
+        const strBefore = typeof valBefore === 'object' ? JSON.stringify(valBefore) : String(valBefore ?? '');
+        const strAfter = typeof valAfter === 'object' ? JSON.stringify(valAfter) : String(valAfter ?? '');
+        
+        if (strBefore !== strAfter) {
+            changes.push({ key, from: valBefore, to: valAfter });
+        }
+    }
+    
+    if (changes.length === 0) return <div className="no-changes-msg">No structural or demographic changes found in this event.</div>;
+    
+    return (
+        <div className="changes-diff-list">
+            {changes.map(ch => (
+                <div key={ch.key} className="change-diff-item">
+                    <div className="diff-field-name">{ch.key}</div>
+                    <div className="diff-values-row">
+                        <span className="diff-val-from">
+                            {ch.from === null || ch.from === undefined || ch.from === '' ? <em>None</em> : String(ch.from)}
+                        </span>
+                        <span className="diff-arrow">→</span>
+                        <span className="diff-val-to">
+                            {ch.to === null || ch.to === undefined || ch.to === '' ? <em>None</em> : String(ch.to)}
+                        </span>
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+};
+
 // ─── CSV Export ───────────────────────────────────────────────────────────────
 
 const exportToCSV = (logs, stats) => {
@@ -120,7 +164,7 @@ const AuditLogs = () => {
     const { user } = useAuth();
     // ── State ─────────────────────────────────────────────────────────────────
     const [logs, setLogs] = useState([]);
-    const [stats, setStats] = useState({ todayTotal: 0, todayFailed: 0, patientAccess: 0, exports: 0, updates: 0, authSuccessfulLogins: 0, authFailedLogins: 0, authLogouts: 0 });
+    const [stats, setStats] = useState({ todayTotal: 0, todayFailed: 0, patientAccess: 0, exports: 0, updates: 0, authSuccessfulLogins: 0, authFailedLogins: 0, authLogouts: 0, failedAttempts7d: 0, criticalAlertsCount: 0, activeSessionsCount: 0 });
     const [pagination, setPagination] = useState({ page: 1, limit: 50, total: 0, pages: 1 });
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -129,6 +173,11 @@ const AuditLogs = () => {
     const [sessionDuration, setSessionDuration] = useState(null);
     const [loadingDuration, setLoadingDuration] = useState(false);
 
+    // ── Active Sessions ───────────────────────────────────────────────────────
+    const [activeSessions, setActiveSessions] = useState([]);
+    const [loadingSessions, setLoadingSessions] = useState(false);
+    const [viewActiveSessionsTab, setViewActiveSessionsTab] = useState(false);
+
     // ── Filters ───────────────────────────────────────────────────────────────
     const [search, setSearch]         = useState('');
     const [actionGroup, setActionGroup] = useState('All Events');
@@ -136,7 +185,12 @@ const AuditLogs = () => {
     const [severityFilter, setSeverityFilter] = useState(''); // '', 'info', 'warning', 'critical'
     const [dateFrom, setDateFrom]     = useState('');
     const [dateTo, setDateTo]         = useState('');
+    const [browserFilter, setBrowserFilter] = useState('');
+    const [osFilter, setOsFilter] = useState('');
+    const [sessionFilter, setSessionFilter] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
+    const [availableBrowsers, setAvailableBrowsers] = useState([]);
+    const [availableOS, setAvailableOS] = useState([]);
 
     const debounceRef = useRef(null);
 
@@ -148,6 +202,9 @@ const AuditLogs = () => {
         if (severityFilter)       params.severity = severityFilter;
         if (dateFrom)             params.dateFrom = dateFrom;
         if (dateTo)               params.dateTo = dateTo;
+        if (browserFilter)        params.browser = browserFilter;
+        if (osFilter)             params.os = osFilter;
+        if (sessionFilter.trim()) params.sessionId = sessionFilter.trim();
 
         // Resolve action group → specific action values
         if (actionGroup !== 'All Events') {
@@ -158,7 +215,7 @@ const AuditLogs = () => {
         }
 
         return params;
-    }, [search, actionGroup, successFilter, severityFilter, dateFrom, dateTo, pagination.limit]);
+    }, [search, actionGroup, successFilter, severityFilter, dateFrom, dateTo, browserFilter, osFilter, sessionFilter, pagination.limit]);
 
     const fetchLogs = useCallback(async (page = 1) => {
         setLoading(true);
@@ -168,9 +225,13 @@ const AuditLogs = () => {
             const res = await administratorAPI.getAuditLogs(params);
             if (res.success) {
                 setLogs(res.logs || []);
-                setStats(res.stats || { todayTotal: 0, todayFailed: 0, patientAccess: 0, exports: 0, updates: 0, authSuccessfulLogins: 0, authFailedLogins: 0, authLogouts: 0 });
+                setStats(res.stats || { todayTotal: 0, todayFailed: 0, patientAccess: 0, exports: 0, updates: 0, authSuccessfulLogins: 0, authFailedLogins: 0, authLogouts: 0, failedAttempts7d: 0, criticalAlertsCount: 0, activeSessionsCount: 0 });
                 setPagination(res.pagination || { page, limit: 50, total: 0, pages: 1 });
                 setCurrentPage(page);
+                if (res.meta) {
+                    setAvailableBrowsers(res.meta.browsers || []);
+                    setAvailableOS(res.meta.os || []);
+                }
             }
         } catch (err) {
             console.error('Error fetching audit logs:', err);
@@ -207,12 +268,32 @@ const AuditLogs = () => {
         }
     };
 
+    const fetchActiveSessions = async () => {
+        setLoadingSessions(true);
+        try {
+            const res = await administratorAPI.getActiveSessions();
+            if (res.success) {
+                setActiveSessions(res.sessions || []);
+            }
+        } catch (err) {
+            console.error('Error fetching active sessions:', err);
+        } finally {
+            setLoadingSessions(false);
+        }
+    };
+
+    useEffect(() => {
+        if (viewActiveSessionsTab) {
+            fetchActiveSessions();
+        }
+    }, [viewActiveSessionsTab]);
+
     // Debounced search
     useEffect(() => {
         clearTimeout(debounceRef.current);
         debounceRef.current = setTimeout(() => fetchLogs(1), 400);
         return () => clearTimeout(debounceRef.current);
-    }, [search, actionGroup, successFilter, severityFilter, dateFrom, dateTo]);
+    }, [search, actionGroup, successFilter, severityFilter, dateFrom, dateTo, browserFilter, osFilter, sessionFilter]);
 
     // ── Export ────────────────────────────────────────────────────────────────
     const handleExport = async () => {
@@ -284,6 +365,18 @@ const AuditLogs = () => {
                     <div className="stat-icon purple"><FiEdit /></div>
                     <div><span className="stat-value">{stats.updates}</span><span className="stat-label">Updates</span></div>
                 </div>
+                <div className="audit-stat-card danger">
+                    <div className="stat-icon red-solid"><FiLock /></div>
+                    <div><span className="stat-value">{stats.failedAttempts7d || 0}</span><span className="stat-label">Failed Logins (7d)</span></div>
+                </div>
+                <div className="audit-stat-card critical">
+                    <div className="stat-icon red-solid"><FiShield /></div>
+                    <div><span className="stat-value">{stats.criticalAlertsCount || 0}</span><span className="stat-label">Critical Security Alerts</span></div>
+                </div>
+                <div className="audit-stat-card success-card cursor-pointer" onClick={() => setViewActiveSessionsTab(true)}>
+                    <div className="stat-icon green-solid"><FiActivity /></div>
+                    <div><span className="stat-value">{stats.activeSessionsCount || 0}</span><span className="stat-label">Active Sessions</span></div>
+                </div>
                 <div className="audit-stat-card auth-breakdown-card">
                     <div className="stat-icon lock-yellow"><FiLock /></div>
                     <div className="auth-card-content">
@@ -303,303 +396,440 @@ const AuditLogs = () => {
                 </div>
             </div>
 
-            {/* ── Filters ──────────────────────────────────────────────────── */}
+            {/* ── View Switcher Tabs ─────────────────────────────────────────── */}
+            <div className="audit-view-tabs">
+                <button 
+                    className={`view-tab-btn ${!viewActiveSessionsTab ? 'active' : ''}`}
+                    onClick={() => setViewActiveSessionsTab(false)}
+                >
+                    <FiDatabase /> Event Timeline
+                </button>
+                <button 
+                    className={`view-tab-btn ${viewActiveSessionsTab ? 'active' : ''}`}
+                    onClick={() => setViewActiveSessionsTab(true)}
+                >
+                    <FiActivity /> Active Sessions ({stats.activeSessionsCount || 0})
+                </button>
+            </div>
+
+            {/* ── Filters & Content ─────────────────────────────────────────── */}
             <div className="audit-content-card">
-                <div className="audit-filter-section">
-                    {/* Search */}
-                    <div className="audit-filter-row">
-                        <div className="search-box">
-                            <FiSearch className="search-icon" />
-                            <input
-                                id="audit-search"
-                                type="text"
-                                placeholder="Search by user, email, target, or reason…"
-                                value={search}
-                                onChange={e => setSearch(e.target.value)}
-                            />
-                        </div>
-
-                        {/* Success / Failure */}
-                        <div className="filter-group">
-                            <label><FiFilter /> Status</label>
-                            <select id="audit-success-filter" value={successFilter} onChange={e => setSuccessFilter(e.target.value)}>
-                                <option value="">All</option>
-                                <option value="true">✅ Success</option>
-                                <option value="false">❌ Failed</option>
-                            </select>
-                        </div>
-
-                        {/* Severity */}
-                        <div className="filter-group">
-                            <label><FiShield /> Severity</label>
-                            <select id="audit-severity-filter" value={severityFilter} onChange={e => setSeverityFilter(e.target.value)}>
-                                <option value="">All</option>
-                                <option value="info">ℹ️ Info</option>
-                                <option value="warning">⚠️ Warning</option>
-                                <option value="critical">🔴 Critical</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    {/* Date range */}
-                    <div className="audit-filter-row">
-                        <div className="filter-group date-group">
-                            <label><FiCalendar /> From</label>
-                            <input 
-                                id="audit-date-from" 
-                                type="date" 
-                                value={dateFrom} 
-                                max={today}
-                                onChange={e => {
-                                    const val = e.target.value;
-                                    setDateFrom(val > today ? today : val);
-                                }} 
-                            />
-                        </div>
-                        <div className="filter-group date-group">
-                            <label><FiCalendar /> To</label>
-                            <input 
-                                id="audit-date-to" 
-                                type="date" 
-                                value={dateTo} 
-                                max={today}
-                                onChange={e => {
-                                    const val = e.target.value;
-                                    setDateTo(val > today ? today : val);
-                                }} 
-                            />
-                        </div>
-                        {(dateFrom || dateTo || search || successFilter || severityFilter || actionGroup !== 'All Events') && (
-                            <button className="btn-clear-filters" onClick={() => {
-                                setSearch(''); setSuccessFilter(''); setSeverityFilter('');
-                                setDateFrom(''); setDateTo(''); setActionGroup('All Events');
-                            }}>
-                                ✕ Clear Filters
+                {viewActiveSessionsTab ? (
+                    <div className="active-sessions-section">
+                        <div className="active-sessions-header">
+                            <div>
+                                <h3>Active Telemetry Sessions</h3>
+                                <p className="active-sessions-sub">Currently authenticated users with active token sessions in the last 24 hours.</p>
+                            </div>
+                            <button className="btn-refresh-sessions" onClick={fetchActiveSessions} disabled={loadingSessions}>
+                                <FiRefreshCw className={loadingSessions ? 'spin' : ''} /> Refresh Sessions
                             </button>
+                        </div>
+                        
+                        {loadingSessions ? (
+                            <div className="audit-loading">
+                                <span className="audit-spinner" /> Fetching active user sessions…
+                            </div>
+                        ) : activeSessions.length === 0 ? (
+                            <div className="audit-empty">
+                                <FiActivity size={32} />
+                                <p>No active user sessions found in the last 24 hours.</p>
+                            </div>
+                        ) : (
+                            <div className="active-sessions-grid-container">
+                                <table className="active-sessions-table">
+                                    <thead>
+                                        <tr>
+                                            <th>User</th>
+                                            <th>Role</th>
+                                            <th>Session ID</th>
+                                            <th>IP Address</th>
+                                            <th>Telemetry (OS / Browser / Device)</th>
+                                            <th>Login Timestamp</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {activeSessions.map(sess => (
+                                            <tr key={sess.sessionId}>
+                                                <td>
+                                                    <div className="user-info-cell">
+                                                        <div className="user-avatar-circle">
+                                                            <FiUser />
+                                                        </div>
+                                                        <div>
+                                                            <div className="user-name">{sess.userName || 'System'}</div>
+                                                            <div className="user-id">ID: {sess.userId || '—'}</div>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td><span className={`role-badge-cell ${sess.role?.toLowerCase() || 'default'}`}>{sess.role || '—'}</span></td>
+                                                <td><code>{sess.sessionId}</code></td>
+                                                <td><code>{sess.ipAddress}</code></td>
+                                                <td>
+                                                    <span className="os-browser-badge">
+                                                        {sess.os} · {sess.browser} · {sess.device}
+                                                    </span>
+                                                </td>
+                                                <td>{new Date(sess.loginTime).toLocaleString()}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
                         )}
                     </div>
-
-                    {/* Category buttons */}
-                    <div className="audit-filter-pills">
-                        {Object.keys(ACTION_GROUPS).map(grp => (
-                            <button
-                                key={grp}
-                                className={`filter-opt ${actionGroup === grp ? 'active' : ''}`}
-                                onClick={() => setActionGroup(grp)}
-                            >
-                                {grp}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-
-                {/* ── Pagination info ──────────────────────────────────────── */}
-                {!loading && (
-                    <div className="audit-pagination-info">
-                        Showing {((currentPage - 1) * pagination.limit) + 1}–{Math.min(currentPage * pagination.limit, pagination.total)} of <strong>{pagination.total}</strong> events
-                    </div>
-                )}
-
-                {/* ── Timeline ─────────────────────────────────────────────── */}
-                {loading ? (
-                    <div className="audit-loading">
-                        <span className="audit-spinner" /> Fetching audit timeline…
-                    </div>
-                ) : logs.length === 0 ? (
-                    <div className="audit-empty">
-                        <FiDatabase size={32} />
-                        <p>No audit records match the current filters.</p>
-                    </div>
                 ) : (
-                    <div className="audit-timeline-container">
-                        {logs.map((log) => (
-                            <div key={log._id} className={`audit-timeline-item clickable-timeline-item ${!log.success ? 'failed' : ''}`} onClick={() => handleRowClick(log)}>
-                                <div className="icon-column-audit">
-                                    <div className={getActionClass(log.action, log.success)}>
-                                        {getActionIcon(log.action, log.success)}
-                                    </div>
-                                    <div className="timeline-line" />
+                    <>
+                        <div className="audit-filter-section">
+                            {/* Search */}
+                            <div className="audit-filter-row">
+                                <div className="search-box">
+                                    <FiSearch className="search-icon" />
+                                    <input
+                                        id="audit-search"
+                                        type="text"
+                                        placeholder="Search by user, email, target, or reason…"
+                                        value={search}
+                                        onChange={e => setSearch(e.target.value)}
+                                    />
                                 </div>
-                                <div className="details-column-audit">
-                                    <div className="title-row">
-                                        <span className={`action-tag ${log.severity || 'info'}`}>{log.action || 'OPERATION'}</span>
-                                        {log.severity && log.severity !== 'info' && (
-                                            <span className={`severity-badge ${log.severity}`}>
-                                                {log.severity === 'critical' ? '🔴' : '⚠️'} {SEVERITY_LABELS[log.severity]}
-                                            </span>
-                                        )}
-                                        {log.success
-                                            ? <span className="outcome-badge success"><FiCheckCircle /> Success</span>
-                                            : <span className="outcome-badge failure"><FiXCircle /> Failed</span>
-                                        }
-                                        <span className="timestamp-tag">
-                                            <FiClock /> {new Date(log.createdAt).toLocaleString()}
-                                        </span>
-                                    </div>
 
-                                    <div className="meta-footer">
-                                        <span className="meta-item">
-                                            <FiUser /> <strong>{formatUser(log)}</strong>
-                                            {log.role && <em className="meta-role"> ({log.role})</em>}
-                                        </span>
+                                {/* Success / Failure */}
+                                <div className="filter-group">
+                                    <label><FiFilter /> Status</label>
+                                    <select id="audit-success-filter" value={successFilter} onChange={e => setSuccessFilter(e.target.value)}>
+                                        <option value="">All</option>
+                                        <option value="true">✅ Success</option>
+                                        <option value="false">❌ Failed</option>
+                                    </select>
+                                </div>
 
-                                        {log.ip && (
-                                            <span className="meta-item ip">
-                                                IP: <strong>{log.ip}</strong>
-                                            </span>
-                                        )}
-
-                                        {formatTarget(log) && (
-                                            <span className="meta-item target">
-                                                <FiDatabase /> Target: <strong>{formatTarget(log)}</strong>
-                                            </span>
-                                        )}
-
-                                        {log.dataCategory && log.dataCategory !== 'Administrative' && (
-                                            <span className="meta-item category">
-                                                <FiLock /> {log.dataCategory}
-                                            </span>
-                                        )}
-
-                                        {log.requestMethod && log.requestPath && (
-                                            <span className="meta-item path">
-                                                <code>{log.requestMethod} {log.requestPath.length > 60 ? log.requestPath.slice(0, 60) + '…' : log.requestPath}</code>
-                                            </span>
-                                        )}
-
-                                        {log.userAgent && (
-                                            <span className="meta-item agent" title={log.userAgent}>
-                                                Client: <strong>{log.userAgent.split(' ')[0]}</strong>
-                                            </span>
-                                        )}
-                                    </div>
-
-                                    {formatReason(log) && (
-                                        <div className="audit-reason">
-                                            <FiAlertCircle /> {formatReason(log)}
-                                        </div>
-                                    )}
+                                {/* Severity */}
+                                <div className="filter-group">
+                                    <label><FiShield /> Severity</label>
+                                    <select id="audit-severity-filter" value={severityFilter} onChange={e => setSeverityFilter(e.target.value)}>
+                                        <option value="">All</option>
+                                        <option value="info">ℹ️ Info</option>
+                                        <option value="warning">⚠️ Warning</option>
+                                        <option value="critical">🔴 Critical</option>
+                                    </select>
                                 </div>
                             </div>
-                        ))}
-                    </div>
-                )}
 
-                {/* ── Pagination Controls ───────────────────────────────────── */}
-                {pagination.pages > 1 && (
-                    <div className="audit-pagination">
-                        <button
-                            className="pagination-btn"
-                            disabled={currentPage === 1}
-                            onClick={() => fetchLogs(currentPage - 1)}
-                        >
-                            <FiChevronLeft /> Prev
-                        </button>
-                        <span className="pagination-current">
-                            Page {currentPage} of {pagination.pages}
-                        </span>
-                        <button
-                            className="pagination-btn"
-                            disabled={currentPage >= pagination.pages}
-                            onClick={() => fetchLogs(currentPage + 1)}
-                        >
-                            Next <FiChevronRight />
-                        </button>
-                    </div>
+                            {/* Date range */}
+                            <div className="audit-filter-row">
+                                <div className="filter-group date-group">
+                                    <label><FiCalendar /> From</label>
+                                    <input 
+                                        id="audit-date-from" 
+                                        type="date" 
+                                        value={dateFrom} 
+                                        max={today}
+                                        onChange={e => {
+                                            const val = e.target.value;
+                                            setDateFrom(val > today ? today : val);
+                                        }} 
+                                    />
+                                </div>
+                                <div className="filter-group date-group">
+                                    <label><FiCalendar /> To</label>
+                                    <input 
+                                        id="audit-date-to" 
+                                        type="date" 
+                                        value={dateTo} 
+                                        max={today}
+                                        onChange={e => {
+                                            const val = e.target.value;
+                                            setDateTo(val > today ? today : val);
+                                        }} 
+                                    />
+                                </div>
+                                {(dateFrom || dateTo || search || successFilter || severityFilter || actionGroup !== 'All Events' || browserFilter || osFilter || sessionFilter) && (
+                                    <button className="btn-clear-filters" onClick={() => {
+                                        setSearch(''); setSuccessFilter(''); setSeverityFilter('');
+                                        setDateFrom(''); setDateTo(''); setActionGroup('All Events');
+                                        setBrowserFilter(''); setOsFilter(''); setSessionFilter('');
+                                    }}>
+                                        ✕ Clear Filters
+                                    </button>
+                                )}
+                            </div>
+
+                            {/* Advanced Telemetry Filters */}
+                            <div className="audit-filter-row">
+                                <div className="filter-group">
+                                    <label><FiEye /> Browser</label>
+                                    <select id="audit-browser-filter" value={browserFilter} onChange={e => setBrowserFilter(e.target.value)}>
+                                        <option value="">All Browsers</option>
+                                        {Array.from(new Set(['Chrome', 'Safari', 'Firefox', 'Edge', ...availableBrowsers])).map(b => (
+                                            <option key={b} value={b}>{b}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div className="filter-group">
+                                    <label><FiSettings /> OS</label>
+                                    <select id="audit-os-filter" value={osFilter} onChange={e => setOsFilter(e.target.value)}>
+                                        <option value="">All OS</option>
+                                        {Array.from(new Set(['Windows', 'macOS', 'iOS', 'Android', 'Linux', ...availableOS.map(o => o.toLowerCase() === 'macos' ? 'macOS' : o)])).map(o => (
+                                            <option key={o} value={o}>{o}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div className="filter-group session-id-group">
+                                    <label><FiLock /> Session ID</label>
+                                    <input 
+                                        id="audit-session-filter"
+                                        type="text"
+                                        placeholder="Enter exact Session ID…"
+                                        value={sessionFilter}
+                                        onChange={e => setSessionFilter(e.target.value)}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Category buttons */}
+                            <div className="audit-filter-pills">
+                                {Object.keys(ACTION_GROUPS).map(grp => (
+                                    <button
+                                        key={grp}
+                                        className={`filter-opt ${actionGroup === grp ? 'active' : ''}`}
+                                        onClick={() => setActionGroup(grp)}
+                                    >
+                                        {grp}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* ── Pagination info ──────────────────────────────────────── */}
+                        {!loading && (
+                            <div className="audit-pagination-info">
+                                Showing {((currentPage - 1) * pagination.limit) + 1}–{Math.min(currentPage * pagination.limit, pagination.total)} of <strong>{pagination.total}</strong> events
+                            </div>
+                        )}
+
+                        {/* ── Timeline ─────────────────────────────────────────────── */}
+                        {loading ? (
+                            <div className="audit-loading">
+                                <span className="audit-spinner" /> Fetching audit timeline…
+                            </div>
+                        ) : logs.length === 0 ? (
+                            <div className="audit-empty">
+                                <FiDatabase size={32} />
+                                <p>No audit records match the current filters.</p>
+                            </div>
+                        ) : (
+                            <div className="audit-timeline-container">
+                                {logs.map((log) => (
+                                    <div key={log._id} className={`audit-timeline-item clickable-timeline-item ${!log.success ? 'failed' : ''}`} onClick={() => handleRowClick(log)}>
+                                        <div className="icon-column-audit">
+                                            <div className={getActionClass(log.action, log.success)}>
+                                                {getActionIcon(log.action, log.success)}
+                                            </div>
+                                            <div className="timeline-line" />
+                                        </div>
+                                        <div className="details-column-audit">
+                                            <div className="title-row">
+                                                <span className={`action-tag ${log.severity || 'info'}`}>{log.action || 'OPERATION'}</span>
+                                                {log.severity && log.severity !== 'info' && (
+                                                    <span className={`severity-badge ${log.severity}`}>
+                                                        {log.severity === 'critical' ? '🔴' : '⚠️'} {SEVERITY_LABELS[log.severity]}
+                                                    </span>
+                                                )}
+                                                {log.success
+                                                    ? <span className="outcome-badge success"><FiCheckCircle /> Success</span>
+                                                    : <span className="outcome-badge failure"><FiXCircle /> Failed</span>
+                                                }
+                                                <span className="timestamp-tag">
+                                                    <FiClock /> {new Date(log.createdAt).toLocaleString()}
+                                                </span>
+                                            </div>
+
+                                            <div className="meta-footer">
+                                                <span className="meta-item">
+                                                    <FiUser /> <strong>{formatUser(log)}</strong>
+                                                    {log.role && <em className="meta-role"> ({log.role})</em>}
+                                                </span>
+
+                                                {log.ip && (
+                                                    <span className="meta-item ip">
+                                                        IP: <strong>{log.ip}</strong>
+                                                    </span>
+                                                )}
+
+                                                {formatTarget(log) && (
+                                                    <span className="meta-item target">
+                                                        <FiDatabase /> Target: <strong>{formatTarget(log)}</strong>
+                                                    </span>
+                                                )}
+
+                                                {log.dataCategory && log.dataCategory !== 'Administrative' && (
+                                                    <span className="meta-item category">
+                                                        <FiLock /> {log.dataCategory}
+                                                    </span>
+                                                )}
+
+                                                {log.requestMethod && log.requestPath && (
+                                                    <span className="meta-item path">
+                                                        <code>{log.requestMethod} {log.requestPath.length > 60 ? log.requestPath.slice(0, 60) + '…' : log.requestPath}</code>
+                                                    </span>
+                                                )}
+
+                                                {log.userAgent && (
+                                                    <span className="meta-item agent" title={log.userAgent}>
+                                                        Client: <strong>{log.userAgent.split(' ')[0]}</strong>
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            {formatReason(log) && (
+                                                <div className="audit-reason">
+                                                    <FiAlertCircle /> {formatReason(log)}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* ── Pagination Controls ───────────────────────────────────── */}
+                        {pagination.pages > 1 && (
+                            <div className="audit-pagination">
+                                <button
+                                    className="pagination-btn"
+                                    disabled={currentPage === 1}
+                                    onClick={() => fetchLogs(currentPage - 1)}
+                                >
+                                    <FiChevronLeft /> Prev
+                                </button>
+                                <span className="pagination-current">
+                                    Page {currentPage} of {pagination.pages}
+                                </span>
+                                <button
+                                    className="pagination-btn"
+                                    disabled={currentPage >= pagination.pages}
+                                    onClick={() => fetchLogs(currentPage + 1)}
+                                >
+                                    Next <FiChevronRight />
+                                </button>
+                            </div>
+                        )}
+                    </>
                 )}
             </div>
 
             {selectedLog && (
-                <div className="audit-modal-overlay" onClick={() => setSelectedLog(null)}>
-                    <div className="audit-modal-card" onClick={e => e.stopPropagation()}>
-                        <div className="audit-modal-header">
-                            <h3>🔍 Audit Log Detail</h3>
-                            <button className="audit-modal-close" onClick={() => setSelectedLog(null)}>✕</button>
+                <div className="audit-drawer-overlay" onClick={() => setSelectedLog(null)}>
+                    <div className="audit-drawer-panel" onClick={e => e.stopPropagation()}>
+                        <div className="audit-drawer-header">
+                            <h3>🔍 Event Forensic Analysis</h3>
+                            <button className="audit-drawer-close" onClick={() => setSelectedLog(null)}>✕</button>
                         </div>
-                        <div className="audit-modal-body">
-                            <div className="audit-detail-grid">
-                                <div className="detail-row">
-                                    <span className="detail-label">Action</span>
-                                    <span className={`detail-val action-badge ${selectedLog.severity || 'info'}`}>{selectedLog.action}</span>
+                        <div className="audit-drawer-body">
+                            {/* Forensic Badges */}
+                            <div className="forensic-badges-row">
+                                <span className={`badge-pill action ${selectedLog.severity || 'info'}`}>{selectedLog.action}</span>
+                                <span className={`badge-pill severity ${selectedLog.severity || 'info'}`}>{selectedLog.severity?.toUpperCase()}</span>
+                                <span className={`badge-pill outcome ${selectedLog.success ? 'success' : 'failure'}`}>
+                                    {selectedLog.success ? 'Success' : 'Failed'}
+                                </span>
+                            </div>
+
+                            {/* Core Info Grid */}
+                            <div className="audit-drawer-section">
+                                <h4>📋 General Details</h4>
+                                <div className="drawer-detail-grid">
+                                    <div className="drawer-row">
+                                        <span className="drawer-label">Timestamp</span>
+                                        <span className="drawer-val">{new Date(selectedLog.createdAt).toLocaleString()}</span>
+                                    </div>
+                                    <div className="drawer-row">
+                                        <span className="drawer-label">User</span>
+                                        <span className="drawer-val">
+                                            <strong>{formatUser(selectedLog)}</strong>
+                                            {selectedLog.role && <span className="detail-role"> ({selectedLog.role})</span>}
+                                        </span>
+                                    </div>
+                                    {selectedLog.userEmail && (
+                                        <div className="drawer-row">
+                                            <span className="drawer-label">Email</span>
+                                            <span className="drawer-val">{selectedLog.userEmail}</span>
+                                        </div>
+                                    )}
+                                    {selectedLog.ip && (
+                                        <div className="drawer-row">
+                                            <span className="drawer-label">IP Address</span>
+                                            <span className="drawer-val"><code>{selectedLog.ip}</code></span>
+                                        </div>
+                                    )}
+                                    {selectedLog.dataCategory && (
+                                        <div className="drawer-row">
+                                            <span className="drawer-label">Data Category</span>
+                                            <span className="drawer-val">{selectedLog.dataCategory}</span>
+                                        </div>
+                                    )}
+                                    {selectedLog.requestMethod && (
+                                        <div className="drawer-row">
+                                            <span className="drawer-label">HTTP Request</span>
+                                            <span className="drawer-val"><code>{selectedLog.requestMethod} {selectedLog.requestPath}</code></span>
+                                        </div>
+                                    )}
+                                    {selectedLog.sessionId && (
+                                        <div className="drawer-row">
+                                            <span className="drawer-label">Session ID</span>
+                                            <span className="drawer-val"><code>{selectedLog.sessionId}</code></span>
+                                        </div>
+                                    )}
+                                    {formatTarget(selectedLog) && (
+                                        <div className="drawer-row">
+                                            <span className="drawer-label">Target Entity</span>
+                                            <span className="drawer-val">{formatTarget(selectedLog)}</span>
+                                        </div>
+                                    )}
                                 </div>
-                                <div className="detail-row">
-                                    <span className="detail-label">Severity</span>
-                                    <span className={`detail-val severity-tag ${selectedLog.severity || 'info'}`}>{selectedLog.severity?.toUpperCase()}</span>
+                            </div>
+
+                            {/* Client Telemetry */}
+                            <div className="audit-drawer-section">
+                                <h4>💻 Client Telemetry</h4>
+                                <div className="drawer-detail-grid">
+                                    <div className="drawer-row">
+                                        <span className="drawer-label">Operating System</span>
+                                        <span className="drawer-val"><strong>{selectedLog.os || 'Unknown OS'}</strong></span>
+                                    </div>
+                                    <div className="drawer-row">
+                                        <span className="drawer-label">Browser</span>
+                                        <span className="drawer-val"><strong>{selectedLog.browser || 'Unknown Browser'}</strong></span>
+                                    </div>
+                                    <div className="drawer-row">
+                                        <span className="drawer-label">Device Class</span>
+                                        <span className="drawer-val"><strong>{selectedLog.device || 'Unknown Device'}</strong></span>
+                                    </div>
+                                    {selectedLog.userAgent && (
+                                        <div className="drawer-row full-width-row">
+                                            <span className="drawer-label">Raw User Agent</span>
+                                            <span className="drawer-val raw-ua-text"><code>{selectedLog.userAgent}</code></span>
+                                        </div>
+                                    )}
                                 </div>
-                                <div className="detail-row">
-                                    <span className="detail-label">Outcome</span>
-                                    <span className={`detail-val outcome-badge-modal ${selectedLog.success ? 'success' : 'failure'}`}>
-                                        {selectedLog.success ? '✅ Success' : '❌ Failed'}
-                                    </span>
-                                </div>
-                                <div className="detail-row">
-                                    <span className="detail-label">Timestamp</span>
-                                    <span className="detail-val">{new Date(selectedLog.createdAt).toLocaleString()}</span>
-                                </div>
-                                <div className="detail-row">
-                                    <span className="detail-label">Performed By</span>
-                                    <span className="detail-val">
-                                        <strong>{formatUser(selectedLog)}</strong>
-                                        {selectedLog.role && <span className="detail-role"> ({selectedLog.role})</span>}
-                                    </span>
-                                </div>
-                                {selectedLog.userEmail && (
-                                    <div className="detail-row">
-                                        <span className="detail-label">Email</span>
-                                        <span className="detail-val">{selectedLog.userEmail}</span>
-                                    </div>
-                                )}
-                                {selectedLog.ip && (
-                                    <div className="detail-row">
-                                        <span className="detail-label">IP Address</span>
-                                        <span className="detail-val"><code>{selectedLog.ip}</code></span>
-                                    </div>
-                                )}
-                                {selectedLog.dataCategory && (
-                                    <div className="detail-row">
-                                        <span className="detail-label">Data Category</span>
-                                        <span className="detail-val">{selectedLog.dataCategory}</span>
-                                    </div>
-                                )}
-                                {selectedLog.requestMethod && (
-                                    <div className="detail-row">
-                                        <span className="detail-label">HTTP Request</span>
-                                        <span className="detail-val"><code>{selectedLog.requestMethod} {selectedLog.requestPath}</code></span>
-                                    </div>
-                                )}
-                                {selectedLog.sessionId && (
-                                    <div className="detail-row">
-                                        <span className="detail-label">Session ID</span>
-                                        <span className="detail-val"><code>{selectedLog.sessionId}</code></span>
-                                    </div>
-                                )}
-                                {formatTarget(selectedLog) && (
-                                    <div className="detail-row">
-                                        <span className="detail-label">Target Entity</span>
-                                        <span className="detail-val">{formatTarget(selectedLog)}</span>
-                                    </div>
-                                )}
-                                {selectedLog.userAgent && (
-                                    <div className="detail-row full-width">
-                                        <span className="detail-label">Client User Agent</span>
-                                        <span className="detail-val agent-string">{selectedLog.userAgent}</span>
-                                    </div>
-                                )}
-                                {formatReason(selectedLog) && (
-                                    <div className="detail-row full-width reason-row">
-                                        <span className="detail-label">Failure Reason</span>
-                                        <span className="detail-val text-danger">{formatReason(selectedLog)}</span>
-                                    </div>
-                                )}
+                            </div>
+
+                            {/* Changes Diff Highlights */}
+                            <div className="audit-drawer-section">
+                                <h4>🔄 Demographics / Value Changes</h4>
+                                {renderChanges(selectedLog.changes?.before, selectedLog.changes?.after)}
                             </div>
 
                             {/* Session Duration Section */}
                             {selectedLog.sessionId && (
-                                <div className="audit-duration-section">
+                                <div className="audit-drawer-section">
                                     <h4>⏱️ Session Duration Analysis</h4>
                                     {loadingDuration ? (
                                         <div className="duration-loading">
-                                            <span className="audit-spinner-small" /> Calculating session duration lazily...
+                                            <span className="audit-spinner-small" /> Calculating session duration...
                                         </div>
                                     ) : sessionDuration ? (
                                         <div className="duration-result-grid">
@@ -608,7 +838,7 @@ const AuditLogs = () => {
                                                 <span className="result-val">{new Date(sessionDuration.loginTime).toLocaleString()}</span>
                                             </div>
                                             <div className="duration-result-item">
-                                                <span className="result-label">Logout Time</span>
+                                                <span className="result-label">Logout/Last Action</span>
                                                 <span className="result-val">
                                                     {sessionDuration.logoutTime 
                                                         ? new Date(sessionDuration.logoutTime).toLocaleString() 
@@ -616,7 +846,7 @@ const AuditLogs = () => {
                                                 </span>
                                             </div>
                                             <div className="duration-result-item highlight">
-                                                <span className="result-label">Duration</span>
+                                                <span className="result-label">Active Duration</span>
                                                 <span className="result-val duration-badge">
                                                     {formatDuration(sessionDuration.durationMinutes)}
                                                 </span>
@@ -629,9 +859,16 @@ const AuditLogs = () => {
                                     )}
                                 </div>
                             )}
+
+                            {formatReason(selectedLog) && (
+                                <div className="audit-drawer-section error-reason-section">
+                                    <h4>🔴 Failure Incident Reason</h4>
+                                    <p className="incident-reason-text">{formatReason(selectedLog)}</p>
+                                </div>
+                            )}
                         </div>
-                        <div className="audit-modal-footer">
-                            <button className="btn-close-modal" onClick={() => setSelectedLog(null)}>Close</button>
+                        <div className="audit-drawer-footer">
+                            <button className="btn-close-drawer" onClick={() => setSelectedLog(null)}>Close Investigation</button>
                         </div>
                     </div>
                 </div>

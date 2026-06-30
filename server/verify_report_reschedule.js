@@ -30,7 +30,7 @@ async function testReportReschedule() {
         // 2. Get Tenant Connection & Models
         const tenantConn = await getTenantConnection(hospitalId.toString());
         const tenantModels = getTenantModels(tenantConn);
-        console.log(`Connected to Tenant DB: hms_hospital_${hospitalId}`);
+        console.log(`Connected to Tenant DB: ${tenantConn.name}`);
 
         // 3. Create test Patient and Doctor
         const testPatient = new MasterUser({

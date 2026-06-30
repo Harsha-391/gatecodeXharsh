@@ -67,13 +67,33 @@ const auditLogSchema = new mongoose.Schema({
             // ── Admissions Oversight (Oversight Module) ──────────────────────
             'ADMISSIONS_DASHBOARD_VIEW', 'ADMISSION_ANALYTICS_VIEW',
             'OCCUPANCY_REPORT_VIEW', 'TRANSFER_REPORT_VIEW',
+
+            // ── Enterprise Extended Audit Logs ───────────────────────────────
+            'SESSION_TIMEOUT', 'SESSION_EXPIRED', 'PASSWORD_CHANGED', 'PASSWORD_RESET_REQUEST',
+            'MFA_SUCCESS', 'MFA_FAILURE', 'ACCOUNT_LOCKED', 'ACCOUNT_UNLOCKED',
+            'TOKEN_REFRESH', 'TOKEN_REVOKED', 'DIAGNOSIS_ADDED', 'PRESCRIPTION_GENERATED',
+            'PRESCRIPTION_PRINTED', 'LAB_REPORT_VIEWED', 'LAB_REPORT_DOWNLOADED',
+            'ADMISSION_CREATED', 'DISCHARGE_COMPLETED', 'BED_CHANGED',
+            'INVOICE_CREATED', 'INVOICE_UPDATED', 'INVOICE_DELETED',
+            'PAYMENT_COLLECTED', 'PAYMENT_CANCELLED', 'REFUND_REQUESTED',
+            'REFUND_APPROVED', 'REFUND_REJECTED', 'INSURANCE_CLAIM_CREATED',
+            'INSURANCE_APPROVED', 'INSURANCE_REJECTED', 'EXPENSE_ADDED',
+            'EXPENSE_UPDATED', 'EXPENSE_DELETED', 'SALARY_PROCESSED', 'PAYROLL_APPROVED',
+            'ROLE_CREATED', 'ROLE_UPDATED', 'ROLE_DELETED', 'PERMISSION_GRANTED',
+            'PERMISSION_REMOVED', 'USER_ASSIGNED_ROLE', 'USER_REMOVED_ROLE',
+            'CONFIG_CHANGE', 'DEPARTMENT_CHANGE', 'DOCTOR_CHANGE', 'SERVICE_CHANGE',
+            'MEDICINE_ADDED', 'MEDICINE_UPDATED', 'MEDICINE_DELETED', 'PURCHASE_ORDER',
+            'SUPPLIER_UPDATED', 'STOCK_ADJUSTED', 'STOCK_REDUCED', 'EXPIRED_STOCK_REMOVED',
+            'REPORT_PRINTED', 'REPORT_DOWNLOADED', 'CSV_EXPORT', 'EXCEL_EXPORT', 'PDF_EXPORT',
+            'UNAUTHORIZED_ACCESS', 'CROSS_TENANT_BLOCK', 'RATE_LIMIT_EXCEEDED',
+            'JWT_FAILURE', 'SUSPICIOUS_UPLOAD', 'SQLI_ATTEMPT', 'XSS_ATTEMPT', 'BRUTE_FORCE'
         ],
     },
 
     // ── Severity (CERT-IN SIEM integration) ──────────────────────────────────
     severity: {
         type: String,
-        enum: ['info', 'warning', 'critical'],
+        enum: ['info', 'warning', 'high', 'critical'],
         default: 'info',
     },
 
@@ -98,6 +118,9 @@ const auditLogSchema = new mongoose.Schema({
     // ── Request Context ───────────────────────────────────────────────────────
     ip:        { type: String, default: '' },
     userAgent: { type: String, default: '' },
+    browser:   { type: String, default: 'Unknown' },
+    os:        { type: String, default: 'Unknown' },
+    device:    { type: String, default: 'Desktop' },
 
     // ── Outcome ───────────────────────────────────────────────────────────────
     success:   { type: Boolean, default: true },
