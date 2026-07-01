@@ -183,18 +183,22 @@ const Patient = () => {
     });
 
     const todayStr = new Date().toDateString();
-    const todayAppts = filtered.filter(a =>
-        new Date(a.appointmentDate).toDateString() === todayStr && a.checkedIn === true
-    );
+    const todayAppts = filtered.filter(a => {
+        const isApptToday = new Date(a.appointmentDate).toDateString() === todayStr;
+        const isCheckInToday = a.checkInDate && new Date(a.checkInDate).toDateString() === todayStr;
+        return (isApptToday || isCheckInToday) && a.checkedIn === true;
+    });
     const upcomingAppts = filtered.filter(a => {
         const d = new Date(a.appointmentDate);
         const today = new Date();
         today.setHours(0,0,0,0);
         return d >= today && (a.status === 'pending' || (a.status === 'confirmed' && !a.checkedIn));
     });
-    const completedTodayAppts = filtered.filter(a =>
-        a.status === 'completed' && new Date(a.appointmentDate).toDateString() === todayStr
-    );
+    const completedTodayAppts = filtered.filter(a => {
+        const isCompletedToday = a.completedAt && new Date(a.completedAt).toDateString() === todayStr;
+        const isApptToday = new Date(a.appointmentDate).toDateString() === todayStr;
+        return a.status === 'completed' && (isCompletedToday || isApptToday);
+    });
     const allAppts = filtered;
 
     let displayList = allAppts;
@@ -396,6 +400,16 @@ const Patient = () => {
                                     {displayList.map((apt, idx) => {
                                         const statusS = getStatusStyle(apt.status);
                                         const hasVitals = apt.userId?.fertilityProfile?.vitals?.weight;
+                                        
+                                        // Calculate if late or early check-in
+                                        const apptMidnight = new Date(apt.appointmentDate);
+                                        apptMidnight.setHours(0,0,0,0);
+                                        const checkInMidnight = apt.checkInDate ? new Date(apt.checkInDate) : new Date();
+                                        checkInMidnight.setHours(0,0,0,0);
+
+                                        const isLate = apt.visitStatus === 'check_in_late' || apptMidnight.getTime() < checkInMidnight.getTime();
+                                        const isEarly = apptMidnight.getTime() > checkInMidnight.getTime();
+
                                         return (
                                             <tr key={apt._id} style={{ transition: 'background 0.15s' }}
                                                 onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
@@ -406,7 +420,7 @@ const Patient = () => {
                                                     <div>
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                             <div style={{ color: 'rgb(58 69 80)', fontWeight: '700', fontSize: '0.88rem' }}>{apt.userId?.name || 'Walk-in'}</div>
-                                                            {apt.visitStatus === 'check_in_late' && (
+                                                            {isLate && (
                                                                 <span style={{
                                                                     background: '#FEF3C7',
                                                                     color: '#D97706',
@@ -417,6 +431,19 @@ const Patient = () => {
                                                                     border: '1px solid #FDE68A'
                                                                 }}>
                                                                     ⚠️ Late Arrival
+                                                                </span>
+                                                            )}
+                                                            {isEarly && (
+                                                                <span style={{
+                                                                    background: '#E0F2FE',
+                                                                    color: '#0369A1',
+                                                                    fontSize: '9px',
+                                                                    fontWeight: 800,
+                                                                    padding: '2px 6px',
+                                                                    borderRadius: '8px',
+                                                                    border: '1px solid #BAE6FD'
+                                                                }}>
+                                                                    ⏰ Early Arrival
                                                                 </span>
                                                             )}
                                                         </div>

@@ -93,10 +93,12 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
                 // Simple clinic — single hub page with built-in role switcher
                 baseMenu = [
                     { label: 'Clinic Hub', path: '/hospitaladmin', icon: <FiHome /> },
+                    { label: 'Document Templates', path: '/hospitaladmin/document-templates', icon: <FiFileText /> },
                 ];
             } else {
                 baseMenu = [
                     { label: 'Hospital Overview', path: '/hospitaladmin', icon: <FiPieChart /> },
+                    { label: 'Document Templates', path: '/hospitaladmin/document-templates', icon: <FiFileText /> },
                     { label: 'Clinical Questions', path: '/hospitaladmin/question-library', icon: <FiFileText /> },
                     { label: 'Staff Management', path: '/admin/users', icon: <FiUsers /> },
                     { label: 'Doctors Feed', path: '/admin/doctors', icon: <FiActivity /> },
@@ -249,7 +251,8 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
                         { label: 'Inventory Monitoring', path: '/admin/inventory', icon: <FiPackage /> },
                         { label: 'Resource Management', path: '/admin/resources', icon: <FiSettings /> },
                         { label: 'Admissions Oversight', path: '/admin/admissions', icon: <FiPlusSquare /> },
-                        { label: 'Question Library', path: '/admin/question-library', icon: <FiFileText /> }
+                        { label: 'Question Library', path: '/admin/question-library', icon: <FiFileText /> },
+                        { label: 'Document Templates', path: '/admin/document-templates', icon: <FiFileText /> }
                     ]
                 },
                 {
@@ -324,6 +327,50 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
 
         // Dynamically append permission-based links for non-administrator/accountant roles
         const extraItems = [];
+
+        // Admin & Reporting dynamic permissions mapping
+        if (userPermissions.includes('staff_manage')) {
+            extraItems.push({ label: 'Manage Users', path: '/admin/users', icon: <FiUsers /> });
+        }
+        if (userPermissions.includes('doctor_manage')) {
+            extraItems.push({ label: 'Doctors', path: '/admin/doctors', icon: <FiActivity /> });
+        }
+        if (userPermissions.includes('admin_manage_roles')) {
+            extraItems.push(
+                { label: 'Roles & Permissions', path: '/admin/roles', icon: <FiShield /> },
+                { label: 'Dynamic Permissions', path: '/admin/permissions', icon: <FiShield /> }
+            );
+        }
+        if (userPermissions.includes('lab_tests_manage')) {
+            extraItems.push(
+                { label: 'Labs', path: '/admin/labs', icon: <FiGrid /> },
+                { label: 'Lab Tests Catalog', path: '/admin/lab-tests', icon: <FiClipboard /> },
+                { label: 'Laboratory Management', path: '/admin/lab-management', icon: <FiGrid /> },
+                { label: 'Tests & Packages', path: '/admin/test-packages', icon: <FiPackage /> }
+            );
+        }
+        if (userPermissions.includes('pharmacy_admin_manage')) {
+            extraItems.push(
+                { label: 'Pharmacy', path: '/admin/pharmacy', icon: <FiPackage /> },
+                { label: 'Pharmacy Management', path: '/admin/pharmacy-management', icon: <FiPackage /> },
+                { label: 'Purchase Approvals', path: '/admin/purchase-approvals', icon: <FiCheckCircle /> }
+            );
+        }
+        if (userPermissions.includes('reception_admin_manage')) {
+            extraItems.push(
+                { label: 'Reception', path: '/admin/reception', icon: <FiHome /> },
+                { label: 'Services', path: '/admin/services', icon: <FiSettings /> }
+            );
+        }
+        if (userPermissions.includes('question_library_manage')) {
+            extraItems.push(
+                { label: 'Question Library', path: '/admin/question-library', icon: <FiFileText /> },
+                { label: 'Document Templates', path: '/admin/document-templates', icon: <FiFileText /> }
+            );
+        }
+        if (userPermissions.includes('audit_logs_view')) {
+            extraItems.push({ label: 'Audit Logs', path: '/admin/audit-logs', icon: <FiClipboard /> });
+        }
 
         // Core billing pages — unlocked by billing_view or billing_manage or specific page permissions
         if (userPermissions.includes('billing_view') || userPermissions.includes('billing_manage')) {
@@ -522,6 +569,28 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
                     if (path === '/billing/templates') return userPermissions.includes('billing_templates') || userPermissions.includes('billing_view') || userPermissions.includes('billing_manage');
                     if (path === '/billing/settings') return userPermissions.includes('billing_settings') || userPermissions.includes('billing_view') || userPermissions.includes('billing_manage');
                     if (path === '/admin/profile-settings') return true;
+
+                    // Admin & Reporting dynamic filters
+                    if (path === '/admin/users') return userPermissions.includes('staff_manage');
+                    if (path === '/admin/doctors') return userPermissions.includes('doctor_manage');
+                    if (path === '/admin/roles') return userPermissions.includes('admin_manage_roles');
+                    if (path === '/admin/permissions') return userPermissions.includes('admin_manage_roles');
+                    if (path === '/admin/labs') return userPermissions.includes('lab_tests_manage') || userPermissions.includes('lab_view');
+                    if (path === '/admin/lab-tests') return userPermissions.includes('lab_tests_manage');
+                    if (path === '/admin/lab-management') return userPermissions.includes('lab_tests_manage');
+                    if (path === '/admin/test-packages') return userPermissions.includes('lab_tests_manage');
+                    if (path === '/admin/pharmacy') return userPermissions.includes('pharmacy_admin_manage');
+                    if (path === '/admin/pharmacy-management') return userPermissions.includes('pharmacy_admin_manage');
+                    if (path === '/admin/purchase-approvals') return userPermissions.includes('pharmacy_admin_manage');
+                    if (path === '/admin/reception') return userPermissions.includes('reception_admin_manage');
+                    if (path === '/admin/services') return userPermissions.includes('reception_admin_manage') || userPermissions.includes('department_manage');
+                    if (path === '/admin/inventory') return userPermissions.includes('inventory_view');
+                    if (path === '/admin/resources') return userPermissions.includes('resource_manage');
+                    if (path === '/admin/admissions') return userPermissions.includes('admission_manage');
+                    if (path === '/admin/question-library') return userPermissions.includes('question_library_manage');
+                    if (path === '/admin/document-templates') return userPermissions.includes('question_library_manage');
+                    if (path === '/admin/reports') return userPermissions.includes('reports_view');
+                    if (path === '/admin/audit-logs') return userPermissions.includes('audit_logs_view');
 
                     if (path === '/accountant/dashboard') return userPermissions.includes('accountant_view') || userPermissions.includes('finance_view');
                     if (path === '/billing/reports') return userPermissions.includes('billing_reports') || userPermissions.includes('finance_view');

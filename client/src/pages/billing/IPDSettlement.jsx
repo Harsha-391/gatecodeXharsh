@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { billingAPI, admissionAPI, receptionAPI } from '../../utils/api';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { loadActiveTemplate } from '../../utils/documentTemplateHelper';
 import {
     FiHome, FiSearch, FiFileText, FiDollarSign, FiAlertCircle,
     FiCheckCircle, FiPrinter, FiX, FiActivity
@@ -19,7 +20,7 @@ const getTemplateColor = () => {
     return { name: t, hex: TEMPLATE_COLORS[t] || '#0a2647' };
 };
 
-const fmt = (n) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 0 }).format(n || 0);
+const fmt = (n) => 'INR ' + Number(n || 0).toLocaleString('en-IN');
 const fmtPDF = (n) => 'Rs. ' + new Intl.NumberFormat('en-IN', { minimumFractionDigits: 0 }).format(n || 0);
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 const fmtDateTime = (d) => d ? new Date(d).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
@@ -239,34 +240,66 @@ const IPDSettlement = () => {
         return [r, g, b];
     };
 
-    const generateSettlementPDF = () => {
+    const generateSettlementPDF = async () => {
         if (!patient || !billing) return;
         const doc = new jsPDF();
-        const pc = hexToRgb(theme.hex);
-        const pw = doc.internal.pageSize.getWidth();
+        
+        let template = null;
+        let bgBase64 = null;
+        try {
+            const tempResult = await loadActiveTemplate('billing_payment');
+            template = tempResult.template;
+            bgBase64 = tempResult.bgBase64;
+        } catch (err) {
+            console.error('Error loading active IPD settlement template:', err);
+        }
 
-        doc.setFillColor(...pc);
-        doc.rect(0, 0, pw, 42, 'F');
-        doc.setTextColor(255, 255, 255);
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(18);
-        doc.text('IPD FINAL SETTLEMENT', 14, 20);
-        doc.setFontSize(9);
-        doc.setFont('helvetica', 'normal');
-        doc.text(`Generated: ${fmtDateTime(new Date())}`, 14, 30);
-        doc.text('SETTLEMENT INVOICE', pw - 14, 20, { align: 'right' });
+        const pageW = 210;
+        const pageH = 297;
+        let y = template ? (template.headerHeight || 50) : 48;
+        const leftM = template ? (template.leftMargin || 15) : 14;
+        const rightM = template ? (template.rightMargin || 15) : 14;
+        const printW = pageW - leftM - rightM;
+
+        if (bgBase64) {
+            doc.addImage(bgBase64, 'PNG', 0, 0, pageW, pageH);
+        }
+
+        const pc = hexToRgb(theme.hex);
+
+        if (!template) {
+            doc.setFillColor(...pc);
+            doc.rect(0, 0, pageW, 42, 'F');
+            doc.setTextColor(255, 255, 255);
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(18);
+            doc.text('IPD FINAL SETTLEMENT', 14, 20);
+            doc.setFontSize(9);
+            doc.setFont('helvetica', 'normal');
+            doc.text(`Generated: ${fmtDateTime(new Date())}`, 14, 30);
+            doc.text('SETTLEMENT INVOICE', pageW - 14, 20, { align: 'right' });
+            y = 52;
+        } else {
+            doc.setTextColor(...pc);
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(15);
+            doc.text('IPD FINAL SETTLEMENT', leftM, y);
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(8);
+            doc.text(`Generated: ${fmtDateTime(new Date())}`, pageW - rightM, y, { align: 'right' });
+            y += 8;
+        }
 
         // Patient Info
-        let y = 52;
         doc.setTextColor(15, 23, 42);
         doc.setFontSize(11);
         doc.setFont('helvetica', 'bold');
-        doc.text('PATIENT INFORMATION', 14, y);
+        doc.text('PATIENT INFORMATION', leftM, y);
         y += 6;
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(9);
         doc.setTextColor(71, 85, 105);
-        doc.text(`Name: ${patient.name}   |   MRN: ${patient.mrn || patient.patientId}   |   Phone: ${patient.phone || '—'}`, 14, y);
+        doc.text(`Name: ${patient.name}   |   MRN: ${patient.mrn || patient.patientId}   |   Phone: ${patient.phone || '—'}`, leftM, y);
         y += 14;
 
         // Admissions table
@@ -275,7 +308,7 @@ const IPDSettlement = () => {
             doc.setTextColor(...pc);
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(10);
-            doc.text('IPD ADMISSION CHARGES', 14, y); y += 4;
+            doc.text('IPD ADMISSION CHARGES', leftM, y); y += 4;
             autoTable(doc, {
                 startY: y,
                 head: [['Admission Date', 'Ward', 'Bed', 'Duration', 'Status', 'Amount']],
@@ -286,16 +319,22 @@ const IPDSettlement = () => {
                 ]),
                 headStyles: { fillColor: pc, fontSize: 8 },
                 bodyStyles: { fontSize: 8 },
-                margin: { left: 14, right: 14 },
+                margin: { left: leftM, right: rightM },
             });
             y = doc.lastAutoTable.finalY + 6;
         }
 
         // Summary table
+        const maxContentY = pageH - (template ? (template.footerHeight || 30) : 35);
+        if (y > maxContentY - 50) {
+            doc.addPage();
+            if (bgBase64) doc.addImage(bgBase64, 'PNG', 0, 0, pageW, pageH);
+            y = template ? (template.headerHeight || 50) : 20;
+        }
         doc.setTextColor(...pc);
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(10);
-        doc.text('FINANCIAL SUMMARY', 14, y); y += 4;
+        doc.text('FINANCIAL SUMMARY', leftM, y); y += 4;
         autoTable(doc, {
             startY: y,
             body: [
@@ -311,10 +350,10 @@ const IPDSettlement = () => {
             headStyles: { fillColor: pc },
             bodyStyles: { fontSize: 9 },
             columnStyles: {
-                0: { fontStyle: 'bold', cellWidth: 120 },
+                0: { fontStyle: 'bold', cellWidth: printW - 40 },
                 1: { halign: 'right', fontStyle: 'bold' }
             },
-            margin: { left: 14, right: 14 },
+            margin: { left: leftM, right: rightM },
             didParseCell: (data) => {
                 if (data.row.index === 5 || data.row.index === 7) {
                     data.cell.styles.fillColor = data.row.index === 7 ? [254, 226, 226] : [220, 252, 231];

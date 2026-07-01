@@ -3,6 +3,7 @@ import { pharmacyOrderAPI } from '../../utils/api';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import socket from '../../utils/socket';
+import { loadActiveTemplate } from '../../utils/documentTemplateHelper';
 import './PharmacyInventory.css';
 
 const PharmacyOrders = () => {
@@ -127,41 +128,69 @@ const PharmacyOrders = () => {
         return `RX-${id.slice(-8).toUpperCase()}`;
     };
 
-    const generateBillPDF = (order) => {
-        const doc = new jsPDF({ unit: 'mm', format: 'a5' });
-        const pageW = doc.internal.pageSize.getWidth();
-        let y = 14;
+    const generateBillPDF = async (order) => {
+        const doc = new jsPDF();
+        
+        let template = null;
+        let bgBase64 = null;
+        try {
+            const tempResult = await loadActiveTemplate('billing_payment');
+            template = tempResult.template;
+            bgBase64 = tempResult.bgBase64;
+        } catch (err) {
+            console.error('Error loading active billing template:', err);
+        }
 
-        // ── Header ──
-        doc.setFillColor(14, 165, 133);
-        doc.rect(0, 0, pageW, 28, 'F');
-        doc.setTextColor(255, 255, 255);
-        doc.setFontSize(15);
-        doc.setFont('helvetica', 'bold');
-        doc.text(hospitalName, pageW / 2, y, { align: 'center' });
-        y += 7;
-        doc.setFontSize(8);
-        doc.setFont('helvetica', 'normal');
-        doc.text('PHARMACY MEDICINE BILL / RECEIPT', pageW / 2, y, { align: 'center' });
-        y = 36;
+        const pageW = 210;
+        const pageH = 297;
+        let y = template ? (template.headerHeight || 50) : 48;
+        const leftM = template ? (template.leftMargin || 15) : 14;
+        const rightM = template ? (template.rightMargin || 15) : 14;
+        const printW = pageW - leftM - rightM;
+
+        if (bgBase64) {
+            doc.addImage(bgBase64, 'PNG', 0, 0, pageW, pageH);
+        }
+
+        let primaryColor = [14, 165, 133]; // default teal
+        
+        if (!template) {
+            // ── Header ──
+            doc.setFillColor(14, 165, 133);
+            doc.rect(0, 0, pageW, 28, 'F');
+            doc.setTextColor(255, 255, 255);
+            doc.setFontSize(15);
+            doc.setFont('helvetica', 'bold');
+            doc.text(hospitalName, pageW / 2, 14, { align: 'center' });
+            doc.setFontSize(8);
+            doc.setFont('helvetica', 'normal');
+            doc.text('PHARMACY MEDICINE BILL / RECEIPT', pageW / 2, 21, { align: 'center' });
+            y = 36;
+        } else {
+            doc.setTextColor(...primaryColor);
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(16);
+            doc.text('PHARMACY MEDICINE BILL / RECEIPT', leftM, y);
+            y += 8;
+        }
 
         // ── Bill Meta ──
         doc.setTextColor(30, 30, 30);
         doc.setFontSize(8.5);
         doc.setFont('helvetica', 'bold');
-        doc.text(`Bill No: ${getBillNumber(order)}`, 10, y);
-        doc.text(`Date: ${new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}`, pageW - 10, y, { align: 'right' });
+        doc.text(`Bill No: ${getBillNumber(order)}`, leftM, y);
+        doc.text(`Date: ${new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}`, pageW - rightM, y, { align: 'right' });
         y += 5;
         doc.setFont('helvetica', 'normal');
-        doc.text(`Time: ${new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`, pageW - 10, y, { align: 'right' });
+        doc.text(`Time: ${new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`, pageW - rightM, y, { align: 'right' });
 
         // ── Patient Info ──
         y += 8;
         doc.setFillColor(240, 253, 244);
-        doc.roundedRect(8, y - 4, pageW - 16, 22, 2, 2, 'F');
+        doc.roundedRect(leftM - 2, y - 4, printW + 4, 22, 2, 2, 'F');
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(8.5);
-        doc.text('PATIENT DETAILS', 12, y);
+        doc.text('PATIENT DETAILS', leftM, y);
         y += 5;
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(8);
@@ -169,12 +198,12 @@ const PharmacyOrders = () => {
         const doctorName = order.doctorId?.name
             ? (order.doctorId.name.startsWith('Dr.') ? order.doctorId.name : `Dr. ${order.doctorId.name}`)
             : 'Self Request';
-        doc.text(`Patient : ${patName}`, 12, y);
+        doc.text(`Patient : ${patName}`, leftM, y);
         y += 5;
-        doc.text(`Prescribed by : ${doctorName}`, 12, y);
+        doc.text(`Prescribed by : ${doctorName}`, leftM, y);
         y += 5;
         if (order.patientEmail || order.userId?.email) {
-            doc.text(`Email : ${order.patientEmail || order.userId?.email}`, 12, y);
+            doc.text(`Email : ${order.patientEmail || order.userId?.email}`, leftM, y);
             y += 5;
         }
 
@@ -182,68 +211,80 @@ const PharmacyOrders = () => {
         y += 4;
         autoTable(doc, {
             startY: y,
-            head: [['#', 'Medicine Name', 'Qty', 'Unit Price (₹)', 'Amount (₹)']],
+            head: [['#', 'Medicine Name', 'Qty', 'Unit Price (INR)', 'Amount (INR)']],
             body: (order.items || []).map((item, i) => [
                 i + 1,
                 item.medicineName || item.name || '—',
                 item.quantity || 1,
-                item.unitPrice ? `₹${Number(item.unitPrice).toFixed(2)}` : '—',
-                item.totalPrice || item.price ? `₹${Number(item.totalPrice || item.price).toFixed(2)}` : '—',
+                item.unitPrice ? `INR ${Number(item.unitPrice).toFixed(2)}` : '—',
+                item.totalPrice || item.price ? `INR ${Number(item.totalPrice || item.price).toFixed(2)}` : '—',
             ]),
             styles: { fontSize: 8, cellPadding: 3 },
             headStyles: { fillColor: [14, 165, 133], textColor: 255, fontStyle: 'bold' },
             alternateRowStyles: { fillColor: [245, 255, 250] },
             columnStyles: {
-                0: { cellWidth: 8, halign: 'center' },
-                2: { cellWidth: 12, halign: 'center' },
-                3: { cellWidth: 28, halign: 'right' },
-                4: { cellWidth: 26, halign: 'right' },
+                0: { cellWidth: 10, halign: 'center' },
+                2: { cellWidth: 15, halign: 'center' },
+                3: { cellWidth: 35, halign: 'right' },
+                4: { cellWidth: 35, halign: 'right' },
             },
-            margin: { left: 8, right: 8 },
+            margin: { left: leftM, right: rightM },
         });
 
-        y = doc.lastAutoTable.finalY + 6;
+        // ── Summary Row ──
+        y = doc.lastAutoTable.finalY + 8;
+        
+        // Draw a line separating table and totals
+        doc.setDrawColor(230, 230, 230);
+        doc.setLineWidth(0.5);
+        doc.line(leftM, y, pageW - rightM, y);
+        y += 6;
 
-        // ── Total ──
-        doc.setFillColor(14, 165, 133);
-        doc.roundedRect(pageW - 70, y - 3, 62, 13, 2, 2, 'F');
-        doc.setTextColor(255, 255, 255);
+        // Print Payment Status on the left
+        doc.setTextColor(100, 116, 139);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+        doc.text('Payment Status:', leftM, y);
+        
+        const isPaidOrder = (order.paymentStatus || '').toLowerCase() === 'paid';
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(10);
-        doc.text('TOTAL AMOUNT', pageW - 67, y + 3.5);
-        doc.text(`₹${computeOrderTotal(order).toFixed(2)}`, pageW - 10, y + 3.5, { align: 'right' });
+        doc.setTextColor(isPaidOrder ? 22 : 220, isPaidOrder ? 163 : 38, 74);
+        doc.text(order.paymentStatus || 'Pending', leftM + 28, y);
 
-        y += 18;
-        doc.setTextColor(30, 30, 30);
+        // Print Grand Total on the right (aligned with Amount column)
+        doc.setTextColor(100, 116, 139);
+        doc.setFont('helvetica', 'normal');
+        doc.text('Total Amount:', pageW - rightM - 60, y);
+        
+        doc.setTextColor(15, 23, 42);
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(8.5);
-        doc.text('Payment Status:', 10, y);
-        doc.setTextColor((order.paymentStatus || '').toLowerCase() === 'paid' ? 22 : 220,
-            (order.paymentStatus || '').toLowerCase() === 'paid' ? 163 : 38, 74);
-        doc.text(order.paymentStatus || 'Pending', 42, y);
+        doc.setFontSize(11);
+        doc.text(`INR ${computeOrderTotal(order).toFixed(2)}`, pageW - rightM, y, { align: 'right' });
+
+        y += 12;
 
         // ── Footer ──
         y += 14;
         doc.setDrawColor(200, 200, 200);
-        doc.line(8, y, pageW - 8, y);
+        doc.line(leftM, y, pageW - rightM, y);
         y += 5;
         doc.setTextColor(120);
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(7.5);
-        doc.text('Thank you for choosing ' + hospitalName + '. Get well soon! 💊', pageW / 2, y, { align: 'center' });
+        doc.text('Thank you for choosing ' + hospitalName + '. Get well soon!', pageW / 2, y, { align: 'center' });
         y += 4;
         doc.text('This is a computer-generated bill. No signature required.', pageW / 2, y, { align: 'center' });
 
         return doc;
     };
 
-    const handleDownloadBill = (order) => {
-        const doc = generateBillPDF(order);
+    const handleDownloadBill = async (order) => {
+        const doc = await generateBillPDF(order);
         doc.save(`pharmacy_bill_${getBillNumber(order)}_${new Date().toISOString().slice(0, 10)}.pdf`);
     };
 
-    const handlePrintBill = (order) => {
-        const doc = generateBillPDF(order);
+    const handlePrintBill = async (order) => {
+        const doc = await generateBillPDF(order);
         const blobUrl = doc.output('bloburl');
         const win = window.open(blobUrl, '_blank');
         if (win) {

@@ -92,8 +92,15 @@ const AdminRoles = () => {
         },
         {
             category: "Admin", items: [
+                { key: 'staff_manage', label: 'Staff Roster Management (Add/Edit Staff)' },
+                { key: 'doctor_manage', label: 'Doctors Feed & Slot Settings' },
+                { key: 'lab_tests_manage', label: 'Lab Tests Catalog & Laboratory Management' },
+                { key: 'pharmacy_admin_manage', label: 'Pharmacy Administrative Oversight & Approvals' },
+                { key: 'reception_admin_manage', label: 'Reception Queues & Services Catalog' },
+                { key: 'question_library_manage', label: 'Question Library & Custom Templates' },
                 { key: 'admin_manage_roles', label: 'Manage Roles & Access Control' },
-                { key: 'admin_view_stats', label: 'View Admin Overview Stats' }
+                { key: 'admin_view_stats', label: 'View Admin Overview Stats' },
+                { key: 'audit_logs_view', label: 'View Complete System Audit Logs' }
             ]
         }
     ];

@@ -91,11 +91,17 @@ const WORKSPACE_PERMISSIONS = [
         description: 'Administrative controls, reporting and system management',
         items: [
             { key: 'staff_manage', label: 'Staff Roster Management', emoji: '👥', description: 'Manage staff accounts, roles and profiles.', unlocks: ['Staff Management'] },
+            { key: 'doctor_manage', label: 'Doctors Feed Management', emoji: '👨‍⚕️', description: 'Configure and manage doctors, slot timings and active status.', unlocks: ['Doctors Feed Page'] },
             { key: 'department_manage', label: 'Department Management', emoji: '🏢', description: 'Configure and manage hospital departments.', unlocks: ['Department Settings'] },
+            { key: 'lab_tests_manage', label: 'Lab Tests Catalog & Management', emoji: '🧪', description: 'Manage lab configurations, test packages and lab reports catalog.', unlocks: ['Lab Tests Catalog', 'Laboratory Management', 'Tests & Packages'] },
+            { key: 'pharmacy_admin_manage', label: 'Pharmacy Admin Management', emoji: '💊', description: 'Oversight of pharmacy status, inventory levels, and medicine purchase approvals.', unlocks: ['Pharmacy Page', 'Pharmacy Management Page', 'Purchase Approvals Page'] },
+            { key: 'reception_admin_manage', label: 'Reception & Services Management', emoji: '🏪', description: 'Oversight of reception queues, token settings, and hospital services catalog.', unlocks: ['Reception Feed Page', 'Hospital Services Catalog'] },
+            { key: 'question_library_manage', label: 'Question Library & Templates', emoji: '📝', description: 'Configure clinical question libraries and upload/calibrate prescription & billing document templates.', unlocks: ['Question Library Page', 'Document Templates Page'] },
             { key: 'reports_view', label: 'Generate Reports', emoji: '📊', description: 'Generate and export hospital operational reports.', unlocks: ['Reports Page'] },
             { key: 'analytics_view', label: 'Analytics Oversight', emoji: '📈', description: 'View hospital analytics and performance metrics.', unlocks: ['Analytics Dashboard'] },
             { key: 'admin_view_stats', label: 'View Admin Statistics', emoji: '🔢', description: 'View admin-level hospital statistics.', unlocks: ['Admin Stats Dashboard'] },
             { key: 'admin_manage_roles', label: 'Manage Roles & Permissions', emoji: '🔑', description: 'Create, edit and assign roles to hospital staff.', unlocks: ['Roles & Permissions Page', 'Dynamic Permissions Page'] },
+            { key: 'audit_logs_view', label: 'View System Audit Logs', emoji: '🔍', description: 'Track and review complete activity audit logs across all users.', unlocks: ['Audit Logs Page'] },
         ],
     },
 ];

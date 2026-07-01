@@ -28,6 +28,12 @@ const LOCALHOST_RE = /^https?:\/\/([a-z0-9-]+\.)?(localhost|127\.0\.0\.1)(:\d+)?
 const isAllowedOrigin = (origin) => {
     if (!origin) return true;
     if (LOCALHOST_RE.test(origin)) return true;
+    
+    if (process.env.CORS_ORIGIN) {
+        const envOrigins = process.env.CORS_ORIGIN.split(',').map(o => o.trim().toLowerCase());
+        if (envOrigins.includes(origin.toLowerCase())) return true;
+    }
+    
     if (origin === 'https://medicalhms.in') return true;
     if (origin === 'https://www.medicalhms.in') return true;
     if (origin.endsWith('.medicalhms.in')) return true;
@@ -54,9 +60,10 @@ const io = new Server(server, {
             } catch (err) {
                 console.error('Socket CORS DB Check Error:', err);
             }
-            callback(new Error('CORS blocked: ' + origin), false);
+            callback(null, false);
         },
-        methods: ["GET", "POST"],
+        methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        allowedHeaders: ["Authorization", "Content-Type", "Accept", "X-Requested-With"],
         credentials: true
     },
     perMessageDeflate: false

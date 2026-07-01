@@ -374,18 +374,22 @@ router.get('/appointments', verifyToken, verifyReception, async (req, res) => {
             .lean();
 
         const appointmentIds = appointments.map(a => a._id);
-        const visits = await ClinicalVisit.find({ appointmentId: { $in: appointmentIds } }).select('appointmentId status').lean();
+        const visits = await ClinicalVisit.find({ appointmentId: { $in: appointmentIds } }).select('appointmentId status visitDate createdAt').lean();
         const visitMap = {};
         visits.forEach(v => {
             if (v.appointmentId) {
-                visitMap[v.appointmentId.toString()] = v.status || 'check_in';
+                visitMap[v.appointmentId.toString()] = {
+                    status: v.status || 'check_in',
+                    visitDate: v.visitDate || v.createdAt
+                };
             }
         });
 
         const appointmentsWithVisit = appointments.map(a => ({
             ...a,
             checkedIn: !!visitMap[a._id.toString()],
-            visitStatus: visitMap[a._id.toString()] || null
+            visitStatus: visitMap[a._id.toString()]?.status || null,
+            checkInDate: visitMap[a._id.toString()]?.visitDate || null
         }));
 
         res.json({ success: true, appointments: appointmentsWithVisit });
@@ -569,6 +573,50 @@ router.patch('/appointments/:id/cancel', verifyToken, verifyReception, async (re
     }
 
     res.json({ success: true });
+});
+
+router.patch('/appointments/:id/no-show', verifyToken, verifyReception, async (req, res) => {
+    try {
+        const noShowQuery = { _id: req.params.id };
+        if (req.user.hospitalId) noShowQuery.hospitalId = req.user.hospitalId;
+        const { Appointment } = getModels(req);
+        const appt = await Appointment.findOne(noShowQuery);
+        if (!appt) return res.status(404).json({ success: false, message: 'Appointment not found or unauthorized' });
+
+        if (['completed', 'Admitted', 'cancelled'].includes(appt.status)) {
+            return res.status(400).json({ success: false, message: `Cannot mark a ${appt.status} appointment as no-show.` });
+        }
+
+        appt.status = 'no-show';
+        await appt.save();
+
+        const io = req.app.get('io');
+        if (io) {
+            const hId = appt.hospitalId || req.user.hospitalId;
+            const docIdStr = appt.doctorId ? appt.doctorId.toString() : '';
+            const docUserIdStr = appt.doctorUserId ? appt.doctorUserId.toString() : '';
+
+            // Emit to global role rooms
+            io.to('receptionist').to('reception').to('receptiondeskmanager').emit('appointment_updated', appt);
+            if (docIdStr) io.to(docIdStr).emit('appointment_updated', appt);
+            if (docUserIdStr) io.to(docUserIdStr).emit('appointment_updated', appt);
+            io.to('doctor').emit('appointment_updated', appt);
+
+            // Emit to hospital-scoped rooms
+            if (hId) {
+                const hospRoom = `hospital_${hId}`;
+                io.to(hospRoom).emit('appointment_updated', appt);
+                io.to(`${hospRoom}_receptionist`).to(`${hospRoom}_reception`).to(`${hospRoom}_receptiondeskmanager`).emit('appointment_updated', appt);
+                if (docIdStr) io.to(`${hospRoom}_${docIdStr}`).emit('appointment_updated', appt);
+                if (docUserIdStr) io.to(`${hospRoom}_${docUserIdStr}`).emit('appointment_updated', appt);
+                io.to(`${hospRoom}_doctor`).emit('appointment_updated', appt);
+            }
+        }
+
+        res.json({ success: true, message: 'Appointment marked as no-show', appointment: appt });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Error marking appointment as no-show' });
+    }
 });
 
 // 6. BOOK APPOINTMENT (NEW: Assign Doctor)
@@ -800,13 +848,19 @@ router.post('/check-in', verifyToken, verifyReception, async (req, res) => {
         let status = 'check_in';
         if (appointmentId) {
             const appt = await Appointment.findById(appointmentId);
-            if (appt && appt.appointmentTime && !appt.appointmentTime.startsWith('token-')) {
-                const todayStr = new Date().toDateString();
-                const apptDateStr = new Date(appt.appointmentDate).toDateString();
-                if (todayStr === apptDateStr) {
+            if (appt) {
+                const now = new Date();
+                const todayMidnight = new Date();
+                todayMidnight.setHours(0, 0, 0, 0);
+
+                const apptDateMidnight = new Date(appt.appointmentDate);
+                apptDateMidnight.setHours(0, 0, 0, 0);
+
+                if (apptDateMidnight < todayMidnight) {
+                    status = 'check_in_late';
+                } else if (apptDateMidnight.getTime() === todayMidnight.getTime() && appt.appointmentTime && !appt.appointmentTime.startsWith('token-')) {
                     const [apptHour, apptMin] = appt.appointmentTime.split(':').map(Number);
                     if (!isNaN(apptHour) && !isNaN(apptMin)) {
-                        const now = new Date();
                         const apptTimeToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), apptHour, apptMin, 0, 0);
                         const lateThreshold = new Date(apptTimeToday.getTime() + 10 * 60 * 1000); // 10 minutes grace period
                         if (now > lateThreshold) {

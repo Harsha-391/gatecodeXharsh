@@ -58,6 +58,7 @@ function getTenantModels(tenantDb) {
         UploadedFile: model('UploadedFile', require('../models/uploadedFile.model').schema),
         AuditLog: model('AuditLog', require('../models/auditLog.model').schema),
         QuestionLibrary: model('QuestionLibrary', require('../models/questionLibrary.model').schema),
+        DocumentTemplate: model('DocumentTemplate', require('../models/documentTemplate.model').schema),
     };
 }
 

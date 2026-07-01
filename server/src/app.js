@@ -43,6 +43,7 @@ const patientAppRoutes  = require('./routes/patientApp.routes');
 const patientLocalRoutes = require('./routes/patientLocal.routes');
 const revenueRoutes     = require('./routes/revenue.routes');
 const mfaRoutes         = require('./routes/mfa.routes');
+const documentTemplateRoutes = require('./routes/documentTemplate.routes');
 
 const app = express();
 
@@ -138,11 +139,21 @@ app.use((req, res, next) => {
     next();
 });
 
+// ── Body parsing (with size limits) ──────────────────────────────────────────
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: false, limit: '10mb' }));
+
 // ── CORS ──────────────────────────────────────────────────────────────────────
 const LOCALHOST_RE = /^https?:\/\/([a-z0-9-]+\.)?(localhost|127\.0\.0\.1)(:\d+)?$/i;
 const isAllowedOrigin = (origin) => {
     if (!origin) return true;
     if (LOCALHOST_RE.test(origin)) return true;
+    
+    if (process.env.CORS_ORIGIN) {
+        const envOrigins = process.env.CORS_ORIGIN.split(',').map(o => o.trim().toLowerCase());
+        if (envOrigins.includes(origin.toLowerCase())) return true;
+    }
+    
     if (origin === 'https://medicalhms.in') return true;
     if (origin === 'https://www.medicalhms.in') return true;
     if (origin.endsWith('.medicalhms.in')) return true;
@@ -172,14 +183,13 @@ app.use(cors({
             console.error('CORS DB Check Error:', err);
         }
 
-        callback(new Error('CORS blocked: ' + origin), false);
+        // Return false to block origin cleanly without causing a server 500 error
+        callback(null, false);
     },
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Authorization', 'Content-Type', 'Accept', 'X-Requested-With'],
     credentials: true,
 }));
-
-// ── Body parsing (with size limits) ──────────────────────────────────────────
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: false, limit: '10mb' }));
 
 // ── Prototype Pollution Protection ───────────────────────────────────────────
 app.use((req, res, next) => {
@@ -249,6 +259,7 @@ app.use('/api/finance', financeRoutes);
 app.use('/api/billing', billingRoutes);
 app.use('/api/admissions', admissionRoutes);
 app.use('/api/simple-clinics', simpleClinicRoutes);
+app.use('/api/document-templates', documentTemplateRoutes);
 app.use('/api/clinic', clinicRoutes);
 app.use('/api/revenue', revenueRoutes);
 app.use('/api/sync', syncRoutes);

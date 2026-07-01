@@ -398,18 +398,22 @@ router.get('/appointments', verifyToken, resolveTenant, async (req, res) => {
             .lean();
 
         const appointmentIds = appointments.map(a => a._id);
-        const visits = await ClinicalVisit.find({ appointmentId: { $in: appointmentIds } }).select('appointmentId status').lean();
+        const visits = await ClinicalVisit.find({ appointmentId: { $in: appointmentIds } }).select('appointmentId status visitDate createdAt').lean();
         const visitMap = {};
         visits.forEach(v => {
             if (v.appointmentId) {
-                visitMap[v.appointmentId.toString()] = v.status || 'check_in';
+                visitMap[v.appointmentId.toString()] = {
+                    status: v.status || 'check_in',
+                    visitDate: v.visitDate || v.createdAt
+                };
             }
         });
 
         const appointmentsWithVisit = appointments.map(a => ({
             ...a,
             checkedIn: !!visitMap[a._id.toString()],
-            visitStatus: visitMap[a._id.toString()] || null
+            visitStatus: visitMap[a._id.toString()]?.status || null,
+            checkInDate: visitMap[a._id.toString()]?.visitDate || null
         }));
 
         res.json({ success: true, appointments: appointmentsWithVisit });

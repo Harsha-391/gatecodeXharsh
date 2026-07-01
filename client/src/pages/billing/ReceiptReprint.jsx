@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { billingAPI } from '../../utils/api';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { loadActiveTemplate } from '../../utils/documentTemplateHelper';
 import {
     FiPrinter, FiSearch, FiDownload, FiMail, FiFileText,
     FiAlertCircle, FiRefreshCw, FiFilter
@@ -19,7 +20,7 @@ const getTemplateColor = () => {
     return { name: t, hex: TEMPLATE_COLORS[t] || '#0a2647' };
 };
 
-const fmt = (n) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 0 }).format(n || 0);
+const fmt = (n) => 'INR ' + Number(n || 0).toLocaleString('en-IN');
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 const fmtDateTime = (d) => d ? new Date(d).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
 
@@ -123,33 +124,66 @@ const ReceiptReprint = () => {
         return [r, g, b];
     };
 
-    const downloadReceiptPDF = (row) => {
+    const downloadReceiptPDF = async (row) => {
         const { invoice, payment } = row;
         const doc = new jsPDF();
+        
+        let template = null;
+        let bgBase64 = null;
+        try {
+            const tempResult = await loadActiveTemplate('billing_payment');
+            template = tempResult.template;
+            bgBase64 = tempResult.bgBase64;
+        } catch (err) {
+            console.error('Error loading active receipt template:', err);
+        }
+
+        const pageW = 210;
+        const pageH = 297;
+        let y = template ? (template.headerHeight || 50) : 48;
+        const leftM = template ? (template.leftMargin || 15) : 14;
+        const rightM = template ? (template.rightMargin || 15) : 14;
+        const printW = pageW - leftM - rightM;
+
+        if (bgBase64) {
+            doc.addImage(bgBase64, 'PNG', 0, 0, pageW, pageH);
+        }
+
         const pc = hexToRgb(theme.hex);
-        const pw = doc.internal.pageSize.getWidth();
 
-        doc.setFillColor(...pc);
-        doc.rect(0, 0, pw, 40, 'F');
-        doc.setTextColor(255, 255, 255);
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(20);
-        doc.text('PAYMENT RECEIPT', 14, 22);
-        doc.setFontSize(9);
-        doc.setFont('helvetica', 'normal');
-        doc.text(`Receipt No: ${row.receiptNumber}`, pw - 14, 16, { align: 'right' });
-        doc.text(`Invoice: ${invoice.invoiceNumber}`, pw - 14, 24, { align: 'right' });
+        if (!template) {
+            doc.setFillColor(...pc);
+            doc.rect(0, 0, pageW, 40, 'F');
+            doc.setTextColor(255, 255, 255);
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(20);
+            doc.text('PAYMENT RECEIPT', 14, 22);
+            doc.setFontSize(9);
+            doc.setFont('helvetica', 'normal');
+            doc.text(`Receipt No: ${row.receiptNumber}`, pageW - 14, 16, { align: 'right' });
+            doc.text(`Invoice: ${invoice.invoiceNumber}`, pageW - 14, 24, { align: 'right' });
+            y = 52;
+        } else {
+            doc.setTextColor(...pc);
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(16);
+            doc.text('PAYMENT RECEIPT', leftM, y);
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(8);
+            doc.text(`Receipt No: ${row.receiptNumber}`, pageW - rightM, y, { align: 'right' });
+            doc.text(`Invoice: ${invoice.invoiceNumber}`, pageW - rightM, y + 6, { align: 'right' });
+            y += 14;
+        }
 
-        let y = 52;
         doc.setTextColor(15, 23, 42);
         doc.setFontSize(10);
         doc.setFont('helvetica', 'bold');
-        doc.text('PATIENT', 14, y);
+        doc.text('PATIENT', leftM, y);
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(9);
         doc.setTextColor(71, 85, 105);
-        doc.text(`${invoice.patientName}`, 14, y + 8);
-        doc.text(`Date: ${fmtDateTime(payment?.date || invoice.invoiceDate)}`, 14, y + 16);
+        doc.text(`${invoice.patientName}`, leftM, y + 8);
+        doc.text(`Date: ${fmtDateTime(payment?.date || invoice.invoiceDate)}`, leftM, y + 16);
 
         if (payment) {
             y += 28;
@@ -164,7 +198,7 @@ const ReceiptReprint = () => {
                 ]],
                 headStyles: { fillColor: pc },
                 bodyStyles: { fontSize: 9 },
-                margin: { left: 14, right: 14 },
+                margin: { left: leftM, right: rightM },
             });
             y = doc.lastAutoTable.finalY + 12;
         }
@@ -178,13 +212,13 @@ const ReceiptReprint = () => {
                 ['Status', invoice.paymentStatus],
             ],
             bodyStyles: { fontSize: 9 },
-            columnStyles: { 0: { fontStyle: 'bold', cellWidth: 80 }, 1: { halign: 'right', fontStyle: 'bold' } },
-            margin: { left: 14, right: 14 },
+            columnStyles: { 0: { fontStyle: 'bold', cellWidth: printW - 40 }, 1: { halign: 'right', fontStyle: 'bold' } },
+            margin: { left: leftM, right: rightM },
         });
 
         doc.setFontSize(8);
         doc.setTextColor(148, 163, 184);
-        doc.text('This is a system-generated receipt.', 14, 285);
+        doc.text('This is a system-generated receipt.', leftM, 285);
 
         doc.save(`Receipt-${row.receiptNumber || invoice.invoiceNumber}.pdf`);
         showToast('Receipt downloaded successfully');

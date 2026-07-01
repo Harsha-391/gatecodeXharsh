@@ -4,6 +4,7 @@ import { billingAPI, admissionAPI, receptionAPI, patientAPI } from '../../utils/
 import { useAuth } from '../../store/hooks';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { loadActiveTemplate } from '../../utils/documentTemplateHelper';
 import {
     FiHome, FiUsers, FiClipboard, FiFileText, FiPlusSquare,
     FiDatabase, FiLogOut, FiGrid, FiPieChart, FiSettings, FiSearch, FiPrinter
@@ -21,7 +22,7 @@ const getAdmAmt = (a) => {
 };
 
 
-const fmt = (n) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 0 }).format(n || 0);
+const fmt = (n) => `INR ${Number(n || 0).toLocaleString('en-IN')}`;
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 const fmtDateTime = (d) => d ? new Date(d).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
 
@@ -610,41 +611,73 @@ const BillingDashboard = ({ tab }) => {
     };
 
     // PDF Exports
-    const exportInvoicePDF = (invoice) => {
+    const exportInvoicePDF = async (invoice) => {
         const doc = new jsPDF();
+        
+        let template = null;
+        let bgBase64 = null;
+        try {
+            const tempResult = await loadActiveTemplate('billing_payment');
+            template = tempResult.template;
+            bgBase64 = tempResult.bgBase64;
+        } catch (err) {
+            console.error('Error loading active bill template:', err);
+        }
 
-        // Template Colors
+        const pageW = 210;
+        const pageH = 297;
+        let y = template ? (template.headerHeight || 50) : 48;
+        const leftM = template ? (template.leftMargin || 15) : 14;
+        const rightM = template ? (template.rightMargin || 15) : 14;
+        const printW = pageW - leftM - rightM;
+
+        if (bgBase64) {
+            doc.addImage(bgBase64, 'PNG', 0, 0, pageW, pageH);
+        }
+
         let primaryColor = [10, 38, 71]; // Navy
         if (activeTemplate === 'Teal Grace') primaryColor = [20, 184, 166];
         if (activeTemplate === 'Sleek Dark') primaryColor = [15, 23, 42];
 
-        // Header branding
-        doc.setFillColor(...primaryColor);
-        doc.rect(0, 0, 210, 40, 'F');
-        doc.setTextColor(255, 255, 255);
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(22);
-        doc.text(settings.hospitalName, 14, 25);
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(10);
-        doc.text(settings.hospitalAddress, 14, 32);
+        if (!template) {
+            // Header branding
+            doc.setFillColor(...primaryColor);
+            doc.rect(0, 0, 210, 40, 'F');
+            doc.setTextColor(255, 255, 255);
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(22);
+            doc.text(settings.hospitalName, 14, 25);
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(10);
+            doc.text(settings.hospitalAddress, 14, 32);
 
-        doc.setFontSize(20);
-        doc.text('INVOICE', 160, 25);
+            doc.setFontSize(20);
+            doc.text('INVOICE', 160, 25);
+            y = 55;
+        } else {
+            doc.setTextColor(...primaryColor);
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(16);
+            doc.text('INVOICE', leftM, y);
+            y += 8;
+        }
 
         // Invoice Metadata
-        doc.setTextColor(...primaryColor);
-        doc.setFontSize(10);
-        doc.text(`Invoice No: ${invoice.invoiceNumber}`, 14, 55);
-        doc.text(`Date: ${fmtDate(invoice.invoiceDate)}`, 14, 62);
-        doc.text(`Billing Staff: ${invoice.generatedByName || 'HMS Desk'}`, 14, 69);
-
-        doc.text('PATIENT DETAILS', 120, 55);
-        doc.setFont('helvetica', 'bold');
-        doc.text(invoice.patientName, 120, 62);
+        doc.setTextColor(30, 30, 30);
         doc.setFont('helvetica', 'normal');
-        doc.text(`Patient ID: ${patient?.patientId || 'Walk-in'}`, 120, 69);
-        doc.text(`Phone: ${patient?.phone || '—'}`, 120, 76);
+        doc.setFontSize(10);
+        doc.text(`Invoice No: ${invoice.invoiceNumber}`, leftM, y);
+        doc.text(`Date: ${fmtDate(invoice.invoiceDate)}`, leftM, y + 7);
+        doc.text(`Billing Staff: ${invoice.generatedByName || 'HMS Desk'}`, leftM, y + 14);
+
+        doc.text('PATIENT DETAILS', pageW - rightM - 60, y);
+        doc.setFont('helvetica', 'bold');
+        doc.text(invoice.patientName, pageW - rightM - 60, y + 7);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Patient ID: ${patient?.patientId || 'Walk-in'}`, pageW - rightM - 60, y + 14);
+        doc.text(`Phone: ${patient?.phone || '—'}`, pageW - rightM - 60, y + 21);
+
+        y += 30;
 
         // Table
         const columns = ['Item Description', 'Qty', 'Unit Price', 'Total'];
@@ -656,7 +689,8 @@ const BillingDashboard = ({ tab }) => {
         ]);
 
         autoTable(doc, {
-            startY: 85,
+            startY: y,
+            margin: { left: leftM, right: rightM },
             head: [columns],
             body: rows,
             headStyles: { fillColor: primaryColor },
@@ -665,50 +699,82 @@ const BillingDashboard = ({ tab }) => {
 
         // Totals
         const finalY = doc.lastAutoTable.finalY + 10;
-        doc.text(`Grand Total:`, 140, finalY);
-        doc.text(`${fmt(invoice.grandTotal)}`, 180, finalY);
-        doc.text(`Amount Paid:`, 140, finalY + 7);
-        doc.text(`${fmt(invoice.amountPaid)}`, 180, finalY + 7);
+        doc.text(`Grand Total:`, pageW - rightM - 50, finalY);
+        doc.text(`${fmt(invoice.grandTotal)}`, pageW - rightM - 15, finalY, { align: 'right' });
+        doc.text(`Amount Paid:`, pageW - rightM - 50, finalY + 7);
+        doc.text(`${fmt(invoice.amountPaid)}`, pageW - rightM - 15, finalY + 7, { align: 'right' });
         doc.setFont('helvetica', 'bold');
-        doc.text(`Outstanding:`, 140, finalY + 14);
-        doc.text(`${fmt(invoice.outstandingAmount)}`, 180, finalY + 14);
+        doc.text(`Outstanding:`, pageW - rightM - 50, finalY + 14);
+        doc.text(`${fmt(invoice.outstandingAmount)}`, pageW - rightM - 15, finalY + 14, { align: 'right' });
 
         doc.setFontSize(12);
-        doc.text(`STATUS: ${invoice.paymentStatus.toUpperCase()}`, 14, finalY + 10);
+        doc.text(`STATUS: ${invoice.paymentStatus.toUpperCase()}`, leftM, finalY + 10);
 
         doc.save(`${invoice.invoiceNumber}.pdf`);
     };
 
-    const exportReceiptPDF = (invoice, payment) => {
+    const exportReceiptPDF = async (invoice, payment) => {
         const doc = new jsPDF();
+        
+        let template = null;
+        let bgBase64 = null;
+        try {
+            const tempResult = await loadActiveTemplate('billing_payment');
+            template = tempResult.template;
+            bgBase64 = tempResult.bgBase64;
+        } catch (err) {
+            console.error('Error loading active receipt template:', err);
+        }
+
+        const pageW = 210;
+        const pageH = 297;
+        let y = template ? (template.headerHeight || 50) : 45;
+        const leftM = template ? (template.leftMargin || 15) : 14;
+        const rightM = template ? (template.rightMargin || 15) : 14;
+
+        if (bgBase64) {
+            doc.addImage(bgBase64, 'PNG', 0, 0, pageW, pageH);
+        }
 
         let primaryColor = [10, 38, 71];
         if (activeTemplate === 'Teal Grace') primaryColor = [20, 184, 166];
         if (activeTemplate === 'Sleek Dark') primaryColor = [15, 23, 42];
 
-        doc.setFillColor(...primaryColor);
-        doc.rect(0, 0, 210, 35, 'F');
-        doc.setTextColor(255, 255, 255);
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(18);
-        doc.text('PAYMENT RECEIPT', 14, 22);
+        if (!template) {
+            doc.setFillColor(...primaryColor);
+            doc.rect(0, 0, 210, 35, 'F');
+            doc.setTextColor(255, 255, 255);
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(18);
+            doc.text('PAYMENT RECEIPT', 14, 22);
+            y = 50;
+        } else {
+            doc.setTextColor(...primaryColor);
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(16);
+            doc.text('PAYMENT RECEIPT', leftM, y);
+            y += 8;
+        }
 
-        doc.setTextColor(...primaryColor);
+        doc.setTextColor(30, 30, 30);
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(10);
-        doc.text(`Receipt Number: ${payment.receiptNumber}`, 14, 50);
-        doc.text(`Invoice Number: ${invoice.invoiceNumber}`, 14, 57);
-        doc.text(`Date & Time: ${fmtDateTime(payment.date)}`, 14, 64);
-        doc.text(`Collected By: ${payment.collectedByName || 'HMS Staff'}`, 14, 71);
+        doc.text(`Receipt Number: ${payment.receiptNumber}`, leftM, y);
+        doc.text(`Invoice Number: ${invoice.invoiceNumber}`, leftM, y + 7);
+        doc.text(`Date & Time: ${fmtDateTime(payment.date)}`, leftM, y + 14);
+        doc.text(`Collected By: ${payment.collectedByName || 'HMS Staff'}`, leftM, y + 21);
 
-        doc.text('PATIENT INFORMATION', 120, 50);
+        doc.text('PATIENT INFORMATION', pageW - rightM - 60, y);
         doc.setFont('helvetica', 'bold');
-        doc.text(invoice.patientName, 120, 57);
+        doc.text(invoice.patientName, pageW - rightM - 60, y + 7);
         doc.setFont('helvetica', 'normal');
-        doc.text(`Phone: ${patient?.phone || '—'}`, 120, 64);
+        doc.text(`Phone: ${patient?.phone || '—'}`, pageW - rightM - 60, y + 14);
+
+        y += 35;
 
         autoTable(doc, {
-            startY: 80,
+            startY: y,
+            margin: { left: leftM, right: rightM },
             head: [['Description', 'Payment Method', 'Reference', 'Amount Received']],
             body: [[
                 `Part-settlement on invoice ${invoice.invoiceNumber}`,
@@ -722,59 +788,91 @@ const BillingDashboard = ({ tab }) => {
         doc.save(`${payment.receiptNumber}.pdf`);
     };
 
-    const printCompleteBill = () => {
+    const printCompleteBill = async () => {
         if (!patient || !billing) return;
         const doc = new jsPDF();
+        
+        let template = null;
+        let bgBase64 = null;
+        try {
+            const tempResult = await loadActiveTemplate('billing_payment');
+            template = tempResult.template;
+            bgBase64 = tempResult.bgBase64;
+        } catch (err) {
+            console.error('Error loading active complete bill template:', err);
+        }
+
+        const pageW = doc.internal.pageSize.getWidth();
+        const pageH = doc.internal.pageSize.getHeight();
+        let y = template ? (template.headerHeight || 50) : 48;
+        const leftM = template ? (template.leftMargin || 15) : 14;
+        const rightM = template ? (template.rightMargin || 15) : 14;
+        const printW = pageW - leftM - rightM;
+
+        if (bgBase64) {
+            doc.addImage(bgBase64, 'PNG', 0, 0, pageW, pageH);
+        }
+
         let primaryColor = [10, 38, 71];
         if (activeTemplate === 'Teal Grace') primaryColor = [20, 184, 166];
         if (activeTemplate === 'Sleek Dark') primaryColor = [15, 23, 42];
 
-        const pageWidth = doc.internal.pageSize.getWidth();
         const S = settings;
 
-        // ── HEADER BANNER ──────────────────────────────────────────
-        doc.setFillColor(...primaryColor);
-        doc.rect(0, 0, pageWidth, 44, 'F');
-        doc.setTextColor(255, 255, 255);
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(20);
-        doc.text(S.hospitalName, 14, 20);
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(9);
-        doc.text(S.hospitalAddress, 14, 28);
-        doc.text(`Ph: ${S.hospitalPhone}`, 14, 35);
-        doc.setFontSize(16);
-        doc.setFont('helvetica', 'bold');
-        doc.text('COMPLETE PATIENT BILL', pageWidth - 14, 22, { align: 'right' });
-        doc.setFontSize(9);
-        doc.setFont('helvetica', 'normal');
-        doc.text(`Generated: ${fmtDateTime(new Date())}`, pageWidth - 14, 31, { align: 'right' });
+        if (!template) {
+            // ── HEADER BANNER ──────────────────────────────────────────
+            doc.setFillColor(...primaryColor);
+            doc.rect(0, 0, pageW, 44, 'F');
+            doc.setTextColor(255, 255, 255);
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(20);
+            doc.text(S.hospitalName, 14, 20);
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(9);
+            doc.text(S.hospitalAddress, 14, 28);
+            doc.text(`Ph: ${S.hospitalPhone}`, 14, 35);
+            doc.setFontSize(16);
+            doc.setFont('helvetica', 'bold');
+            doc.text('COMPLETE PATIENT BILL', pageW - 14, 22, { align: 'right' });
+            doc.setFontSize(9);
+            doc.setFont('helvetica', 'normal');
+            doc.text(`Generated: ${fmtDateTime(new Date())}`, pageW - 14, 31, { align: 'right' });
+            y = 52;
+        } else {
+            doc.setTextColor(...primaryColor);
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(14);
+            doc.text('COMPLETE PATIENT BILL', leftM, y);
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(8);
+            doc.text(`Generated: ${fmtDateTime(new Date())}`, pageW - rightM, y, { align: 'right' });
+            y += 8;
+        }
 
         // ── PATIENT INFO BOX ───────────────────────────────────────
-        let y = 52;
         doc.setFillColor(244, 246, 248);
-        doc.roundedRect(10, y, pageWidth - 20, 34, 3, 3, 'F');
+        doc.roundedRect(leftM, y, printW, 34, 3, 3, 'F');
         doc.setDrawColor(...primaryColor);
-        doc.roundedRect(10, y, pageWidth - 20, 34, 3, 3, 'S');
+        doc.roundedRect(leftM, y, printW, 34, 3, 3, 'S');
 
         doc.setTextColor(...primaryColor);
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(11);
-        doc.text('PATIENT INFORMATION', 16, y + 9);
+        doc.text('PATIENT INFORMATION', leftM + 6, y + 9);
 
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(13);
         doc.setTextColor(15, 23, 42);
-        doc.text(patient.name || '—', 16, y + 19);
+        doc.text(patient.name || '—', leftM + 6, y + 19);
 
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(9);
         doc.setTextColor(71, 85, 105);
-        doc.text(`Patient ID: ${patient.patientId || patient.mrn || 'Walk-in'}`, 16, y + 27);
-        doc.text(`DOB: ${fmtDate(patient.dob)}  |  Gender: ${patient.gender || '—'}`, 80, y + 19);
-        doc.text(`Mobile: ${patient.phone || '—'}`, 80, y + 27);
-        doc.text(`Blood Group: ${patient.bloodGroup || '—'}  |  Email: ${patient.email || '—'}`, 140, y + 19);
-        doc.text(`MRN: ${patient.mrn || patient.patientId || '—'}`, 140, y + 27);
+        doc.text(`Patient ID: ${patient.patientId || patient.mrn || 'Walk-in'}`, leftM + 6, y + 27);
+        doc.text(`DOB: ${fmtDate(patient.dob)}  |  Gender: ${patient.gender || '—'}`, leftM + 70, y + 19);
+        doc.text(`Mobile: ${patient.phone || '—'}`, leftM + 70, y + 27);
+        doc.text(`Blood Group: ${patient.bloodGroup || '—'}  |  Email: ${patient.email || '—'}`, leftM + 130, y + 19);
+        doc.text(`MRN: ${patient.mrn || patient.patientId || '—'}`, leftM + 130, y + 27);
 
         y += 42;
 
@@ -782,23 +880,39 @@ const BillingDashboard = ({ tab }) => {
         doc.setTextColor(...primaryColor);
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(11);
-        doc.text('DEPARTMENT-WISE CHARGE BREAKDOWN', 14, y);
+        doc.text('DEPARTMENT-WISE CHARGE BREAKDOWN', leftM, y);
         y += 4;
 
         // Helper: draw a section header bar
         const drawSectionBar = (label, color) => {
+            const maxContentY = pageH - (template ? (template.footerHeight || 30) : 35);
+            if (y > maxContentY) {
+                doc.addPage();
+                if (bgBase64) doc.addImage(bgBase64, 'PNG', 0, 0, pageW, pageH);
+                y = template ? (template.headerHeight || 50) : 20;
+            }
             doc.setFillColor(...color);
-            doc.rect(10, y, pageWidth - 20, 7, 'F');
+            doc.rect(leftM, y, printW, 7, 'F');
             doc.setTextColor(255, 255, 255);
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(8);
-            doc.text(label, 14, y + 5);
+            doc.text(label, leftM + 4, y + 5);
             y += 8;
         };
 
         let grandTotal = 0;
         let totalPaid = 0;
         let totalOutstanding = 0;
+
+        // Helper to check page bounds for tables
+        const checkPageBoundsBeforeTable = () => {
+            const maxContentY = pageH - (template ? (template.footerHeight || 30) : 35);
+            if (y > maxContentY) {
+                doc.addPage();
+                if (bgBase64) doc.addImage(bgBase64, 'PNG', 0, 0, pageW, pageH);
+                y = template ? (template.headerHeight || 50) : 20;
+            }
+        };
 
         // 1. Consultations
         const appts = billing.appointments || [];
@@ -817,6 +931,7 @@ const BillingDashboard = ({ tab }) => {
                     fmt(a.amount || 0)
                 ];
             });
+            checkPageBoundsBeforeTable();
             autoTable(doc, {
                 startY: y, head: [['Date', 'Doctor', 'Dept', 'Description', 'Status', 'Amount']],
                 body: rows,
@@ -824,7 +939,7 @@ const BillingDashboard = ({ tab }) => {
                 bodyStyles: { fontSize: 8, textColor: [30, 27, 75] },
                 alternateRowStyles: { fillColor: [250, 249, 255] },
                 columnStyles: { 4: { fontStyle: 'bold' }, 5: { fontStyle: 'bold', halign: 'right' } },
-                margin: { left: 10, right: 10 }, tableWidth: pageWidth - 20
+                margin: { left: leftM, right: rightM }, tableWidth: printW
             });
             y = doc.lastAutoTable.finalY + 4;
         }
@@ -842,6 +957,7 @@ const BillingDashboard = ({ tab }) => {
                     rows.push([fmtDate(l.createdAt), test, l.status || 'Pending', idx === 0 ? fmt(l.amount || 0) : '']);
                 });
             });
+            checkPageBoundsBeforeTable();
             autoTable(doc, {
                 startY: y, head: [['Order Date', 'Test Name', 'Status', 'Charges']],
                 body: rows,
@@ -849,7 +965,7 @@ const BillingDashboard = ({ tab }) => {
                 bodyStyles: { fontSize: 8, textColor: [15, 23, 42] },
                 alternateRowStyles: { fillColor: [240, 253, 250] },
                 columnStyles: { 3: { fontStyle: 'bold', halign: 'right' } },
-                margin: { left: 10, right: 10 }, tableWidth: pageWidth - 20
+                margin: { left: leftM, right: rightM }, tableWidth: printW
             });
             y = doc.lastAutoTable.finalY + 4;
         }
@@ -875,6 +991,7 @@ const BillingDashboard = ({ tab }) => {
                 });
                 if ((p.items || []).length > 1) rows.push(['', 'Order Total', '', '', fmt(p.totalAmount), '']);
             });
+            checkPageBoundsBeforeTable();
             autoTable(doc, {
                 startY: y, head: [['Date', 'Medicine Name', 'Qty', 'Unit Price', 'Subtotal', 'Status']],
                 body: rows,
@@ -882,7 +999,7 @@ const BillingDashboard = ({ tab }) => {
                 bodyStyles: { fontSize: 8, textColor: [15, 23, 42] },
                 alternateRowStyles: { fillColor: [240, 253, 244] },
                 columnStyles: { 5: { fontStyle: 'bold' }, 4: { halign: 'right' }, 3: { halign: 'right' } },
-                margin: { left: 10, right: 10 }, tableWidth: pageWidth - 20
+                margin: { left: leftM, right: rightM }, tableWidth: printW
             });
             y = doc.lastAutoTable.finalY + 4;
         }
@@ -897,6 +1014,7 @@ const BillingDashboard = ({ tab }) => {
                 if (isPaid) totalPaid += (f.totalAmount || 0); else totalOutstanding += (f.totalAmount || 0);
                 return [f.facilityName, `${f.daysUsed} day(s)`, fmt(f.pricePerDay || 0) + '/day', isPaid ? 'PAID' : 'PENDING', fmt(f.totalAmount || 0)];
             });
+            checkPageBoundsBeforeTable();
             autoTable(doc, {
                 startY: y, head: [['Facility / Service', 'Duration', 'Rate', 'Status', 'Total']],
                 body: rows,
@@ -904,7 +1022,7 @@ const BillingDashboard = ({ tab }) => {
                 bodyStyles: { fontSize: 8, textColor: [15, 23, 42] },
                 alternateRowStyles: { fillColor: [255, 251, 235] },
                 columnStyles: { 3: { fontStyle: 'bold' }, 4: { halign: 'right', fontStyle: 'bold' } },
-                margin: { left: 10, right: 10 }, tableWidth: pageWidth - 20
+                margin: { left: leftM, right: rightM }, tableWidth: printW
             });
             y = doc.lastAutoTable.finalY + 4;
         }
@@ -919,6 +1037,7 @@ const BillingDashboard = ({ tab }) => {
                 if (isPaid) totalPaid += (a.totalAmount || 0); else totalOutstanding += (a.totalAmount || 0);
                 return [fmtDate(a.admissionDate), a.ward || '—', a.bedNumber || '—', a.status, isPaid ? 'PAID' : 'PENDING', fmt(a.totalAmount || 0)];
             });
+            checkPageBoundsBeforeTable();
             autoTable(doc, {
                 startY: y, head: [['Admit Date', 'Ward', 'Bed', 'Status', 'Payment', 'Total']],
                 body: rows,
@@ -926,7 +1045,7 @@ const BillingDashboard = ({ tab }) => {
                 bodyStyles: { fontSize: 8, textColor: [15, 23, 42] },
                 alternateRowStyles: { fillColor: [255, 245, 245] },
                 columnStyles: { 4: { fontStyle: 'bold' }, 5: { halign: 'right', fontStyle: 'bold' } },
-                margin: { left: 10, right: 10 }, tableWidth: pageWidth - 20
+                margin: { left: leftM, right: rightM }, tableWidth: printW
             });
             y = doc.lastAutoTable.finalY + 4;
         }
@@ -934,13 +1053,17 @@ const BillingDashboard = ({ tab }) => {
         // ── INVOICES & PAYMENT RECEIPTS ───────────────────────────
         const allInvoices = billing.invoices || [];
         if (allInvoices.length > 0) {
-            // Check if new page needed
-            if (y > 220) { doc.addPage(); y = 20; }
+            const maxContentY = pageH - (template ? (template.footerHeight || 30) : 35);
+            if (y > maxContentY - 30) { 
+                doc.addPage(); 
+                if (bgBase64) doc.addImage(bgBase64, 'PNG', 0, 0, pageW, pageH);
+                y = template ? (template.headerHeight || 50) : 20; 
+            }
 
             doc.setTextColor(...primaryColor);
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(11);
-            doc.text('INVOICE & PAYMENT RECEIPT HISTORY', 14, y);
+            doc.text('INVOICE & PAYMENT RECEIPT HISTORY', leftM, y);
             y += 4;
 
             const invRows = allInvoices.map(inv => [
@@ -951,13 +1074,14 @@ const BillingDashboard = ({ tab }) => {
                 fmt(inv.outstandingAmount),
                 inv.paymentStatus
             ]);
+            checkPageBoundsBeforeTable();
             autoTable(doc, {
                 startY: y, head: [['Invoice No', 'Date', 'Grand Total', 'Amount Paid', 'Outstanding', 'Status']],
                 body: invRows,
                 headStyles: { fillColor: primaryColor, textColor: [255, 255, 255], fontSize: 7.5 },
                 bodyStyles: { fontSize: 8 },
                 columnStyles: { 5: { fontStyle: 'bold' }, 2: { halign: 'right' }, 3: { halign: 'right' }, 4: { halign: 'right', textColor: [220, 38, 38] } },
-                margin: { left: 10, right: 10 }, tableWidth: pageWidth - 20
+                margin: { left: leftM, right: rightM }, tableWidth: printW
             });
             y = doc.lastAutoTable.finalY + 4;
 
@@ -969,46 +1093,56 @@ const BillingDashboard = ({ tab }) => {
                 });
             });
             if (allReceipts.length > 0) {
-                if (y > 220) { doc.addPage(); y = 20; }
+                if (y > maxContentY - 30) { 
+                    doc.addPage(); 
+                    if (bgBase64) doc.addImage(bgBase64, 'PNG', 0, 0, pageW, pageH);
+                    y = template ? (template.headerHeight || 50) : 20; 
+                }
                 doc.setTextColor(...primaryColor);
                 doc.setFont('helvetica', 'bold');
                 doc.setFontSize(10);
-                doc.text('PAYMENT RECEIPTS', 14, y + 5);
+                doc.text('PAYMENT RECEIPTS', leftM, y + 5);
                 y += 7;
+                checkPageBoundsBeforeTable();
                 autoTable(doc, {
                     startY: y, head: [['Receipt No', 'Invoice Ref', 'Date & Time', 'Method', 'Reference', 'Amount Collected']],
                     body: allReceipts,
                     headStyles: { fillColor: primaryColor, textColor: [255, 255, 255], fontSize: 7.5 },
                     bodyStyles: { fontSize: 8 },
                     columnStyles: { 5: { halign: 'right', fontStyle: 'bold', textColor: [21, 128, 61] } },
-                    margin: { left: 10, right: 10 }, tableWidth: pageWidth - 20
+                    margin: { left: leftM, right: rightM }, tableWidth: printW
                 });
                 y = doc.lastAutoTable.finalY + 6;
             }
         }
 
         // ── GRAND TOTAL SUMMARY BOX ────────────────────────────────
-        if (y > 230) { doc.addPage(); y = 20; }
+        const maxContentY = pageH - (template ? (template.footerHeight || 30) : 35);
+        if (y > maxContentY - 40) { 
+            doc.addPage(); 
+            if (bgBase64) doc.addImage(bgBase64, 'PNG', 0, 0, pageW, pageH);
+            y = template ? (template.headerHeight || 50) : 20; 
+        }
         doc.setFillColor(...primaryColor);
-        doc.rect(10, y, pageWidth - 20, 36, 'F');
+        doc.rect(leftM, y, printW, 36, 'F');
         doc.setTextColor(255, 255, 255);
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(11);
-        doc.text('FINANCIAL SUMMARY', 16, y + 9);
+        doc.text('FINANCIAL SUMMARY', leftM + 6, y + 9);
 
         doc.setFontSize(9);
         doc.setFont('helvetica', 'normal');
-        doc.text(`Total Charges Incurred:`, 16, y + 19);
-        doc.text(`Total Amount Paid:`, 80, y + 19);
-        doc.text(`Balance Outstanding:`, 145, y + 19);
+        doc.text(`Total Charges Incurred:`, leftM + 6, y + 19);
+        doc.text(`Total Amount Paid:`, leftM + 70, y + 19);
+        doc.text(`Balance Outstanding:`, leftM + 130, y + 19);
 
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(12);
-        doc.text(fmt(grandTotal), 16, y + 29);
+        doc.text(fmt(grandTotal), leftM + 6, y + 29);
         doc.setTextColor(134, 239, 172);
-        doc.text(fmt(totalPaid), 80, y + 29);
+        doc.text(fmt(totalPaid), leftM + 70, y + 29);
         doc.setTextColor(252, 165, 165);
-        doc.text(fmt(totalOutstanding), 145, y + 29);
+        doc.text(fmt(totalOutstanding), leftM + 130, y + 29);
 
         // ── FOOTER ─────────────────────────────────────────────────
         const pageCount = doc.internal.getNumberOfPages();
@@ -1017,8 +1151,8 @@ const BillingDashboard = ({ tab }) => {
             doc.setFontSize(8);
             doc.setFont('helvetica', 'normal');
             doc.setTextColor(148, 163, 184);
-            doc.text(`${S.hospitalName} — This is a system-generated bill. Not a legal tax invoice unless stamped.`, 14, 290);
-            doc.text(`Page ${i} of ${pageCount}`, pageWidth - 14, 290, { align: 'right' });
+            doc.text(`${S.hospitalName} — This is a system-generated bill. Not a legal tax invoice unless stamped.`, leftM, 290);
+            doc.text(`Page ${i} of ${pageCount}`, pageW - rightM, 290, { align: 'right' });
         }
 
         doc.save(`Complete-Bill-${patient.patientId || patient.name?.replace(/ /g,'-')}-${new Date().toISOString().slice(0,10)}.pdf`);

@@ -865,4 +865,16 @@ export const revenueAPI = {
     setHospitalPlan: async (id, data) => (await apiClient.put(`/api/revenue/hospital/${id}`, data)).data,
 };
 
+export const documentTemplatesAPI = {
+    getAll: async () => (await apiClient.get('/api/document-templates')).data,
+    getActive: async (type) => (await apiClient.get(`/api/document-templates/active/${type}`)).data,
+    upload: async (formData) => (await apiClient.post('/api/document-templates/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+    })).data,
+    update: async (id, data) => (await apiClient.put(`/api/document-templates/${id}`, data)).data,
+    delete: async (id) => (await apiClient.delete(`/api/document-templates/${id}`)).data,
+    rollback: async (id, version) => (await apiClient.post(`/api/document-templates/${id}/rollback`, { version })).data,
+    getLogs: async () => (await apiClient.get('/api/document-templates/logs')).data,
+};
+
 export default apiClient;

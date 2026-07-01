@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { doctorAPI, labTestAPI, questionLibraryAPI, hospitalAPI } from '../../utils/api';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import axios from 'axios';
 import './DoctorPatientDetails.css';
 import DynamicQuestionForm from '../../components/DynamicQuestionForm';
 import { useAuth } from '../../store/hooks';
@@ -619,32 +620,75 @@ const DoctorPatientDetails = () => {
     };
 
     // ─── STANDALONE PRESCRIPTION PDF ─────────────────────────────────────────
-    const generatePrescriptionPDF = () => {
+    const generatePrescriptionPDF = async () => {
         const pt = appointment?.userId || {};
         const doc = new jsPDF();
+        
+        let template = null;
+        let bgBase64 = null;
+        
+        try {
+            // Using absolute URL path for axios request
+            const token = localStorage.getItem('token');
+            const res = await axios.get('/api/document-templates/active/doctor_prescription', {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (res.data?.success && res.data.template) {
+                template = res.data.template;
+                if (template.url && !template.url.endsWith('.pdf')) {
+                    const resp = await fetch(template.url);
+                    const blob = await resp.blob();
+                    bgBase64 = await new Promise((resolve) => {
+                        const reader = new FileReader();
+                        reader.readAsDataURL(blob);
+                        reader.onloadend = () => resolve(reader.result);
+                    });
+                }
+            }
+        } catch (err) {
+            console.error('Failed to load active template:', err);
+        }
+
         const hName = hospitalContext?.name || 'HOSPITAL';
         const hAddr = [hospitalContext?.address, hospitalContext?.city, hospitalContext?.state].filter(Boolean).join(', ');
         const hPhone = hospitalContext?.phone || '';
         const profile = pt.fertilityProfile || intakeData;
-        let y = 18;
+        
+        let y = template ? (template.headerHeight || 50) : 18;
+        const leftM = template ? (template.leftMargin || 15) : 14;
+        const rightM = template ? (template.rightMargin || 15) : 14;
+        const pageW = 210;
+        const pageH = 297;
+        const printW = pageW - leftM - rightM;
 
-        // Header
-        doc.setFontSize(18); doc.setFont('helvetica', 'bold'); doc.setTextColor(0);
-        doc.text(hName, 105, y, { align: 'center' }); y += 7;
-        if (hAddr) {
-            doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(100);
-            doc.text(hAddr, 105, y, { align: 'center' }); y += 5;
+        if (bgBase64) {
+            doc.addImage(bgBase64, 'PNG', 0, 0, pageW, pageH);
         }
-        if (hPhone) { doc.text(`Ph: ${hPhone}`, 105, y, { align: 'center' }); y += 5; }
-        doc.setFontSize(13); doc.setFont('helvetica', 'bold'); doc.setTextColor(76, 175, 80);
-        doc.text('PRESCRIPTION SLIP', 105, y, { align: 'center' }); y += 5;
-        doc.setDrawColor(76, 175, 80); doc.setLineWidth(0.5);
-        doc.line(14, y, 196, y); y += 8;
-        doc.setTextColor(0); doc.setFont('helvetica', 'normal');
+
+        if (!template) {
+            // Header
+            doc.setFontSize(18); doc.setFont('helvetica', 'bold'); doc.setTextColor(0);
+            doc.text(hName, 105, y, { align: 'center' }); y += 7;
+            if (hAddr) {
+                doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(100);
+                doc.text(hAddr, 105, y, { align: 'center' }); y += 5;
+            }
+            if (hPhone) { doc.text(`Ph: ${hPhone}`, 105, y, { align: 'center' }); y += 5; }
+            doc.setFontSize(13); doc.setFont('helvetica', 'bold'); doc.setTextColor(76, 175, 80);
+            doc.text('PRESCRIPTION SLIP', 105, y, { align: 'center' }); y += 5;
+            doc.setDrawColor(76, 175, 80); doc.setLineWidth(0.5);
+            doc.line(14, y, 196, y); y += 8;
+            doc.setTextColor(0); doc.setFont('helvetica', 'normal');
+        } else {
+            doc.setFontSize(13); doc.setFont('helvetica', 'bold'); doc.setTextColor(76, 175, 80);
+            doc.text('PRESCRIPTION SLIP', leftM, y); y += 8;
+            doc.setTextColor(0); doc.setFont('helvetica', 'normal');
+        }
 
         // Patient Info
         autoTable(doc, {
             startY: y,
+            margin: { left: leftM, right: rightM },
             body: [
                 ['Patient', pt.name || '-', 'MRN', pt.patientId || 'N/A'],
                 ['Age / Gender', `${profile?.age || '-'} / ${profile?.gender || '-'}`, 'Phone', pt.phone || '-'],
@@ -666,10 +710,11 @@ const DoctorPatientDetails = () => {
             : (appointment?.pharmacy || []).map(p => ({ medicineName: p.medicineName, saltName: p.saltName || '', dose: p.frequency || '', days: p.duration || '' }));
 
         doc.setFontSize(11); doc.setFont('helvetica', 'bold'); doc.setTextColor(33, 37, 41);
-        doc.text('Medicines Prescribed', 14, y); y += 6;
+        doc.text('Medicines Prescribed', leftM, y); y += 6;
         if (rxItems.length > 0) {
             autoTable(doc, {
                 startY: y,
+                margin: { left: leftM, right: rightM },
                 head: [['#', 'Medicine Name', 'Salt / Generic', 'Dose / Frequency', 'Days']],
                 body: rxItems.map((m, i) => [i + 1, m.medicineName || '-', m.saltName || '-', m.dose || '-', m.days || '-']),
                 theme: 'striped',
@@ -680,7 +725,7 @@ const DoctorPatientDetails = () => {
             y = doc.lastAutoTable.finalY + 10;
         } else {
             doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(100);
-            doc.text('No medicines prescribed.', 16, y); y += 8;
+            doc.text('No medicines prescribed.', leftM + 2, y); y += 8;
         }
 
         // Lab Tests
@@ -689,10 +734,11 @@ const DoctorPatientDetails = () => {
             : (appointment?.labTests || []);
 
         doc.setFontSize(11); doc.setFont('helvetica', 'bold'); doc.setTextColor(33, 37, 41);
-        doc.text('Lab Tests Ordered', 14, y); y += 6;
+        doc.text('Lab Tests Ordered', leftM, y); y += 6;
         if (labItems.length > 0) {
             autoTable(doc, {
                 startY: y,
+                margin: { left: leftM, right: rightM },
                 head: [['#', 'Test Name']],
                 body: labItems.map((t, i) => [i + 1, t]),
                 theme: 'striped',
@@ -702,29 +748,39 @@ const DoctorPatientDetails = () => {
             y = doc.lastAutoTable.finalY + 10;
         } else {
             doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(100);
-            doc.text('No lab tests ordered.', 16, y); y += 8;
+            doc.text('No lab tests ordered.', leftM + 2, y); y += 8;
         }
 
         // Notes
+        const maxContentY = pageH - (template ? (template.footerHeight || 30) : 35);
         if (sessionData.notes || appointment?.doctorNotes) {
             const notesText = sessionData.notes || appointment?.doctorNotes || '';
-            if (y > 250) { doc.addPage(); y = 20; }
+            if (y > maxContentY) { 
+                doc.addPage(); 
+                if (bgBase64) doc.addImage(bgBase64, 'PNG', 0, 0, pageW, pageH);
+                y = template ? (template.headerHeight || 50) : 20; 
+            }
             doc.setFontSize(11); doc.setFont('helvetica', 'bold'); doc.setTextColor(33, 37, 41);
-            doc.text('Clinical Notes', 14, y); y += 6;
+            doc.text('Clinical Notes', leftM, y); y += 6;
             doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(60);
-            const wrapped = doc.splitTextToSize(notesText, 170);
-            doc.text(wrapped, 16, y); y += wrapped.length * 5 + 8;
+            const wrapped = doc.splitTextToSize(notesText, printW);
+            doc.text(wrapped, leftM + 2, y); y += wrapped.length * 5 + 8;
         }
 
         // Footer
-        if (y > 260) { doc.addPage(); y = 20; }
-        doc.setDrawColor(200); doc.line(14, y, 196, y); y += 6;
+        if (y > maxContentY) { 
+            doc.addPage(); 
+            if (bgBase64) doc.addImage(bgBase64, 'PNG', 0, 0, pageW, pageH);
+            y = template ? (template.headerHeight || 50) : 20; 
+        }
+        
+        const footerY = pageH - (template ? (template.footerHeight || 30) : 25) + 5;
+        doc.setDrawColor(200); doc.line(leftM, footerY, pageW - rightM, footerY);
         doc.setFontSize(9); doc.setTextColor(120);
-        doc.text(`Doctor: Dr. ${appointment?.doctorName || user?.name || 'N/A'}`, 14, y);
-        doc.text(`Generated: ${new Date().toLocaleString('en-IN')}`, 196, y, { align: 'right' });
-        y += 5;
+        doc.text(`Doctor: Dr. ${appointment?.doctorName || user?.name || 'N/A'}`, leftM, footerY + 6);
+        doc.text(`Generated: ${new Date().toLocaleString('en-IN')}`, pageW - rightM, footerY + 6, { align: 'right' });
         doc.setFontSize(8);
-        doc.text('This prescription is valid for 30 days from the date of issue.', 105, y, { align: 'center' });
+        doc.text('This prescription is valid for 30 days from the date of issue.', pageW / 2, footerY + 12, { align: 'center' });
 
         if (window.confirm("Do you want to download the Prescription PDF?")) {
             doc.save(`Prescription_${pt.patientId || 'Patient'}_${new Date().toISOString().split('T')[0]}.pdf`);
