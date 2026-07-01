@@ -43,6 +43,9 @@ async function connectDB() {
         // Self-heal hospital adminUserId links
         await healHospitalAdmins();
 
+        // Seed default superadmin department if empty
+        await seedDefaultDepartments();
+
         // Handle connection events
         mongoose.connection.on('error', (err) => {
             console.error('❌ MongoDB connection error:', err.message);
@@ -161,6 +164,23 @@ async function healHospitalAdmins() {
         console.log('🔄 Self-healing logic complete.');
     } catch (err) {
         console.error('❌ Error during self-healing for hospital administrators:', err.message);
+    }
+}
+
+async function seedDefaultDepartments() {
+    try {
+        const Department = require('../models/department.model');
+        const count = await Department.countDocuments({});
+        if (count === 0) {
+            await Department.create({
+                name: 'General',
+                description: 'General OPD & clinical consultation department',
+                isActive: true
+            });
+            console.log('✅ Seeded default superadmin department: General');
+        }
+    } catch (err) {
+        console.error('❌ Error seeding default departments:', err.message);
     }
 }
 
