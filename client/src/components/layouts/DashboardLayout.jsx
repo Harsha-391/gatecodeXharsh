@@ -552,65 +552,76 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
             baseMenu = baseMenu.filter(item => item.path !== '/billing/history' && item.path !== '/admin/patient-flow');
         }
 
+        const hasPathPermission = (path, userPerms) => {
+            if (userPerms.includes('*')) return true;
+
+            if (path === '/billing/dashboard') return userPerms.includes('billing_view') || userPerms.includes('billing_manage');
+            if (path === '/billing/patient') return userPerms.includes('billing_patient') || userPerms.includes('billing_view') || userPerms.includes('billing_manage');
+            if (path === '/billing/pending') return userPerms.includes('billing_pending') || userPerms.includes('billing_view') || userPerms.includes('billing_manage');
+            if (path === '/billing/invoices') return userPerms.includes('billing_invoices') || userPerms.includes('billing_view') || userPerms.includes('billing_manage');
+            if (path === '/billing/refunds') return userPerms.includes('billing_refund') || userPerms.includes('billing_manage');
+            if (path === '/finance/reception-collections') return userPerms.includes('finance_reception_collections');
+            if (path === '/billing/insurance') return userPerms.includes('billing_insurance') || userPerms.includes('billing_manage');
+            if (path === '/billing/ipd-settlement') return userPerms.includes('billing_ipd_settlement') || userPerms.includes('billing_manage');
+            if (path === '/billing/receipt-reprint') return userPerms.includes('billing_receipt_reprint') || userPerms.includes('billing_manage');
+            if (path === '/billing/discounts') return userPerms.includes('billing_discounts') || userPerms.includes('billing_manage');
+            if (path === '/billing/templates') return userPerms.includes('billing_templates') || userPerms.includes('billing_view') || userPerms.includes('billing_manage');
+            if (path === '/billing/settings') return userPerms.includes('billing_settings') || userPerms.includes('billing_view') || userPerms.includes('billing_manage');
+            if (path === '/admin/profile-settings') return true;
+
+            // Admin & Reporting dynamic filters
+            if (path === '/admin/users') return userPerms.includes('staff_manage');
+            if (path === '/admin/doctors') return userPerms.includes('doctor_manage');
+            if (path === '/admin/roles') return userPerms.includes('admin_manage_roles');
+            if (path === '/admin/permissions') return userPerms.includes('admin_manage_roles');
+            if (path === '/admin/labs') return userPerms.includes('lab_tests_manage') || userPerms.includes('lab_view');
+            if (path === '/admin/lab-tests') return userPerms.includes('lab_tests_manage');
+            if (path === '/admin/lab-management') return userPerms.includes('lab_tests_manage');
+            if (path === '/admin/test-packages') return userPerms.includes('lab_tests_manage');
+            if (path === '/admin/pharmacy') return userPerms.includes('pharmacy_admin_manage');
+            if (path === '/admin/pharmacy-management') return userPerms.includes('pharmacy_admin_manage');
+            if (path === '/admin/purchase-approvals') return userPerms.includes('pharmacy_admin_manage');
+            if (path === '/admin/reception') return userPerms.includes('reception_admin_manage');
+            if (path === '/admin/services') return userPerms.includes('reception_admin_manage') || userPerms.includes('department_manage');
+            if (path === '/admin/inventory') return userPerms.includes('inventory_view');
+            if (path === '/admin/resources') return userPerms.includes('resource_manage');
+            if (path === '/admin/admissions') return userPerms.includes('admission_manage');
+
+            // Split question library and document templates!
+            if (path === '/admin/question-library') return userPerms.includes('question_library_manage');
+            if (path === '/admin/document-templates') return userPerms.includes('document_templates_manage');
+            if (path === '/hospitaladmin/question-library') return userPerms.includes('question_library_manage');
+            if (path === '/hospitaladmin/document-templates') return userPerms.includes('document_templates_manage');
+
+            if (path === '/admin/reports') return userPerms.includes('reports_view');
+            if (path === '/admin/audit-logs') return userPerms.includes('audit_logs_view');
+
+            if (path === '/accountant/dashboard') return userPerms.includes('accountant_view') || userPerms.includes('finance_view');
+            if (path === '/billing/reports') return userPerms.includes('billing_reports') || userPerms.includes('finance_view');
+            if (path === '/billing/analytics') return userPerms.includes('billing_analytics') || userPerms.includes('finance_view');
+            if (path === '/accountant/discount-approvals') return userPerms.includes('finance_view') || userPerms.includes('billing_discounts');
+            if (path === '/accountant/outstanding') return userPerms.includes('finance_outstanding');
+            if (path === '/accountant/claims') return userPerms.includes('finance_claims');
+            if (path === '/accountant/expenses') return userPerms.includes('finance_expenses');
+            if (path === '/accountant/profit-loss') return userPerms.includes('finance_profit_loss');
+            if (path === '/accountant/statements') return userPerms.includes('finance_statements');
+            if (path === '/accountant/reconciliation') return userPerms.includes('finance_reconciliation');
+            if (path === '/accountant/payroll') return userPerms.includes('finance_payroll');
+            if (path === '/accountant/doctor-payouts') return userPerms.includes('finance_doctor_payouts');
+            if (path === '/accountant/audit-logs') return userPerms.includes('finance_audit');
+            if (path === '/accountant/transactions') return userPerms.includes('finance_transactions');
+
+            return true;
+        };
+
         if (isCategorizedRole) {
             baseMenu = baseMenu.map(group => {
-                const filteredItems = (group.items || []).filter(item => {
-                    const path = item.path;
-                    if (path === '/billing/dashboard') return userPermissions.includes('billing_view') || userPermissions.includes('billing_manage');
-                    if (path === '/billing/patient') return userPermissions.includes('billing_patient') || userPermissions.includes('billing_view') || userPermissions.includes('billing_manage');
-                    if (path === '/billing/pending') return userPermissions.includes('billing_pending') || userPermissions.includes('billing_view') || userPermissions.includes('billing_manage');
-                    if (path === '/billing/invoices') return userPermissions.includes('billing_invoices') || userPermissions.includes('billing_view') || userPermissions.includes('billing_manage');
-                    if (path === '/billing/refunds') return userPermissions.includes('billing_refund') || userPermissions.includes('billing_manage');
-                    if (path === '/finance/reception-collections') return userPermissions.includes('finance_reception_collections');
-                    if (path === '/billing/insurance') return userPermissions.includes('billing_insurance') || userPermissions.includes('billing_manage');
-                    if (path === '/billing/ipd-settlement') return userPermissions.includes('billing_ipd_settlement') || userPermissions.includes('billing_manage');
-                    if (path === '/billing/receipt-reprint') return userPermissions.includes('billing_receipt_reprint') || userPermissions.includes('billing_manage');
-                    if (path === '/billing/discounts') return userPermissions.includes('billing_discounts') || userPermissions.includes('billing_manage');
-                    if (path === '/billing/templates') return userPermissions.includes('billing_templates') || userPermissions.includes('billing_view') || userPermissions.includes('billing_manage');
-                    if (path === '/billing/settings') return userPermissions.includes('billing_settings') || userPermissions.includes('billing_view') || userPermissions.includes('billing_manage');
-                    if (path === '/admin/profile-settings') return true;
-
-                    // Admin & Reporting dynamic filters
-                    if (path === '/admin/users') return userPermissions.includes('staff_manage');
-                    if (path === '/admin/doctors') return userPermissions.includes('doctor_manage');
-                    if (path === '/admin/roles') return userPermissions.includes('admin_manage_roles');
-                    if (path === '/admin/permissions') return userPermissions.includes('admin_manage_roles');
-                    if (path === '/admin/labs') return userPermissions.includes('lab_tests_manage') || userPermissions.includes('lab_view');
-                    if (path === '/admin/lab-tests') return userPermissions.includes('lab_tests_manage');
-                    if (path === '/admin/lab-management') return userPermissions.includes('lab_tests_manage');
-                    if (path === '/admin/test-packages') return userPermissions.includes('lab_tests_manage');
-                    if (path === '/admin/pharmacy') return userPermissions.includes('pharmacy_admin_manage');
-                    if (path === '/admin/pharmacy-management') return userPermissions.includes('pharmacy_admin_manage');
-                    if (path === '/admin/purchase-approvals') return userPermissions.includes('pharmacy_admin_manage');
-                    if (path === '/admin/reception') return userPermissions.includes('reception_admin_manage');
-                    if (path === '/admin/services') return userPermissions.includes('reception_admin_manage') || userPermissions.includes('department_manage');
-                    if (path === '/admin/inventory') return userPermissions.includes('inventory_view');
-                    if (path === '/admin/resources') return userPermissions.includes('resource_manage');
-                    if (path === '/admin/admissions') return userPermissions.includes('admission_manage');
-                    if (path === '/admin/question-library') return userPermissions.includes('question_library_manage');
-                    if (path === '/admin/document-templates') return userPermissions.includes('question_library_manage');
-                    if (path === '/admin/reports') return userPermissions.includes('reports_view');
-                    if (path === '/admin/audit-logs') return userPermissions.includes('audit_logs_view');
-
-                    if (path === '/accountant/dashboard') return userPermissions.includes('accountant_view') || userPermissions.includes('finance_view');
-                    if (path === '/billing/reports') return userPermissions.includes('billing_reports') || userPermissions.includes('finance_view');
-                    if (path === '/billing/analytics') return userPermissions.includes('billing_analytics') || userPermissions.includes('finance_view');
-                    if (path === '/accountant/discount-approvals') return userPermissions.includes('finance_view') || userPermissions.includes('billing_discounts');
-                    if (path === '/accountant/outstanding') return userPermissions.includes('finance_outstanding');
-                    if (path === '/accountant/claims') return userPermissions.includes('finance_claims');
-                    if (path === '/accountant/expenses') return userPermissions.includes('finance_expenses');
-                    if (path === '/accountant/profit-loss') return userPermissions.includes('finance_profit_loss');
-                    if (path === '/accountant/statements') return userPermissions.includes('finance_statements');
-                    if (path === '/accountant/reconciliation') return userPermissions.includes('finance_reconciliation');
-                    if (path === '/accountant/payroll') return userPermissions.includes('finance_payroll');
-                    if (path === '/accountant/doctor-payouts') return userPermissions.includes('finance_doctor_payouts');
-                    if (path === '/accountant/audit-logs') return userPermissions.includes('finance_audit');
-                    if (path === '/accountant/transactions') return userPermissions.includes('finance_transactions');
-
-                    return true;
-                });
+                const filteredItems = (group.items || []).filter(item => hasPathPermission(item.path, userPermissions));
                 return { ...group, items: filteredItems };
             }).filter(group => group.items && group.items.length > 0);
+        } else {
+            // Apply path permission filtering to flat menus as well (e.g. clinic manager / hospitaladmin role)
+            baseMenu = baseMenu.filter(item => hasPathPermission(item.path, userPermissions));
         }
 
         return baseMenu;

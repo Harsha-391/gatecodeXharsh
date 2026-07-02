@@ -451,16 +451,9 @@ router.get('/users', verifyAdminOrSuperAdmin, async (req, res) => {
 
         let query = {};
         if (isCentral) {
-            // Find all Role ObjectIds that represent "Admin" or "hospitaladmin"
-            const adminRoles = await Role.find({ name: { $regex: /^(admin|hospitaladmin)$/i } });
-            const adminRoleIds = adminRoles.map(r => r._id);
-
             query = {
                 ...filter, // Optionally filter by ?hospitalId= if provided
-                $or: [
-                    { role: { $in: ['hospitaladmin', 'admin'] } },
-                    { role: { $in: adminRoleIds } }
-                ],
+                role: { $nin: ['centraladmin', 'superadmin'] },
                 patientId: { $exists: false }
             };
         } else {
@@ -974,6 +967,7 @@ const KNOWN_PERMISSIONS = [
     'admin_manage_roles', 'admin_view_stats',
     'accountant_view', 'accountant_manage',
     'staff_manage', 'department_manage', 'patient_monitor',
+    'question_library_manage', 'document_templates_manage',
     'admission_manage', 'resource_manage', 'reports_view',
     'analytics_view', 'operations_manage', 'inventory_view',
     'billing_insurance', 'billing_ipd_settlement', 'billing_receipt_reprint', 'billing_discounts',

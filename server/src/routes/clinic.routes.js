@@ -29,7 +29,7 @@ const getModels = (req) => {
     if (req.tenantDb) {
         const m = getTenantModels(req.tenantDb);
         return {
-            Hospital: m.Hospital,
+            Hospital: require('../models/hospital.model'),
             Appointment: m.Appointment,
             Inventory: m.Inventory,
             PharmacyOrder: m.PharmacyOrder,
@@ -85,7 +85,10 @@ const verifyClinicAdmin = async (req, res, next) => {
             if (!req.user.hospitalId) {
                 return res.status(403).json({ success: false, message: 'No clinic assigned to your account' });
             }
-            next();
+            await resolveTenant(req, res, () => {
+                req.models = getModels(req);
+                next();
+            });
         });
     } catch (err) {
         res.status(500).json({ success: false, message: 'An internal error occurred' });

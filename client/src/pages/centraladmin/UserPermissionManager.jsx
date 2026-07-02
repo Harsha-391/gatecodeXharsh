@@ -96,7 +96,8 @@ const WORKSPACE_PERMISSIONS = [
             { key: 'lab_tests_manage', label: 'Lab Tests Catalog & Management', emoji: '🧪', description: 'Manage lab configurations, test packages and lab reports catalog.', unlocks: ['Lab Tests Catalog', 'Laboratory Management', 'Tests & Packages'] },
             { key: 'pharmacy_admin_manage', label: 'Pharmacy Admin Management', emoji: '💊', description: 'Oversight of pharmacy status, inventory levels, and medicine purchase approvals.', unlocks: ['Pharmacy Page', 'Pharmacy Management Page', 'Purchase Approvals Page'] },
             { key: 'reception_admin_manage', label: 'Reception & Services Management', emoji: '🏪', description: 'Oversight of reception queues, token settings, and hospital services catalog.', unlocks: ['Reception Feed Page', 'Hospital Services Catalog'] },
-            { key: 'question_library_manage', label: 'Question Library & Templates', emoji: '📝', description: 'Configure clinical question libraries and upload/calibrate prescription & billing document templates.', unlocks: ['Question Library Page', 'Document Templates Page'] },
+            { key: 'question_library_manage', label: 'Question Library', emoji: '📝', description: 'Configure clinical question libraries and department questionnaire mappings.', unlocks: ['Question Library Page'] },
+            { key: 'document_templates_manage', label: 'Document Templates', emoji: '📄', description: 'Upload, manage, and calibrate prescription and billing document templates.', unlocks: ['Document Templates Page'] },
             { key: 'reports_view', label: 'Generate Reports', emoji: '📊', description: 'Generate and export hospital operational reports.', unlocks: ['Reports Page'] },
             { key: 'analytics_view', label: 'Analytics Oversight', emoji: '📈', description: 'View hospital analytics and performance metrics.', unlocks: ['Analytics Dashboard'] },
             { key: 'admin_view_stats', label: 'View Admin Statistics', emoji: '🔢', description: 'View admin-level hospital statistics.', unlocks: ['Admin Stats Dashboard'] },
@@ -107,6 +108,25 @@ const WORKSPACE_PERMISSIONS = [
 ];
 
 const UserPermissionManager = ({ hospitals = [] }) => {
+    const loggedInUser = JSON.parse(localStorage.getItem('user') || '{}');
+    const isCentral = ['superadmin', 'centraladmin'].includes((loggedInUser.role || '').toLowerCase());
+
+    // Helper to get normalized display role name
+    const getDisplayRole = (userObj) => {
+        if (!userObj) return 'No Role';
+        const roleName = userObj.roleName || userObj.role;
+        if (!roleName) return 'No Role';
+        const lowerRole = String(roleName).toLowerCase();
+        if (lowerRole === 'hospitaladmin' || lowerRole === 'admin') {
+            const hosp = hospitals.find(h => String(h._id) === String(userObj.hospitalId));
+            if (hosp && hosp.clinicType === 'clinic') {
+                return 'Clinic Admin';
+            }
+            return 'Hospital Admin';
+        }
+        return roleName;
+    };
+
     const [allStaff, setAllStaff] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedUser, setSelectedUser] = useState(null);
@@ -132,7 +152,11 @@ const UserPermissionManager = ({ hospitals = [] }) => {
             if (res.success) {
                 const staff = (res.users || []).filter(u => {
                     const role = (u.role || '').toLowerCase();
-                    return !['centraladmin', 'superadmin', 'hospitaladmin', 'patient'].includes(role);
+                    if (isCentral) {
+                        return ['hospitaladmin', 'admin'].includes(role);
+                    } else {
+                        return !['centraladmin', 'superadmin', 'hospitaladmin', 'admin', 'patient'].includes(role);
+                    }
                 });
                 setAllStaff(staff);
             }
@@ -236,13 +260,17 @@ const UserPermissionManager = ({ hospitals = [] }) => {
 
     const filteredStaff = useMemo(() => allStaff.filter(u => {
         const s = searchQuery.toLowerCase();
-        const matchSearch = !s || (u.name || '').toLowerCase().includes(s) || (u.email || '').toLowerCase().includes(s) || (u.role || '').toLowerCase().includes(s);
+        const displayRole = getDisplayRole(u);
+        const matchSearch = !s || (u.name || '').toLowerCase().includes(s) || (u.email || '').toLowerCase().includes(s) || displayRole.toLowerCase().includes(s);
         const matchHospital = !hospitalFilter || String(u.hospitalId) === String(hospitalFilter);
-        const matchRole = !roleFilter || (u.role || '').toLowerCase() === roleFilter.toLowerCase();
+        const matchRole = !roleFilter || displayRole.toLowerCase() === roleFilter.toLowerCase();
         return matchSearch && matchHospital && matchRole;
-    }), [allStaff, searchQuery, hospitalFilter, roleFilter]);
+    }), [allStaff, searchQuery, hospitalFilter, roleFilter, hospitals]);
 
-    const uniqueRoles = useMemo(() => Array.from(new Set(allStaff.map(u => u.role).filter(Boolean))).sort(), [allStaff]);
+    const uniqueRoles = useMemo(() => {
+        const rolesSet = new Set(allStaff.map(u => getDisplayRole(u)).filter(Boolean));
+        return Array.from(rolesSet).sort();
+    }, [allStaff, hospitals]);
     const getEffectivePermCount = (user) => {
         const rp = user.permissions || []; const cp = user.customPermissions || []; const dp = user.deniedPermissions || [];
         return new Set([...rp, ...cp].filter(p => !dp.includes(p))).size;
@@ -264,7 +292,7 @@ const UserPermissionManager = ({ hospitals = [] }) => {
                         </div>
                         <h3 style={{ margin: '0 0 4px', fontSize: '15px', fontWeight: 700 }}>{selectedUser.name}</h3>
                         <p style={{ margin: '0 0 6px', fontSize: '11px', color: '#94a3b8', wordBreak: 'break-all' }}>{selectedUser.email}</p>
-                        <span style={{ display: 'inline-block', background: '#3b82f6', color: 'white', borderRadius: '10px', padding: '2px 10px', fontSize: '11px', fontWeight: 700 }}>{selectedUser.role}</span>
+                        <span style={{ display: 'inline-block', background: '#3b82f6', color: 'white', borderRadius: '10px', padding: '2px 10px', fontSize: '11px', fontWeight: 700 }}>{getDisplayRole(selectedUser)}</span>
                     </div>
                     <div style={{ padding: '12px', background: 'rgba(255,255,255,0.04)', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.06)' }}>
                         <div style={{ fontSize: '9px', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '10px' }}>Permission Summary</div>
@@ -469,7 +497,7 @@ const UserPermissionManager = ({ hospitals = [] }) => {
                                     <div style={{ flex: 1, minWidth: 0 }}>
                                         <div style={{ fontWeight: 700, fontSize: '14px', color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user.name}</div>
                                         <div style={{ fontSize: '11px', color: '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user.email}</div>
-                                        <span style={{ display: 'inline-block', background: '#eff6ff', color: '#3b82f6', borderRadius: '8px', padding: '1px 8px', fontSize: '10px', fontWeight: 700, marginTop: '2px' }}>{user.role}</span>
+                                        <span style={{ display: 'inline-block', background: '#eff6ff', color: '#3b82f6', borderRadius: '8px', padding: '1px 8px', fontSize: '10px', fontWeight: 700, marginTop: '2px' }}>{getDisplayRole(user)}</span>
                                     </div>
                                     {hasCustom && <span style={{ background: '#fef3c7', color: '#d97706', borderRadius: '8px', padding: '2px 8px', fontSize: '10px', fontWeight: 800, flexShrink: 0 }}>CUSTOM</span>}
                                 </div>

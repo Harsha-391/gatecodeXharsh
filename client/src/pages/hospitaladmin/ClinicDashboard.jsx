@@ -533,6 +533,7 @@ const PatientsMode = ({ onBookToken }) => {
     const [uploading, setUploading] = useState(false);
     const [reportName, setReportName] = useState('');
     const fileInputRef = useRef(null);
+    const today = new Date().toISOString().split('T')[0];
 
     const flash = (type, text) => { setMsg({ type, text }); setTimeout(() => setMsg({ type: '', text: '' }), 6000); };
 

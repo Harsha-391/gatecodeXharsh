@@ -26,10 +26,19 @@ const getModels = (req) => {
 // Check if user has permission to upload/manage templates (Hospital Admin, Super Admin, Central Admin, Admin)
 const verifyAdminRole = (req, res, next) => {
     const roleName = String(req.user?._roleData?.name || req.user?.role || '').toLowerCase();
-    if (roleName === 'hospitaladmin' || roleName === 'centraladmin' || roleName === 'superadmin' || roleName === 'admin') {
+    const userPermissions = req.user._roleData?.permissions || req.user.permissions || [];
+    
+    const hasAccess = 
+        ['centraladmin', 'superadmin'].includes(roleName) ||
+        userPermissions.includes('document_templates_manage') ||
+        userPermissions.includes('*') ||
+        // Default access for clinic manager/hospitaladmin unless denied
+        ( (roleName === 'hospitaladmin' || roleName === 'admin') && !(req.user.deniedPermissions || []).includes('document_templates_manage') );
+
+    if (hasAccess) {
         next();
     } else {
-        return res.status(403).json({ success: false, message: 'Forbidden: Admin privilege required' });
+        return res.status(403).json({ success: false, message: 'Forbidden: Document templates management privilege required' });
     }
 };
 

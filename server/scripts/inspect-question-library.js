@@ -33,6 +33,13 @@ async function run() {
             console.log(`- Doctor: ${d.name} (${d._id}), Specialty: ${d.specialty}, hospitalId: ${d.hospitalId}`);
         }
         
+        const Role = require('../src/models/role.model');
+        const roles = await Role.find({});
+        console.log(`\nFound ${roles.length} roles.`);
+        for (const r of roles) {
+            console.log(`- Role: ${r.name} (${r._id}), permissions: ${JSON.stringify(r.permissions)}`);
+        }
+
         process.exit(0);
     } catch (err) {
         console.error("Error:", err);

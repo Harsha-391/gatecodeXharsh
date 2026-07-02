@@ -800,7 +800,7 @@ const HospitalAdminDashboard = () => {
                 {/* ===================== PERMISSIONS TAB ===================== */}
                 {activeTab === 'permissions' && (
                     <div className="admin-card" style={{ padding: '0', overflow: 'hidden', background: 'transparent', boxShadow: 'none', border: 'none' }}>
-                        <UserPermissionManager hospitals={hospitalInfo ? [{ _id: String(hospitalInfo._id), name: hospitalInfo.name }] : []} />
+                        <UserPermissionManager hospitals={hospitalInfo ? [{ _id: String(hospitalInfo._id), name: hospitalInfo.name, clinicType: hospitalInfo.clinicType }] : []} />
                     </div>
                 )}
 

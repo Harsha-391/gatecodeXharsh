@@ -117,7 +117,10 @@ router.get('/resolve/:slug', async (req, res) => {
         }
         res.json({ success: true, hospital });
     } catch (err) {
-        res.status(500).json({ success: false, message: 'An internal error occurred' });
+        console.error('Resolve slug error:', err);
+        if (!res.headersSent) {
+            res.status(500).json({ success: false, message: 'An internal error occurred' });
+        }
     }
 });
 
@@ -1391,7 +1394,10 @@ router.get('/:id/branding', async (req, res) => {
         if (!hospital) return res.status(404).json({ success: false, message: 'Hospital not found' });
         res.json({ success: true, branding: hospital.branding || {}, hospitalName: hospital.name, logo: hospital.logo });
     } catch (err) {
-        res.status(500).json({ success: false, message: 'An internal error occurred' });
+        console.error('Branding fetch error:', err);
+        if (!res.headersSent) {
+            res.status(500).json({ success: false, message: 'An internal error occurred' });
+        }
     }
 });
 

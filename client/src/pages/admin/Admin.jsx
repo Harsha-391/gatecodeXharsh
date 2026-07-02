@@ -92,9 +92,13 @@ const Admin = () => {
             const response = await adminAPI.getUsers();
             if (response.success) {
                 // Filter out 'patient' and 'user' roles to show only Staff
-                const staffUsers = response.users.filter(u =>
-                    !['patient', 'user'].includes((u.role || '').toLowerCase())
-                );
+                const staffUsers = response.users.filter(u => {
+                    const role = (u.role || '').toLowerCase();
+                    if (isCentral) {
+                        return ['hospitaladmin', 'admin'].includes(role);
+                    }
+                    return !['patient', 'user'].includes(role);
+                });
                 setUsers(staffUsers);
             }
         } catch (err) {

@@ -97,7 +97,8 @@ const AdminRoles = () => {
                 { key: 'lab_tests_manage', label: 'Lab Tests Catalog & Laboratory Management' },
                 { key: 'pharmacy_admin_manage', label: 'Pharmacy Administrative Oversight & Approvals' },
                 { key: 'reception_admin_manage', label: 'Reception Queues & Services Catalog' },
-                { key: 'question_library_manage', label: 'Question Library & Custom Templates' },
+                { key: 'question_library_manage', label: 'Question Library Setup' },
+                { key: 'document_templates_manage', label: 'Document Templates Customization' },
                 { key: 'admin_manage_roles', label: 'Manage Roles & Access Control' },
                 { key: 'admin_view_stats', label: 'View Admin Overview Stats' },
                 { key: 'audit_logs_view', label: 'View Complete System Audit Logs' }
@@ -150,7 +151,9 @@ const AdminRoles = () => {
         billing_insurance: { label: 'Insurance Billing', path: '/billing/insurance' },
         billing_ipd_settlement: { label: 'IPD Settlement', path: '/billing/ipd-settlement' },
         billing_receipt_reprint: { label: 'Receipt Reprint', path: '/billing/receipt-reprint' },
-        billing_discounts: { label: 'Discounts', path: '/billing/discounts' }
+        billing_discounts: { label: 'Discounts', path: '/billing/discounts' },
+        question_library_manage: { label: 'Question Library', path: '/admin/question-library' },
+        document_templates_manage: { label: 'Document Templates', path: '/admin/document-templates' }
     };
 
     const getAutoNavLinks = (permissions) => {

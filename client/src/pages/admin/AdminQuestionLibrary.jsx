@@ -148,7 +148,24 @@ const AdminQuestionLibrary = () => {
     };
 
     const handleDeleteDepartment = (deptName) => {
-        alert(`Deletion of departments is disabled to prevent accidental removal and data loss. Department "${deptName}" will not be deleted.`);
+        if (window.confirm(`Are you sure you want to delete department "${deptName}"? This will delete all categories and questions in this department. You must click "Save & Deploy" to apply the changes to the database.`)) {
+            const newLib = { ...libraryData };
+            delete newLib[deptName];
+            setLibraryData(newLib);
+            
+            // If the deleted tab was the active tab, switch to another tab
+            if (departmentTab === deptName) {
+                const remainingDepts = Object.keys(newLib);
+                if (remainingDepts.length > 0) {
+                    setDepartmentTab(remainingDepts[0]);
+                    const cats = Object.keys(newLib[remainingDepts[0]] || {});
+                    setActiveCategory(cats.length > 0 ? cats[0] : '');
+                } else {
+                    setDepartmentTab('General');
+                    setActiveCategory('');
+                }
+            }
+        }
     };
 
     const resetModalState = () => {

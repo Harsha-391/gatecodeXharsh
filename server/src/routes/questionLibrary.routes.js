@@ -9,19 +9,33 @@ const getModels = (req) => {
         const tenantModels = getTenantModels(req.tenantDb);
         return {
             QuestionLibrary: tenantModels.QuestionLibrary,
-            Hospital: tenantModels.Hospital
+            Hospital: require('../models/hospital.model'),
+            Department: require('../models/department.model')
         };
     }
     return {
         QuestionLibrary: require('../models/questionLibrary.model'),
-        Hospital: require('../models/hospital.model')
+        Hospital: require('../models/hospital.model'),
+        Department: require('../models/department.model')
     };
 };
 
 // Get the latest question library configuration
 router.get('/', verifyToken, resolveTenant, async (req, res) => {
     try {
-        const { QuestionLibrary, Hospital } = getModels(req);
+        const roleName = String(req.user?.role || '').toLowerCase();
+        const perms = req.user._roleData?.permissions || req.user.permissions || [];
+        const hasAccess = 
+            ['centraladmin', 'superadmin'].includes(roleName) ||
+            perms.includes('question_library_manage') ||
+            perms.includes('*') ||
+            ( (roleName === 'hospitaladmin' || roleName === 'admin') && !(req.user.deniedPermissions || []).includes('question_library_manage') );
+
+        if (!hasAccess) {
+            return res.status(403).json({ success: false, message: 'Forbidden: Question library management privilege required' });
+        }
+
+        const { QuestionLibrary, Hospital, Department } = getModels(req);
         const hospitalId = req.user.hospitalId || null;
         let library = null;
         let allowedDepartments = null; // null means all allowed (super/central admin)
@@ -41,26 +55,43 @@ router.get('/', verifyToken, resolveTenant, async (req, res) => {
             library = await QuestionLibrary.findOne({ hospitalId: null }).sort({ version: -1 });
         }
 
-        // Dynamically build defaultDepts based on allowed departments
-        let defaultDepts = {};
-        if (allowedDepartments && allowedDepartments.length > 0) {
-            allowedDepartments.forEach(dept => {
-                defaultDepts[dept] = {};
-            });
-        } else {
-            defaultDepts = { "General": {} }; // default fallback
-        }
-
         let libraryDataObj = {};
         if (library && library.data) {
             libraryDataObj = library.data;
         }
 
-        // Only keep allowed departments in the mergedData to prevent saving extra departments
-        const mergedData = {};
-        Object.keys(defaultDepts).forEach(dept => {
-            mergedData[dept] = libraryDataObj[dept] || {};
-        });
+        let mergedData;
+        if (allowedDepartments === null) {
+            // Super/Central admin: Retrieve all active departments in database to populate
+            const activeDepartments = await Department.find({ isActive: true });
+            const activeDeptNames = activeDepartments.map(d => d.name);
+
+            // Start with what is stored in the library data
+            mergedData = { ...libraryDataObj };
+
+            // Ensure all active departments exist as keys in mergedData
+            activeDeptNames.forEach(dept => {
+                if (!mergedData[dept]) {
+                    mergedData[dept] = {};
+                }
+            });
+        } else {
+            // Dynamically build defaultDepts based on allowed departments
+            let defaultDepts = {};
+            if (allowedDepartments.length > 0) {
+                allowedDepartments.forEach(dept => {
+                    defaultDepts[dept] = {};
+                });
+            } else {
+                defaultDepts = { "General": {} }; // default fallback
+            }
+
+            // Only keep allowed departments in the mergedData to prevent saving extra departments
+            mergedData = {};
+            Object.keys(defaultDepts).forEach(dept => {
+                mergedData[dept] = libraryDataObj[dept] || {};
+            });
+        }
 
         let resultLibrary = null;
         if (library) {
@@ -79,35 +110,74 @@ router.get('/', verifyToken, resolveTenant, async (req, res) => {
 // Update or create question library
 router.post('/', verifyAdminOrSuperAdmin, resolveTenant, async (req, res) => {
     try {
-        const { QuestionLibrary, Hospital } = getModels(req);
+        const roleName = String(req.user?.role || '').toLowerCase();
+        const perms = req.user._roleData?.permissions || req.user.permissions || [];
+        const hasAccess = 
+            ['centraladmin', 'superadmin'].includes(roleName) ||
+            perms.includes('question_library_manage') ||
+            perms.includes('*') ||
+            ( (roleName === 'hospitaladmin' || roleName === 'admin') && !(req.user.deniedPermissions || []).includes('question_library_manage') );
+
+        if (!hasAccess) {
+            return res.status(403).json({ success: false, message: 'Forbidden: Question library management privilege required' });
+        }
+
+        const { QuestionLibrary, Hospital, Department } = getModels(req);
         const { data } = req.body;
         const hospitalId = req.user.hospitalId || null;
 
         if (!data) return res.status(400).json({ success: false, message: 'Library data is required' });
 
-        let allowedDepartments = [];
+        let allowedDepartments = null; // null means all allowed (super/central admin)
         if (hospitalId) {
             const hospital = await Hospital.findById(hospitalId);
             if (hospital && hospital.departments) {
                 allowedDepartments = hospital.departments;
+            } else {
+                allowedDepartments = [];
             }
         }
 
-        // Dynamically build defaultDepts based on allowed departments
-        let defaultDepts = {};
-        if (allowedDepartments && allowedDepartments.length > 0) {
-            allowedDepartments.forEach(dept => {
-                defaultDepts[dept] = {};
-            });
-        } else {
-            defaultDepts = { "General": {} }; // default fallback
-        }
+        let mergedData;
+        if (allowedDepartments === null) {
+            // Super/Central admin: Save all department data without filtering
+            mergedData = data;
 
-        // Only keep allowed departments in the mergedData to prevent saving extra departments
-        const mergedData = {};
-        Object.keys(defaultDepts).forEach(dept => {
-            mergedData[dept] = data[dept] || {};
-        });
+            // Sync the Department database collection with the new department list in mergedData keys
+            const newDeptNames = Object.keys(mergedData);
+            
+            // Delete any department in the database that is NOT in the new list
+            await Department.deleteMany({ name: { $nin: newDeptNames } });
+
+            // Create/Insert any department in the new list that is not already in the database
+            const existingDepts = await Department.find({});
+            const existingNames = existingDepts.map(d => d.name);
+            const deptsToAdd = newDeptNames.filter(name => !existingNames.includes(name));
+            
+            for (const name of deptsToAdd) {
+                await Department.create({
+                    name,
+                    description: `${name} department`,
+                    isActive: true
+                });
+            }
+        } else {
+            // Dynamically build defaultDepts based on allowed departments
+            let defaultDepts = {};
+            if (allowedDepartments.length > 0) {
+                allowedDepartments.forEach(dept => {
+                    defaultDepts[dept] = {};
+                });
+            } else {
+                defaultDepts = { "General": {} }; // default fallback
+            }
+
+            // Only keep allowed departments in the mergedData to prevent saving extra departments
+            mergedData = {};
+            Object.keys(defaultDepts).forEach(dept => {
+                mergedData[dept] = data[dept] || {};
+            });
+        }
 
         const latestLibrary = await QuestionLibrary.findOne({ hospitalId }).sort({ version: -1 });
         let newVersion = 1;
