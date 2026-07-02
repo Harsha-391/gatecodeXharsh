@@ -661,8 +661,68 @@ router.put('/appointments/:id/complete', verifyClinicAdmin, async (req, res) => 
 
         await appt.save();
 
-        // Note: clinic module does not manage pharmacy orders or billing.
-        // Prescribed medicines are stored on the appointment for prescription records only.
+        // Create PharmacyOrder record dynamically based on prescribed medicines
+        if (medicines && Array.isArray(medicines) && medicines.length > 0) {
+            const medicineNames = medicines.map(m => (m.medicineName || m.name || '').trim());
+            const invItems = await Inventory.find({
+                hospitalId: hid(req),
+                name: { $in: medicineNames.map(n => new RegExp(`^${n}$`, 'i')) }
+            });
+            const invMap = Object.fromEntries(invItems.map(item => [item.name.toLowerCase(), item]));
+
+            let totalAmount = 0;
+            const orderItems = medicines.map(m => {
+                const name = (m.medicineName || m.name || '').trim();
+                const matched = invMap[name.toLowerCase()];
+                const unitPrice = matched ? (matched.sellingPrice || 0) : 0;
+
+                // Calculate quantity based on frequency (e.g. 1-0-1 = 2 per day)
+                let timesPerDay = 1;
+                const freq = (m.frequency || m.dose || m.dosage || '').toLowerCase();
+                if (freq.includes('-')) {
+                    timesPerDay = freq.split('-').map(Number).reduce((sum, n) => sum + (n || 0), 0);
+                } else if (freq.includes('tds') || freq.includes('t.d.s')) {
+                    timesPerDay = 3;
+                } else if (freq.includes('bd') || freq.includes('b.i.d') || freq.includes('bid')) {
+                    timesPerDay = 2;
+                } else if (freq.includes('od') || freq.includes('o.d') || freq.includes('od')) {
+                    timesPerDay = 1;
+                } else {
+                    timesPerDay = Number(freq) || 1;
+                }
+                const durationDays = Number(m.duration || m.days) || 5;
+                const quantity = timesPerDay * durationDays;
+                const totalPrice = quantity * unitPrice;
+                totalAmount += totalPrice;
+
+                return {
+                    medicineName: name,
+                    frequency: m.frequency || m.dose || m.dosage || '',
+                    duration: m.duration || m.days || '',
+                    price: totalPrice,
+                    unitPrice: unitPrice,
+                    quantity: quantity,
+                    totalPrice: totalPrice,
+                    inventoryId: matched ? matched._id : null
+                };
+            });
+
+            // Delete duplicate upcoming orders for this appointment
+            await PharmacyOrder.deleteMany({ appointmentId: appt._id, orderStatus: { $ne: 'Completed' } });
+
+            await PharmacyOrder.create({
+                appointmentId: appt._id,
+                patientId: appt.patientId || '',
+                userId: appt.clinicPatientId,
+                doctorId: appt.doctorUserId || req.user._id,
+                hospitalId: hid(req),
+                items: orderItems,
+                paymentStatus: 'Pending',
+                totalAmount: totalAmount,
+                totalCost: 0,
+                orderStatus: 'Upcoming'
+            });
+        }
 
         res.json({ success: true, appointment: appt, message: 'Appointment completed' });
     } catch (err) {
@@ -726,7 +786,7 @@ router.get('/inventory', verifyClinicAdmin, async (req, res) => {
 router.post('/inventory', verifyClinicAdmin, async (req, res) => {
     try {
         const { Hospital, Appointment, Inventory, PharmacyOrder, ClinicPatient, ClinicSubscription, TreatmentPlan, Notification, User } = req.models;
-        const { name, category, unit } = req.body;
+        const { name, category, unit, stock, sellingPrice } = req.body;
         if (!name) return res.status(400).json({ success: false, message: 'Medicine name required' });
 
         // Check for duplicate name in this clinic
@@ -737,13 +797,35 @@ router.post('/inventory', verifyClinicAdmin, async (req, res) => {
             hospitalId:   hid(req),
             name:         name.trim(),
             category:     category || 'General',
-            stock:        0,
+            stock:        stock !== undefined ? Number(stock) : 0,
             unit:         unit     || 'Tablets',
             buyingPrice:  0,
-            sellingPrice: 0,
+            sellingPrice: sellingPrice !== undefined ? Number(sellingPrice) : 0,
         });
         await item.save();
         res.status(201).json({ success: true, item });
+    } catch (err) {
+        res.status(500).json({ success: false, message: 'An internal error occurred' });
+    }
+});
+
+// PUT /api/clinic/inventory/:id
+router.put('/inventory/:id', verifyClinicAdmin, async (req, res) => {
+    try {
+        const { name, category, unit, stock, sellingPrice } = req.body;
+        const { Inventory } = req.models;
+        
+        const item = await Inventory.findOne({ _id: req.params.id, hospitalId: hid(req) });
+        if (!item) return res.status(404).json({ success: false, message: 'Medicine not found' });
+
+        if (name) item.name = name.trim();
+        if (category) item.category = category;
+        if (unit) item.unit = unit;
+        if (stock !== undefined) item.stock = Number(stock) || 0;
+        if (sellingPrice !== undefined) item.sellingPrice = Number(sellingPrice) || 0;
+
+        await item.save();
+        res.json({ success: true, item, message: 'Stock updated successfully' });
     } catch (err) {
         res.status(500).json({ success: false, message: 'An internal error occurred' });
     }
@@ -770,13 +852,30 @@ router.get('/pharmacy-orders', verifyClinicAdmin, async (req, res) => {
 router.put('/pharmacy-orders/:id/dispense', verifyClinicAdmin, async (req, res) => {
     try {
         const { Hospital, Appointment, Inventory, PharmacyOrder, ClinicPatient, ClinicSubscription, TreatmentPlan, Notification, User } = req.models;
-        const order = await PharmacyOrder.findOneAndUpdate(
-            { _id: req.params.id, hospitalId: hid(req) },
-            { orderStatus: 'Completed' },
-            { new: true }
-        );
+        const order = await PharmacyOrder.findOne({ _id: req.params.id, hospitalId: hid(req) });
         if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
-        res.json({ success: true, order });
+
+        // Deduct stock levels in Inventory
+        for (const item of order.items) {
+            if (item.inventoryId) {
+                const inv = await Inventory.findOne({ _id: item.inventoryId, hospitalId: hid(req) });
+                if (inv) {
+                    inv.stock = Math.max(0, (inv.stock || 0) - (item.quantity || 0));
+                    await inv.save();
+                }
+            } else if (item.medicineName) {
+                const inv = await Inventory.findOne({ name: { $regex: `^${item.medicineName.trim()}$`, $options: 'i' }, hospitalId: hid(req) });
+                if (inv) {
+                    inv.stock = Math.max(0, (inv.stock || 0) - (item.quantity || 0));
+                    await inv.save();
+                }
+            }
+        }
+
+        order.orderStatus = 'Completed';
+        await order.save();
+
+        res.json({ success: true, order, message: 'Medicines dispensed and stock levels updated successfully' });
     } catch (err) {
         res.status(500).json({ success: false, message: 'An internal error occurred' });
     }
@@ -1031,6 +1130,73 @@ router.get('/staff', verifyClinicAdmin, async (req, res) => {
         }));
 
         res.json({ success: true, staff: enriched });
+    } catch (err) {
+        res.status(500).json({ success: false, message: 'An internal error occurred' });
+    }
+});
+
+// POST /api/clinic/staff
+router.post('/staff', verifyClinicAdmin, async (req, res) => {
+    try {
+        const { name, email, password, phone, role } = req.body;
+        if (!name || !email || !password) return res.status(400).json({ success: false, message: 'Name, email and password are required' });
+        
+        const validatePassword = require('../utils/validatePassword');
+        const pwErr = validatePassword(password);
+        if (pwErr) return res.status(400).json({ success: false, message: pwErr });
+
+        const staffRole = role === 'receptionist' ? 'receptionist' : 'doctor';
+        const clinicId = hid(req);
+
+        const clinic = await Hospital.findOne({ _id: clinicId, clinicType: 'clinic' });
+        if (!clinic) return res.status(404).json({ success: false, message: 'Clinic not found' });
+
+        // Tier limit check
+        const maxForRole = staffRole === 'doctor'
+            ? (clinic.tier?.maxDoctors       || 1)
+            : (clinic.tier?.maxReceptionists || 1);
+
+        const { User } = req.models;
+        const currentCount = await User.countDocuments({ hospitalId: clinicId, role: staffRole });
+        if (currentCount >= maxForRole) {
+            return res.status(400).json({
+                success: false,
+                message: `Tier limit reached: max ${maxForRole} ${staffRole}(s) for this clinic. Please contact sales to upgrade.`,
+            });
+        }
+
+        const existing = await User.findOne({ email });
+        if (existing) return res.status(400).json({ success: false, message: 'Email already in use' });
+
+        const staffMember = new User({
+            name, email, password, phone: phone || '',
+            role: staffRole,
+            hospitalId: clinicId,
+        });
+        await staffMember.save();
+
+        res.status(201).json({
+            success: true,
+            staff: { _id: staffMember._id, name, email, phone, role: staffRole },
+            message: `${staffRole === 'doctor' ? 'Doctor' : 'Receptionist'} account created successfully`,
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, message: 'An internal error occurred' });
+    }
+});
+
+// DELETE /api/clinic/staff/:id
+router.delete('/staff/:id', verifyClinicAdmin, async (req, res) => {
+    try {
+        const clinicId = hid(req);
+        const { User } = req.models;
+        const user = await User.findOneAndDelete({ _id: req.params.id, hospitalId: clinicId });
+        if (!user) return res.status(404).json({ success: false, message: 'Staff member not found' });
+
+        // Unlink from clinic admin if needed
+        await Hospital.updateOne({ _id: clinicId, adminUserId: req.params.id }, { $set: { adminUserId: null } });
+
+        res.json({ success: true, message: 'Staff member removed' });
     } catch (err) {
         res.status(500).json({ success: false, message: 'An internal error occurred' });
     }

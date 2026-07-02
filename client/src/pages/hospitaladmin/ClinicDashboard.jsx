@@ -1540,6 +1540,11 @@ const DoctorMode = () => {
     const [historyLoading, setHistoryLoading] = useState(false);
     const [showHistory, setShowHistory] = useState(false);
 
+    // Dynamic Staff Add/Delete States
+    const [showStaffForm, setShowStaffForm] = useState(false);
+    const [staffForm, setStaffForm] = useState({ name: '', email: '', password: '', phone: '', role: 'doctor' });
+    const [savingStaff, setSavingStaff] = useState(false);
+
     const flash = (type, text) => { setMsg({ type, text }); setTimeout(() => setMsg({ type: '', text: '' }), 4000); };
 
     const loadToday = () => {
@@ -1550,8 +1555,51 @@ const DoctorMode = () => {
             .finally(() => setLoading(false));
     };
 
+    const loadStaff = () => {
+        setStaffLoading(true);
+        clinicAPI.getStaff()
+            .then(r => { if (r.success) setStaff(r.staff || []); })
+            .catch(console.error)
+            .finally(() => setStaffLoading(false));
+    };
+
+    const handleCreateStaff = async (e) => {
+        e.preventDefault();
+        setSavingStaff(true);
+        try {
+            const res = await clinicAPI.createStaff(staffForm);
+            if (res.success) {
+                flash('success', res.message || 'Staff member added successfully!');
+                setShowStaffForm(false);
+                setStaffForm({ name: '', email: '', password: '', phone: '', role: 'doctor' });
+                loadStaff();
+            } else {
+                flash('error', res.message || 'Failed to add staff');
+            }
+        } catch (err) {
+            flash('error', err.response?.data?.message || err.message);
+        } finally {
+            setSavingStaff(false);
+        }
+    };
+
+    const handleDeleteStaff = async (id) => {
+        if (!window.confirm('Are you sure you want to remove this staff member? This cannot be undone.')) return;
+        try {
+            const res = await clinicAPI.deleteStaff(id);
+            if (res.success) {
+                flash('success', 'Staff member removed successfully!');
+                loadStaff();
+            } else {
+                flash('error', res.message || 'Failed to remove staff');
+            }
+        } catch (err) {
+            flash('error', err.response?.data?.message || err.message);
+        }
+    };
+
     useEffect(() => {
-        clinicAPI.getStaff().then(r => { if (r.success) setStaff(r.staff || []); }).catch(() => {}).finally(() => setStaffLoading(false));
+        loadStaff();
         loadToday();
         clinicAPI.getInventory().then(r => { if (r.success) setInventory(r.inventory || []); }).catch(() => { });
         clinicAPI.getStats().then(r => { if (r.success) setAnalytics(r.stats); }).catch(() => { });
@@ -1843,12 +1891,60 @@ const DoctorMode = () => {
             {/* Staff List tab */}
             {tab === 'staff' && (
                 <div className="clinic-card">
-                    <h3 style={{ marginBottom: '14px' }}>👥 Clinic Staff</h3>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                        <h3 style={{ margin: 0 }}>👥 Clinic Staff</h3>
+                        <button className="clinic-btn-primary" style={{ padding: '6px 14px', fontSize: '13px' }}
+                            onClick={() => setShowStaffForm(!showStaffForm)}>
+                            {showStaffForm ? 'Cancel' : '+ Add Staff'}
+                        </button>
+                    </div>
+
+                    {showStaffForm && (
+                        <form onSubmit={handleCreateStaff} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '16px', marginBottom: '16px' }}>
+                            <h4 style={{ margin: '0 0 12px', color: '#1e293b' }}>Add Staff Login Account</h4>
+                            <div className="clinic-form-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '12px' }}>
+                                <div className="clinic-form-group">
+                                    <label style={{ fontSize: '12px', fontWeight: 600, color: '#475569', marginBottom: '4px', display: 'block' }}>Full Name *</label>
+                                    <input type="text" className="clinic-input" placeholder="Staff Name" value={staffForm.name}
+                                        onChange={e => setStaffForm({ ...staffForm, name: e.target.value })} required />
+                                </div>
+                                <div className="clinic-form-group">
+                                    <label style={{ fontSize: '12px', fontWeight: 600, color: '#475569', marginBottom: '4px', display: 'block' }}>Email *</label>
+                                    <input type="email" className="clinic-input" placeholder="staff@clinic.com" value={staffForm.email}
+                                        onChange={e => setStaffForm({ ...staffForm, email: e.target.value })} required />
+                                </div>
+                                <div className="clinic-form-group">
+                                    <label style={{ fontSize: '12px', fontWeight: 600, color: '#475569', marginBottom: '4px', display: 'block' }}>Password *</label>
+                                    <input type="password" className="clinic-input" placeholder="Password" value={staffForm.password}
+                                        onChange={e => setStaffForm({ ...staffForm, password: e.target.value })} required />
+                                </div>
+                                <div className="clinic-form-group">
+                                    <label style={{ fontSize: '12px', fontWeight: 600, color: '#475569', marginBottom: '4px', display: 'block' }}>Phone</label>
+                                    <input type="text" className="clinic-input" placeholder="10-digit Phone" maxLength={10} value={staffForm.phone}
+                                        onChange={e => setStaffForm({ ...staffForm, phone: e.target.value.replace(/\D/g, '').slice(0, 10) })} />
+                                </div>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div className="clinic-form-group" style={{ margin: 0, minWidth: '150px' }}>
+                                    <label style={{ fontSize: '12px', fontWeight: 600, color: '#475569', marginBottom: '4px', display: 'block' }}>Role *</label>
+                                    <select className="clinic-input" value={staffForm.role}
+                                        onChange={e => setStaffForm({ ...staffForm, role: e.target.value })}>
+                                        <option value="doctor">🩺 Doctor</option>
+                                        <option value="receptionist">📋 Receptionist</option>
+                                    </select>
+                                </div>
+                                <button type="submit" className="clinic-btn-primary" disabled={savingStaff} style={{ padding: '8px 20px', alignSelf: 'flex-end' }}>
+                                    {savingStaff ? 'Saving...' : '✅ Save Staff'}
+                                </button>
+                            </div>
+                        </form>
+                    )}
+
                     {staffLoading ? <Spinner /> : staff.length === 0 ? (
                         <Empty text="No staff members found for this clinic." />
                     ) : (
                         <table className="clinic-table">
-                            <thead><tr><th>Name</th><th>Role</th><th>Email</th><th>Phone</th><th>Joined</th></tr></thead>
+                            <thead><tr><th>Name</th><th>Role</th><th>Email</th><th>Phone</th><th>Joined</th><th style={{ width: '80px', textAlign: 'center' }}>Action</th></tr></thead>
                             <tbody>
                                 {staff.map(s => (
                                     <tr key={s._id}>
@@ -1857,6 +1953,9 @@ const DoctorMode = () => {
                                         <td style={{ fontSize: '13px', color: '#64748b' }}>{s.email || '—'}</td>
                                         <td style={{ fontSize: '13px', color: '#64748b' }}>{s.phone || '—'}</td>
                                         <td style={{ fontSize: '12px', color: '#94a3b8' }}>{s.createdAt ? new Date(s.createdAt).toLocaleDateString('en-IN') : '—'}</td>
+                                        <td style={{ textAlign: 'center' }}>
+                                            <button onClick={() => handleDeleteStaff(s._id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}>Remove</button>
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -1955,13 +2054,23 @@ const DoctorMode = () => {
 // Medicine Registry — simple name list for autocomplete in prescriptions.
 // No ordering, billing, or stock management. Just a saved medicine list.
 const PharmacyMode = () => {
-    const [tab, setTab] = useState('list');
+    const [tab, setTab] = useState('orders'); // default to prescription queue
     const [inventory, setInventory] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [addForm, setAddForm] = useState({ name: '', category: 'General', unit: 'Tablets' });
+    const [addForm, setAddForm] = useState({ name: '', category: 'General', unit: 'Tablets', stock: 0, price: 0 });
     const [adding, setAdding] = useState(false);
     const [search, setSearch] = useState('');
     const [msg, setMsg] = useState({ type: '', text: '' });
+
+    // Prescription Queue States
+    const [orders, setOrders] = useState([]);
+    const [ordersLoading, setOrdersLoading] = useState(false);
+    const [dispensingId, setDispensingId] = useState(null);
+
+    // Inline Editing States
+    const [editingId, setEditingId] = useState(null);
+    const [editForm, setEditForm] = useState({ stock: 0, price: 0 });
+    const [savingEdit, setSavingEdit] = useState(false);
 
     const flash = (type, text) => { setMsg({ type, text }); setTimeout(() => setMsg({ type: '', text: '' }), 3000); };
 
@@ -1973,21 +2082,70 @@ const PharmacyMode = () => {
             .finally(() => setLoading(false));
     };
 
-    useEffect(() => { loadInventory(); }, []);
+    const loadOrders = () => {
+        setOrdersLoading(true);
+        clinicAPI.getPharmacyOrders()
+            .then(r => { if (r.success) setOrders(r.orders || []); })
+            .catch(console.error)
+            .finally(() => setOrdersLoading(false));
+    };
+
+    useEffect(() => {
+        loadInventory();
+        loadOrders();
+    }, []);
+
+    const handleDispense = async (orderId) => {
+        setDispensingId(orderId);
+        try {
+            const r = await clinicAPI.dispenseOrder(orderId);
+            if (r.success) {
+                flash('success', r.message || 'Medicines dispensed successfully!');
+                loadOrders();
+                loadInventory();
+            }
+        } catch (e) {
+            flash('error', e.response?.data?.message || e.message);
+        } finally {
+            setDispensingId(null);
+        }
+    };
 
     const handleAdd = async (e) => {
         e.preventDefault();
         setAdding(true);
         try {
-            const r = await clinicAPI.addInventory({ name: addForm.name, category: addForm.category, unit: addForm.unit });
+            const r = await clinicAPI.addInventory({
+                name: addForm.name,
+                category: addForm.category,
+                unit: addForm.unit,
+                stock: Number(addForm.stock) || 0,
+                sellingPrice: Number(addForm.price) || 0
+            });
             if (r.success) {
                 setInventory(prev => [...prev, r.item].sort((a, b) => a.name.localeCompare(b.name)));
-                setAddForm({ name: '', category: 'General', unit: 'Tablets' });
+                setAddForm({ name: '', category: 'General', unit: 'Tablets', stock: 0, price: 0 });
                 setTab('list');
                 flash('success', `"${r.item.name}" added to medicine list.`);
             }
         } catch (e) { flash('error', e.response?.data?.message || e.message); }
         finally { setAdding(false); }
+    };
+
+    const handleSaveEdit = async (id) => {
+        setSavingEdit(true);
+        try {
+            const r = await clinicAPI.updateInventory(id, {
+                stock: Number(editForm.stock) || 0,
+                sellingPrice: Number(editForm.price) || 0
+            });
+            if (r.success) {
+                setInventory(prev => prev.map(item => item._id === id ? r.item : item));
+                setEditingId(null);
+                flash('success', 'Medicine details updated.');
+            }
+        } catch (e) { flash('error', e.response?.data?.message || e.message); }
+        finally { setSavingEdit(false); }
     };
 
     const filtered = search.trim()
@@ -2002,11 +2160,12 @@ const PharmacyMode = () => {
             {/* Info Banner */}
             <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '10px', padding: '12px 16px', marginBottom: '16px', fontSize: '13px', color: '#0369a1', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span style={{ fontSize: '18px' }}>💡</span>
-                <span>This is your <strong>medicine list</strong> — add commonly used medicines here so doctors can quickly select them while prescribing. No stock tracking or billing.</span>
+                <span>This is your <strong>pharmacy workspace</strong> — dispense prescribed medicines to patients and manage medicine stock list.</span>
             </div>
 
             <div className="clinic-sub-tabs">
                 {[
+                    { id: 'orders', label: `📦 Prescription Queue (${orders.filter(o => o.orderStatus !== 'Completed').length})` },
                     { id: 'list', label: `💊 Medicine List (${inventory.length})` },
                     { id: 'add', label: '+ Add Medicine' },
                 ].map(t => (
@@ -2018,6 +2177,69 @@ const PharmacyMode = () => {
 
             {loading ? <Spinner /> : (
                 <>
+                    {tab === 'orders' && (
+                        <div className="clinic-card">
+                            <h3 style={{ marginBottom: '14px' }}>📦 Prescription Queue</h3>
+                            {ordersLoading ? <Spinner /> : orders.length === 0 ? (
+                                <Empty text="No prescriptions in queue." />
+                            ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                    {orders.map(order => {
+                                        const isCompleted = order.orderStatus === 'Completed';
+                                        return (
+                                            <div key={order._id} style={{
+                                                border: '1px solid #e2e8f0',
+                                                borderRadius: '8px',
+                                                padding: '16px',
+                                                background: isCompleted ? '#f8fafc' : '#fff',
+                                                display: 'flex',
+                                                justifyContent: 'space-between',
+                                                alignItems: 'flex-start',
+                                                flexWrap: 'wrap',
+                                                gap: '16px'
+                                            }}>
+                                                <div>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                                                        <strong style={{ fontSize: '15px', color: '#1e293b' }}>Patient UID: {order.patientId}</strong>
+                                                        <span style={{
+                                                            fontSize: '11px',
+                                                            fontWeight: 600,
+                                                            padding: '2px 8px',
+                                                            borderRadius: '12px',
+                                                            background: isCompleted ? '#dcfce7' : '#fef9c3',
+                                                            color: isCompleted ? '#16a34a' : '#a16207'
+                                                        }}>
+                                                            {order.orderStatus}
+                                                        </span>
+                                                    </div>
+                                                    <div style={{ fontSize: '13px', color: '#64748b', marginBottom: '10px' }}>
+                                                        Prescribed: {new Date(order.createdAt).toLocaleString('en-IN')}
+                                                    </div>
+                                                    <div style={{ background: '#f1f5f9', borderRadius: '6px', padding: '10px', minWidth: '280px' }}>
+                                                        <span style={{ fontSize: '12px', fontWeight: 600, color: '#475569', display: 'block', marginBottom: '6px' }}>Prescribed Medicines:</span>
+                                                        <ul style={{ margin: 0, paddingLeft: '16px', fontSize: '13px', color: '#334155' }}>
+                                                            {order.items.map((item, idx) => (
+                                                                <li key={idx} style={{ marginBottom: '4px' }}>
+                                                                    <strong>{item.medicineName}</strong> {item.frequency ? `(${item.frequency})` : ''} — {item.quantity || 10} qty
+                                                                </li>
+                                                            ))}
+                                                        </ul>
+                                                    </div>
+                                                </div>
+                                                {!isCompleted && (
+                                                    <button className="clinic-btn-primary" style={{ padding: '8px 16px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                                                        disabled={dispensingId === order._id} onClick={() => handleDispense(order._id)}>
+                                                        {dispensingId === order._id ? 'Dispensing...' : '💊 Dispense & Deduct Stock'}
+                                                    </button>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     {tab === 'list' && (
                         <div className="clinic-card">
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
@@ -2038,21 +2260,66 @@ const PharmacyMode = () => {
                             ) : (
                                 <table className="clinic-table">
                                     <thead>
-                                        <tr><th>#</th><th>Medicine Name</th><th>Category</th><th>Unit / Form</th></tr>
+                                        <tr><th>#</th><th>Medicine Name</th><th>Category</th><th>Unit / Form</th><th>Price (₹)</th><th>Stock</th><th style={{ width: '130px', textAlign: 'center' }}>Action</th></tr>
                                     </thead>
                                     <tbody>
-                                        {filtered.map((m, i) => (
-                                            <tr key={m._id}>
-                                                <td style={{ color: '#94a3b8', fontSize: '12px', width: '40px' }}>{i + 1}</td>
-                                                <td><strong style={{ color: '#1e293b' }}>{m.name}</strong></td>
-                                                <td>
-                                                    <span style={{ background: '#f1f5f9', color: '#475569', padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600 }}>
-                                                        {m.category || 'General'}
-                                                    </span>
-                                                </td>
-                                                <td style={{ fontSize: '12px', color: '#64748b' }}>{m.unit || '—'}</td>
-                                            </tr>
-                                        ))}
+                                        {filtered.map((m, i) => {
+                                            const isEditing = editingId === m._id;
+                                            return (
+                                                <tr key={m._id}>
+                                                    <td style={{ color: '#94a3b8', fontSize: '12px', width: '40px' }}>{i + 1}</td>
+                                                    <td><strong style={{ color: '#1e293b' }}>{m.name}</strong></td>
+                                                    <td>
+                                                        <span style={{ background: '#f1f5f9', color: '#475569', padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600 }}>
+                                                            {m.category || 'General'}
+                                                        </span>
+                                                    </td>
+                                                    <td style={{ fontSize: '12px', color: '#64748b' }}>{m.unit || '—'}</td>
+                                                    <td>
+                                                        {isEditing ? (
+                                                            <input type="number" className="clinic-input" style={{ width: '80px', padding: '4px' }} value={editForm.price}
+                                                                onChange={e => setEditForm({ ...editForm, price: e.target.value })} />
+                                                        ) : (
+                                                            `₹${m.sellingPrice || 0}`
+                                                        )}
+                                                    </td>
+                                                    <td>
+                                                        {isEditing ? (
+                                                            <input type="number" className="clinic-input" style={{ width: '80px', padding: '4px' }} value={editForm.stock}
+                                                                onChange={e => setEditForm({ ...editForm, stock: e.target.value })} />
+                                                        ) : (
+                                                            <span style={
+                                                                m.stock <= 0 ? { background: '#fee2e2', color: '#dc2626', padding: '2px 6px', borderRadius: '4px', fontSize: '11px', fontWeight: 600 } :
+                                                                m.stock < 50 ? { background: '#fef3c7', color: '#d97706', padding: '2px 6px', borderRadius: '4px', fontSize: '11px', fontWeight: 600 } :
+                                                                { color: '#16a34a', fontWeight: 600 }
+                                                            }>
+                                                                {m.stock ?? 0} {m.unit || 'Tablets'}
+                                                            </span>
+                                                        )}
+                                                    </td>
+                                                    <td style={{ textAlign: 'center' }}>
+                                                        {isEditing ? (
+                                                            <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
+                                                                <button className="clinic-btn-primary" style={{ padding: '3px 8px', fontSize: '11px' }} disabled={savingEdit} onClick={() => handleSaveEdit(m._id)}>
+                                                                    {savingEdit ? '...' : 'Save'}
+                                                                </button>
+                                                                <button className="clinic-btn-secondary" style={{ padding: '3px 8px', fontSize: '11px' }} onClick={() => setEditingId(null)}>
+                                                                    Cancel
+                                                                </button>
+                                                            </div>
+                                                        ) : (
+                                                            <button className="clinic-btn-secondary" style={{ padding: '3px 8px', fontSize: '11px' }}
+                                                                onClick={() => {
+                                                                    setEditingId(m._id);
+                                                                    setEditForm({ stock: m.stock || 0, price: m.sellingPrice || 0 });
+                                                                }}>
+                                                                Edit Stock
+                                                            </button>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
                                     </tbody>
                                 </table>
                             )}
@@ -2092,11 +2359,33 @@ const PharmacyMode = () => {
                                         {UNITS.map(u => <option key={u}>{u}</option>)}
                                     </select>
                                 </div>
+                                <div className="clinic-form-group">
+                                    <label>Initial Stock Level *</label>
+                                    <input
+                                        type="number"
+                                        className="clinic-input"
+                                        placeholder="e.g. 100"
+                                        value={addForm.stock}
+                                        onChange={e => setAddForm(f => ({ ...f, stock: e.target.value }))}
+                                        required
+                                    />
+                                </div>
+                                <div className="clinic-form-group">
+                                    <label>Selling Price (₹) *</label>
+                                    <input
+                                        type="number"
+                                        className="clinic-input"
+                                        placeholder="e.g. 15"
+                                        value={addForm.price}
+                                        onChange={e => setAddForm(f => ({ ...f, price: e.target.value }))}
+                                        required
+                                    />
+                                </div>
                                 <div style={{ gridColumn: '1 / -1', display: 'flex', gap: '10px', alignItems: 'center' }}>
                                     <button type="submit" className="clinic-btn-primary" disabled={adding}>
                                         {adding ? 'Adding…' : '+ Add to List'}
                                     </button>
-                                    <button type="button" className="clinic-btn-secondary" onClick={() => { setTab('list'); setAddForm({ name: '', category: 'General', unit: 'Tablets' }); }}>
+                                    <button type="button" className="clinic-btn-secondary" onClick={() => { setTab('list'); setAddForm({ name: '', category: 'General', unit: 'Tablets', stock: 0, price: 0 }); }}>
                                         Cancel
                                     </button>
                                 </div>
