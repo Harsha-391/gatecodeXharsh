@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 const Hospital = require('../models/hospital.model');
+const Clinic = require('../models/clinic.model');
 const User = require('../models/user.model');
 const Role = require('../models/role.model');
 const ClinicPatient = require('../models/clinicPatient.model');
@@ -18,7 +19,7 @@ const generateClinicCode = async (name) => {
     const base = name.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 4) || 'CLN';
     let code = base;
     let suffix = 1;
-    while (await Hospital.findOne({ clinicCode: code })) {
+    while (await Clinic.findOne({ clinicCode: code })) {
         code = base.slice(0, 3) + suffix;
         suffix++;
     }
@@ -43,7 +44,7 @@ const verifyCentralAdmin = async (req, res, next) => {
 // ==========================================
 router.get('/', verifyCentralAdmin, async (req, res) => {
     try {
-        const clinics = await Hospital.find({ clinicType: 'clinic' }).populate('adminUserId', 'name email phone');
+        const clinics = await Clinic.find({}).populate('adminUserId', 'name email phone');
         res.json({ success: true, clinics });
     } catch (err) {
         res.status(500).json({ success: false, message: 'An internal error occurred' });
@@ -74,14 +75,15 @@ router.post('/', verifyCentralAdmin, async (req, res) => {
         if (RESERVED_SLUGS.includes(targetSlug)) {
             return res.status(400).json({ success: false, message: `Slug "${targetSlug}" is reserved. Use a different subdomain.` });
         }
-        const existing = await Hospital.findOne({ slug: { $regex: new RegExp(`^${targetSlug}$`, 'i') } });
+        const existing = await Hospital.findOne({ slug: { $regex: new RegExp(`^${targetSlug}$`, 'i') } })
+            || await Clinic.findOne({ slug: { $regex: new RegExp(`^${targetSlug}$`, 'i') } });
         if (existing) return res.status(400).json({ success: false, message: 'Subdomain already exists. Please choose another subdomain.' });
 
         const finalSlug = targetSlug;
 
         const clinicCode = await generateClinicCode(name);
 
-        const clinic = new Hospital({
+        const clinic = new Clinic({
             name,
             slug: finalSlug,
             clinicCode,
@@ -136,7 +138,8 @@ router.put('/:id', verifyCentralAdmin, async (req, res) => {
             if (RESERVED_SLUGS.includes(targetSlug)) {
                 return res.status(400).json({ success: false, message: `Slug "${targetSlug}" is reserved. Use a different subdomain.` });
             }
-            const duplicate = await Hospital.findOne({ slug: { $regex: new RegExp(`^${targetSlug}$`, 'i') }, _id: { $ne: req.params.id } });
+            const duplicate = await Hospital.findOne({ slug: { $regex: new RegExp(`^${targetSlug}$`, 'i') }, _id: { $ne: req.params.id } })
+                || await Clinic.findOne({ slug: { $regex: new RegExp(`^${targetSlug}$`, 'i') }, _id: { $ne: req.params.id } });
             if (duplicate) {
                 return res.status(400).json({ success: false, message: 'Subdomain already exists. Please choose another subdomain.' });
             }
@@ -165,8 +168,8 @@ router.put('/:id', verifyCentralAdmin, async (req, res) => {
             update.appointmentMode = appointmentMode;
         }
 
-        const clinic = await Hospital.findOneAndUpdate(
-            { _id: req.params.id, clinicType: 'clinic' },
+        const clinic = await Clinic.findOneAndUpdate(
+            { _id: req.params.id },
             { $set: update },
             { new: true, runValidators: true }
         );
@@ -183,7 +186,7 @@ router.put('/:id', verifyCentralAdmin, async (req, res) => {
 // ==========================================
 router.delete('/:id', verifyCentralAdmin, async (req, res) => {
     try {
-        const clinic = await Hospital.findOneAndDelete({ _id: req.params.id, clinicType: 'clinic' });
+        const clinic = await Clinic.findOneAndDelete({ _id: req.params.id });
         if (!clinic) return res.status(404).json({ success: false, message: 'Clinic not found' });
 
         // Delete all staff associated with this clinic
@@ -210,7 +213,7 @@ router.get('/:id/stats', verifyCentralAdmin, async (req, res) => {
         const { getTenantConnection } = require('../db/tenantDb');
         const { getTenantModels } = require('../db/tenantModels');
 
-        const clinic = await Hospital.findOne({ _id: req.params.id, clinicType: 'clinic' }).populate('adminUserId', 'name email phone');
+        const clinic = await Clinic.findOne({ _id: req.params.id }).populate('adminUserId', 'name email phone');
         if (!clinic) return res.status(404).json({ success: false, message: 'Clinic not found' });
 
         // Resolve tenant connection
@@ -284,7 +287,7 @@ router.post('/:id/manager', verifyCentralAdmin, async (req, res) => {
         const pwErrM = validatePassword(password);
         if (pwErrM) return res.status(400).json({ success: false, message: pwErrM });
 
-        const clinic = await Hospital.findOne({ _id: req.params.id, clinicType: 'clinic' });
+        const clinic = await Clinic.findOne({ _id: req.params.id });
         if (!clinic) return res.status(404).json({ success: false, message: 'Clinic not found' });
 
         const existing = await User.findOne({ email });
@@ -335,7 +338,7 @@ router.get('/:id/staff', verifyCentralAdmin, async (req, res) => {
             .select('name email phone role createdAt')
             .lean();
 
-        const clinic = await Hospital.findById(req.params.id).select('tier').lean();
+        const clinic = await Clinic.findById(req.params.id).select('tier').lean();
 
         res.json({ success: true, staff, tier: clinic?.tier });
     } catch (err) {
@@ -357,7 +360,7 @@ router.post('/:id/staff', verifyCentralAdmin, async (req, res) => {
 
         const role = staffRole === 'receptionist' ? 'receptionist' : 'doctor';
 
-        const clinic = await Hospital.findOne({ _id: req.params.id, clinicType: 'clinic' });
+        const clinic = await Clinic.findOne({ _id: req.params.id });
         if (!clinic) return res.status(404).json({ success: false, message: 'Clinic not found' });
 
         // Tier limit check
@@ -404,7 +407,7 @@ router.delete('/:clinicId/staff/:userId', verifyCentralAdmin, async (req, res) =
         if (!user) return res.status(404).json({ success: false, message: 'Staff member not found' });
 
         // Unlink from clinic admin if needed
-        await Hospital.updateOne({ _id: req.params.clinicId, adminUserId: req.params.userId }, { $set: { adminUserId: null } });
+        await Clinic.updateOne({ _id: req.params.clinicId, adminUserId: req.params.userId }, { $set: { adminUserId: null } });
 
         res.json({ success: true, message: 'Staff member removed' });
     } catch (err) {
@@ -421,7 +424,7 @@ router.get('/:id/subscriptions', verifyCentralAdmin, async (req, res) => {
         const subs = await ClinicSubscription.find({ clinicId: req.params.id })
             .sort({ year: -1, month: -1 })
             .lean();
-        const clinic = await Hospital.findById(req.params.id).select('name subscription clinicCode').lean();
+        const clinic = await Clinic.findById(req.params.id).select('name subscription clinicCode').lean();
         res.json({ success: true, subscriptions: subs, clinic });
     } catch (err) {
         res.status(500).json({ success: false, message: 'An internal error occurred' });
@@ -435,8 +438,8 @@ router.get('/:id/subscriptions', verifyCentralAdmin, async (req, res) => {
 router.put('/:id/subscriptions/rate', verifyCentralAdmin, async (req, res) => {
     try {
         const { ratePerPatient, billingEnabled } = req.body;
-        const clinic = await Hospital.findOneAndUpdate(
-            { _id: req.params.id, clinicType: 'clinic' },
+        const clinic = await Clinic.findOneAndUpdate(
+            { _id: req.params.id },
             {
                 $set: {
                     'subscription.ratePerPatient': Number(ratePerPatient) || 0,

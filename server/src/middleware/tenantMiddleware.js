@@ -68,7 +68,7 @@ exports.requireTenant = async (req, res, next) => {
                 const { parseUserAgent } = require('../utils/userAgentParser');
                 const ua = req.headers['user-agent'] || '';
                 const parsed = parseUserAgent(ua);
-                await AuditLog.create({
+                AuditLog.create({
                     clinicId: new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
                     userId: req.user?._id || null,
                     userName: req.user?.name || 'Anonymous',
@@ -86,7 +86,7 @@ exports.requireTenant = async (req, res, next) => {
                     device: parsed.device,
                     success: false,
                     reason: 'Operation requires a tenant hospital database context but none was resolved.'
-                });
+                }).catch(() => {});
             } catch (_) {}
             return res.status(400).json({
                 success: false,

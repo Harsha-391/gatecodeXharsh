@@ -27,9 +27,14 @@ router.get('/system', verifyCentralAdmin, async (req, res) => {
         const currentYear = now.getFullYear();
 
         // All hospitals/clinics
-        const hospitals = await Hospital.find({ isActive: true })
+        const hospList = await Hospital.find({ isActive: true })
             .select('name clinicType revenueModel revenueConfig subscription createdAt')
             .lean();
+        const Clinic = require('../models/clinic.model');
+        const clinicList = await Clinic.find({ isActive: true })
+            .select('name clinicType revenueModel revenueConfig subscription createdAt')
+            .lean();
+        const hospitals = [...hospList, ...clinicList];
 
         // Group by revenue model
         const byModel = { per_patient: [], fixed_monthly: [], per_login: [] };
@@ -189,11 +194,19 @@ router.put('/hospital/:id', verifyCentralAdmin, async (req, res) => {
             update['subscription.billingEnabled'] = true;
         }
 
-        const hospital = await Hospital.findByIdAndUpdate(
+        let hospital = await Hospital.findByIdAndUpdate(
             req.params.id,
             { $set: update },
             { new: true }
         );
+        if (!hospital) {
+            const Clinic = require('../models/clinic.model');
+            hospital = await Clinic.findByIdAndUpdate(
+                req.params.id,
+                { $set: update },
+                { new: true }
+            );
+        }
         if (!hospital) return res.status(404).json({ success: false, message: 'Hospital not found' });
 
         res.json({ success: true, hospital });
@@ -208,9 +221,14 @@ router.put('/hospital/:id', verifyCentralAdmin, async (req, res) => {
 // ─────────────────────────────────────────────────────────
 router.get('/hospitals', verifyCentralAdmin, async (req, res) => {
     try {
-        const hospitals = await Hospital.find({ isActive: true })
+        const hospList = await Hospital.find({ isActive: true })
             .select('name clinicType revenueModel revenueConfig subscription')
             .lean();
+        const Clinic = require('../models/clinic.model');
+        const clinicList = await Clinic.find({ isActive: true })
+            .select('name clinicType revenueModel revenueConfig subscription')
+            .lean();
+        const hospitals = [...hospList, ...clinicList];
         res.json({ success: true, hospitals });
     } catch (err) {
         res.status(500).json({ success: false, message: 'An internal error occurred' });

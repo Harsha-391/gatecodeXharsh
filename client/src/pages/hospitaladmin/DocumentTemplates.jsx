@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { adminAPI, uploadAPI } from '../../utils/api';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { FiUploadCloud, FiTrash2, FiSave, FiRefreshCw, FiSliders, FiEye, FiCheck, FiX, FiFileText } from 'react-icons/fi';
 import './ClinicDashboard.css';
@@ -10,6 +11,7 @@ const TEMPLATE_TYPES = [
 ];
 
 const DocumentTemplates = () => {
+    const navigate = useNavigate();
     const [templates, setTemplates] = useState([]);
     const [selectedType, setSelectedType] = useState('doctor_prescription');
     const [activeTemplate, setActiveTemplate] = useState(null);
@@ -148,9 +150,11 @@ const DocumentTemplates = () => {
                 setSuccess('Layout configurations saved!');
                 await fetchTemplates();
                 await fetchLogs();
+                setTimeout(() => setSuccess(''), 4000);
             }
         } catch (err) {
             setError('Error saving layout configurations.');
+            setTimeout(() => setError(''), 4000);
         } finally {
             setSavingSettings(false);
         }
@@ -255,8 +259,24 @@ const DocumentTemplates = () => {
     return (
         <div className="clinic-dashboard">
             <div className="dashboard-header">
-                <h2>Hospital Document Template Management</h2>
-                <p>Upload, configure, and version branded multi-tenant document layouts for medical records, billing invoices, and lab tests.</p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                    <button
+                        onClick={() => navigate(-1)}
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: '6px',
+                            padding: '8px 16px', borderRadius: '8px',
+                            background: '#f1f5f9', border: '1px solid #e2e8f0',
+                            cursor: 'pointer', fontSize: '14px', color: '#475569',
+                            fontWeight: 500
+                        }}
+                    >
+                        ← Back to Dashboard
+                    </button>
+                    <div>
+                        <h2 style={{ margin: 0 }}>Document Templates</h2>
+                        <p style={{ margin: 0 }}>Upload clinic branded letterheads for bills and prescriptions.</p>
+                    </div>
+                </div>
             </div>
 
             {error && <div className="alert-box error"><FiX /> {error}</div>}
@@ -409,6 +429,44 @@ const DocumentTemplates = () => {
                             >
                                 <FiSave /> {savingSettings ? 'Saving...' : 'Save Boundary Layout'}
                             </button>
+
+                            {success && success.includes('saved') && (
+                                <div style={{ 
+                                    marginTop: '12px', 
+                                    padding: '10px 14px', 
+                                    background: '#dcfce7', 
+                                    color: '#15803d', 
+                                    borderRadius: '8px', 
+                                    fontSize: '0.85rem', 
+                                    fontWeight: '600',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    border: '1px solid #bbf7d0',
+                                    animation: 'fadeIn 0.2s ease-out'
+                                }}>
+                                    <FiCheck /> {success}
+                                </div>
+                            )}
+
+                            {error && error.includes('saving') && (
+                                <div style={{ 
+                                    marginTop: '12px', 
+                                    padding: '10px 14px', 
+                                    background: '#fee2e2', 
+                                    color: '#b91c1c', 
+                                    borderRadius: '8px', 
+                                    fontSize: '0.85rem', 
+                                    fontWeight: '600',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    border: '1px solid #fecaca',
+                                    animation: 'fadeIn 0.2s ease-out'
+                                }}>
+                                    <FiX /> {error}
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

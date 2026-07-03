@@ -24,7 +24,7 @@ const clinicPatientSchema = new mongoose.Schema({
     phone:  { type: String, required: true, trim: true },
     email:  { type: String, trim: true, default: '' },
     gender: { type: String, enum: ['Male', 'Female', 'Other'], default: 'Male' },
-    dob:    { type: Date, default: null },
+    age:    { type: Number, default: null },
     parentName: { type: String, default: '' },
     parentPhone: { type: String, default: '' },
     doctorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },

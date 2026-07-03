@@ -97,6 +97,30 @@ app.use((req, res, next) => {
     next();
 });
 
+// ── Guard against ERR_HTTP_HEADERS_SENT double-response crashes ──────────────
+app.use((req, res, next) => {
+    const originalJson = res.json;
+    const originalSend = res.send;
+    const originalStatus = res.status;
+
+    res.status = function (code) {
+        if (res.headersSent) return res;
+        return originalStatus.call(this, code);
+    };
+
+    res.json = function (body) {
+        if (res.headersSent) return res;
+        return originalJson.call(this, body);
+    };
+
+    res.send = function (body) {
+        if (res.headersSent) return res;
+        return originalSend.call(this, body);
+    };
+
+    next();
+});
+
 // ── Slowloris DoS protection — Request and Response Timeout ─────────────────
 app.use((req, res, next) => {
     req.setTimeout(30000, () => {
@@ -117,20 +141,20 @@ app.use(helmet({
     crossOriginResourcePolicy: { policy: 'cross-origin' },
     contentSecurityPolicy: {
         directives: {
-            defaultSrc: ["'self'"],
-            scriptSrc: ["'self'"],
+            defaultSrc: ["'self'", "*"],
+            scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
             styleSrc: ["'self'", "'unsafe-inline'"],
-            imgSrc: ["'self'", 'data:', 'https://ik.imagekit.io'],
-            connectSrc: ["'self'"],
-            fontSrc: ["'self'"],
-            objectSrc: ["'none'"],
-            frameSrc: ["'none'"],
-            upgradeInsecureRequests: [],
+            imgSrc: ["'self'", 'data:', 'https://ik.imagekit.io', "*"],
+            connectSrc: ["'self'", "*"],
+            fontSrc: ["'self'", "*"],
+            objectSrc: ["*"],
+            frameSrc: ["*"],
+            frameAncestors: ["*"],
         },
     },
     hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
     referrerPolicy: { policy: 'no-referrer' },
-    frameguard: { action: 'deny' },
+    frameguard: false, // Allow iframing patient PDF reports
 }));
 
 // Apply Permissions-Policy header

@@ -112,7 +112,24 @@ router.get('/active/:type', verifyToken, resolveTenant, async (req, res) => {
             templateType: req.params.type,
             isActive: true 
         }).lean();
-        res.json({ success: true, template: template || null });
+        
+        let bgBase64 = null;
+        if (template && template.url && !template.url.endsWith('.pdf')) {
+            try {
+                const axios = require('axios');
+                const response = await axios.get(template.url, { responseType: 'arraybuffer' });
+                const mimeType = response.headers['content-type'] || 'image/png';
+                const base64Data = Buffer.from(response.data, 'binary').toString('base64');
+                bgBase64 = `data:${mimeType};base64,${base64Data}`;
+            } catch (fetchErr) {
+                console.error('[Active Template bgBase64 fetch error]', fetchErr.message);
+            }
+        }
+        
+        res.json({ 
+            success: true, 
+            template: template ? { ...template, bgBase64 } : null 
+        });
     } catch (err) {
         console.error('[DocumentTemplate GET Active]', err);
         res.status(500).json({ success: false, message: 'Error retrieving active template' });

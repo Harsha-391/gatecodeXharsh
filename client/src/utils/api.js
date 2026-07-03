@@ -806,6 +806,7 @@ export const clinicAPI = {
     getConfig: async () => (await apiClient.get('/api/clinic/config')).data,
     updateConfig: async (data) => (await apiClient.put('/api/clinic/config', data)).data,
     getStaff: async () => (await apiClient.get('/api/clinic/staff')).data,
+    getDoctors: async () => (await apiClient.get('/api/clinic/doctors')).data,
     bookAppointment: async (data) => (await apiClient.post('/api/clinic/appointments', data)).data,
     completeAppointment: async (id, data) => (await apiClient.put(`/api/clinic/appointments/${id}/complete`, data)).data,
     payAppointment: async (id, paymentMethod = 'Cash') => (await apiClient.put(`/api/clinic/appointments/${id}/pay`, { paymentMethod })).data,
@@ -815,7 +816,7 @@ export const clinicAPI = {
     updateInventory: async (id, data) => (await apiClient.put(`/api/clinic/inventory/${id}`, data)).data,
     // Pharmacy orders
     getPharmacyOrders: async () => (await apiClient.get('/api/clinic/pharmacy-orders')).data,
-    dispenseOrder: async (id) => (await apiClient.put(`/api/clinic/pharmacy-orders/${id}/dispense`, {})).data,
+    dispenseOrder: async (id, payload = {}) => (await apiClient.put(`/api/clinic/pharmacy-orders/${id}/dispense`, payload)).data,
     // Treatment Plans
     getTreatmentPlans: async () => (await apiClient.get('/api/clinic/treatment-plans')).data,
     createTreatmentPlan: async (data) => (await apiClient.post('/api/clinic/treatment-plans', data)).data,

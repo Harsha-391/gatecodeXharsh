@@ -116,12 +116,13 @@ exports.verifyToken = async (req, res, next) => {
 
         next();
     } catch (error) {
+        if (res.headersSent) return;
         try {
             const AuditLog = require('../models/auditLog.model');
             const mongoose = require('mongoose');
             const ua = req.headers['user-agent'] || '';
             const parsed = parseUserAgent(ua);
-            await AuditLog.create({
+            AuditLog.create({
                 clinicId: new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
                 userId: null,
                 userName: 'Anonymous',
@@ -139,7 +140,7 @@ exports.verifyToken = async (req, res, next) => {
                 device: parsed.device,
                 success: false,
                 reason: `JWT verification failed: ${error.message}`
-            });
+            }).catch(() => {});
         } catch (_) {}
         return res.status(401).json({ success: false, message: 'Invalid token' });
     }
@@ -179,7 +180,7 @@ exports.requirePermission = (...requiredPermissions) => {
                     const mongoose = require('mongoose');
                     const ua = req.headers['user-agent'] || '';
                     const parsed = parseUserAgent(ua);
-                    await AuditLog.create({
+                    AuditLog.create({
                         clinicId: req.user.hospitalId || req.hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
                         userId: req.user._id,
                         userName: req.user.name || req.user.email || 'Unknown',
@@ -197,7 +198,7 @@ exports.requirePermission = (...requiredPermissions) => {
                         device: parsed.device,
                         success: false,
                         reason: `Access denied. Required permission: ${requiredPermissions.join(' or ')}`
-                    });
+                    }).catch(() => {});
                 } catch (_) {}
                 return res.status(403).json({
                     success: false,
@@ -207,6 +208,7 @@ exports.requirePermission = (...requiredPermissions) => {
 
             next();
         } catch (error) {
+            if (res.headersSent) return;
             res.status(500).json({ success: false, message: error.message });
         }
     };
@@ -228,7 +230,7 @@ exports.verifySuperAdmin = async (req, res, next) => {
                     const mongoose = require('mongoose');
                     const ua = req.headers['user-agent'] || '';
                     const parsed = parseUserAgent(ua);
-                    await AuditLog.create({
+                    AuditLog.create({
                         clinicId: req.user.hospitalId || req.hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
                         userId: req.user._id,
                         userName: req.user.name || req.user.email || 'Unknown',
@@ -246,12 +248,13 @@ exports.verifySuperAdmin = async (req, res, next) => {
                         device: parsed.device,
                         success: false,
                         reason: 'Central Admin access required'
-                    });
+                    }).catch(() => {});
                 } catch (_) {}
                 return res.status(403).json({ success: false, message: 'Central Admin access required' });
             }
         });
     } catch (error) {
+        if (res.headersSent) return;
         res.status(500).json({ success: false, message: 'An internal error occurred' });
     }
 };
@@ -286,7 +289,7 @@ exports.verifyAdminOrSuperAdmin = async (req, res, next) => {
                 const mongoose = require('mongoose');
                 const ua = req.headers['user-agent'] || '';
                 const parsed = parseUserAgent(ua);
-                await AuditLog.create({
+                AuditLog.create({
                     clinicId: req.user.hospitalId || req.hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
                     userId: req.user._id,
                     userName: req.user.name || req.user.email || 'Unknown',
@@ -304,12 +307,13 @@ exports.verifyAdminOrSuperAdmin = async (req, res, next) => {
                     device: parsed.device,
                     success: false,
                     reason: 'Admin access required'
-                });
+                }).catch(() => {});
             } catch (_) {}
 
             return res.status(403).json({ success: false, message: 'Admin access required' });
         });
     } catch (error) {
+        if (res.headersSent) return;
         res.status(500).json({ success: false, message: 'An internal error occurred' });
     }
 };

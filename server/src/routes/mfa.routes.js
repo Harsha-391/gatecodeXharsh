@@ -151,7 +151,11 @@ router.post('/complete-login', otpLimiter, async (req, res) => {
         let subdomain = null;
         if (user.hospitalId) {
             try {
-                const hosp = await Hospital.findById(user.hospitalId).select('clinicType tenantKey slug');
+                let hosp = await Hospital.findById(user.hospitalId).select('clinicType tenantKey slug');
+                if (!hosp) {
+                    const Clinic = require('../models/clinic.model');
+                    hosp = await Clinic.findById(user.hospitalId).select('clinicType tenantKey slug');
+                }
                 clinicType = hosp?.clinicType || 'hospital';
                 tenantKey = hosp?.tenantKey || null;
                 subdomain = hosp?.slug || null;

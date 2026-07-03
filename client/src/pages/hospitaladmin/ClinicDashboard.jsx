@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { clinicAPI, uploadAPI } from '../../utils/api';
+import { clinicAPI, uploadAPI, documentTemplatesAPI } from '../../utils/api';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import './ClinicDashboard.css';
@@ -38,7 +38,7 @@ const generateRegistrationSlipPDF = (patient) => {
             ['Patient ID', patient.patientUid || patient._id || 'N/A'],
             ['Phone', patient.phone || '-'],
             ['Gender', patient.gender || '-'],
-            ['Date of Birth', patient.dob ? new Date(patient.dob).toLocaleDateString('en-IN') : '-'],
+            ['Age', patient.age ? `${patient.age} Years` : '-'],
             ['Blood Group', patient.bloodGroup || '-'],
             ['Address', patient.address || '-'],
             ['Registered On', new Date().toLocaleString('en-IN')],
@@ -58,11 +58,62 @@ const generateRegistrationSlipPDF = (patient) => {
     }
 };
 
-const generateTokenReceiptPDF = (patient, appointment) => {
+const loadTemplateAndBg = async (type) => {
+    try {
+        const token = localStorage.getItem('token');
+        if (!token) return { template: null, bgBase64: null };
+        const res = await documentTemplatesAPI.getActive(type);
+        if (res.success && res.template) {
+            const template = res.template;
+            if (template.bgBase64) {
+                return { template, bgBase64: template.bgBase64 };
+            }
+            let bgBase64 = null;
+            if (template.url && !template.url.endsWith('.pdf')) {
+                try {
+                    const resp = await fetch(template.url);
+                    const blob = await resp.blob();
+                    bgBase64 = await new Promise((resolve) => {
+                        const reader = new FileReader();
+                        reader.readAsDataURL(blob);
+                        reader.onloadend = () => resolve(reader.result);
+                    });
+                } catch (fetchErr) {
+                    console.error('[loadTemplateAndBg] Error converting template to base64:', fetchErr);
+                }
+            }
+            return { template, bgBase64 };
+        }
+    } catch (err) {
+        console.error(`[loadTemplateAndBg] Failed to load template for ${type}:`, err);
+    }
+    return { template: null, bgBase64: null };
+};
+
+const generateTokenReceiptPDF = async (patient, appointment) => {
     const doc = new jsPDF();
-    let y = pdfHeader(doc, 'Consultation Token Receipt', [41, 128, 185]);
+    const { template, bgBase64 } = await loadTemplateAndBg('billing_payment');
+
+    const pageW = 210;
+    const pageH = 297;
+
+    if (bgBase64) {
+        doc.addImage(bgBase64, 'PNG', 0, 0, pageW, pageH);
+    }
+
+    let y = 18;
+    const leftM = template ? (template.leftMargin || 15) : 14;
+    const rightM = template ? (template.rightMargin || 15) : 14;
+
+    if (template) {
+        y = template.headerHeight || 50;
+    } else {
+        y = pdfHeader(doc, 'Consultation Token Receipt', [41, 128, 185]);
+    }
+
     autoTable(doc, {
         startY: y,
+        margin: { left: leftM, right: rightM },
         body: [
             ['Patient Name', patient.name || '-'],
             ['Patient ID', patient.patientUid || '-'],
@@ -78,22 +129,46 @@ const generateTokenReceiptPDF = (patient, appointment) => {
         bodyStyles: { fontSize: 10 },
         alternateRowStyles: { fillColor: [245, 249, 255] },
     });
+
     y = doc.lastAutoTable.finalY + 8;
+    const footerH = template ? (template.footerHeight || 30) : 20;
+    y = Math.max(y, 297 - footerH - 15);
+
     const { issuedBy, hName } = getClinicInfo();
     doc.setFontSize(8); doc.setTextColor(120);
     doc.text(`Issued by: ${issuedBy}  |  ${new Date().toLocaleString('en-IN')}`, 105, y, { align: 'center' }); y += 5;
     doc.text(`Thank you for choosing ${hName}`, 105, y, { align: 'center' });
+
     if (window.confirm("Do you want to download the Token Receipt PDF?")) {
         doc.save(`Receipt_Token${appointment.tokenNumber}_${patient.patientUid || patient._id}.pdf`);
     }
 };
 
-const generatePrescriptionSlipPDF = (consulting, rx, vitalsData) => {
+const generatePrescriptionSlipPDF = async (consulting, rx, vitalsData) => {
     const pt = consulting.clinicPatientId || {};
     const doc = new jsPDF();
-    let y = pdfHeader(doc, 'Prescription Slip', [76, 175, 80]);
+    const { template, bgBase64 } = await loadTemplateAndBg('doctor_prescription');
+
+    const pageW = 210;
+    const pageH = 297;
+
+    if (bgBase64) {
+        doc.addImage(bgBase64, 'PNG', 0, 0, pageW, pageH);
+    }
+
+    let y = 18;
+    const leftM = template ? (template.leftMargin || 15) : 14;
+    const rightM = template ? (template.rightMargin || 15) : 14;
+
+    if (template) {
+        y = template.headerHeight || 50;
+    } else {
+        y = pdfHeader(doc, 'Prescription Slip', [76, 175, 80]);
+    }
+
     autoTable(doc, {
         startY: y,
+        margin: { left: leftM, right: rightM },
         body: [
             ['Patient', pt.name || '-', 'ID', pt.patientUid || '-'],
             ['Gender', pt.gender || '-', 'Blood Grp', pt.bloodGroup || '-'],
@@ -110,8 +185,13 @@ const generatePrescriptionSlipPDF = (consulting, rx, vitalsData) => {
     const v = vitalsData || {};
     const hasVitals = Object.values(v).some(val => val);
     if (hasVitals) {
+        if (y > 270) {
+            doc.addPage();
+            y = template ? (template.headerHeight || 50) : 20;
+            if (bgBase64) doc.addImage(bgBase64, 'PNG', 0, 0, pageW, pageH);
+        }
         doc.setFontSize(11); doc.setFont('helvetica', 'bold'); doc.setTextColor(33, 37, 41);
-        doc.text('Vitals', 14, y); y += 5;
+        doc.text('Vitals', leftM, y); y += 5;
         const vitalsRow = [
             v.weight ? `Wt: ${v.weight} kg` : '',
             v.height ? `Ht: ${v.height} cm` : '',
@@ -124,6 +204,7 @@ const generatePrescriptionSlipPDF = (consulting, rx, vitalsData) => {
         ].filter(Boolean);
         autoTable(doc, {
             startY: y,
+            margin: { left: leftM, right: rightM },
             body: [vitalsRow],
             theme: 'grid',
             bodyStyles: { fontSize: 9, cellPadding: 3 },
@@ -133,11 +214,17 @@ const generatePrescriptionSlipPDF = (consulting, rx, vitalsData) => {
     }
 
     // Medicines
+    if (y > 260) {
+        doc.addPage();
+        y = template ? (template.headerHeight || 50) : 20;
+        if (bgBase64) doc.addImage(bgBase64, 'PNG', 0, 0, pageW, pageH);
+    }
     doc.setFontSize(11); doc.setFont('helvetica', 'bold'); doc.setTextColor(33, 37, 41);
-    doc.text('Medicines Prescribed', 14, y); y += 6;
+    doc.text('Medicines Prescribed', leftM, y); y += 6;
     if (rx.medicines.length > 0) {
         autoTable(doc, {
             startY: y,
+            margin: { left: leftM, right: rightM },
             head: [['#', 'Medicine Name', 'Salt / Generic', 'Dose / Frequency', 'Days']],
             body: rx.medicines.map((m, i) => [i + 1, m.name || m.medicineName || '-', m.saltName || '-', m.dose || m.dosage || m.frequency || '-', m.days || m.duration || '-']),
             theme: 'striped',
@@ -148,16 +235,22 @@ const generatePrescriptionSlipPDF = (consulting, rx, vitalsData) => {
         y = doc.lastAutoTable.finalY + 10;
     } else {
         doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(100);
-        doc.text('No medicines prescribed.', 16, y); y += 8;
+        doc.text('No medicines prescribed.', leftM + 2, y); y += 8;
     }
 
     // Lab Tests
+    if (y > 260) {
+        doc.addPage();
+        y = template ? (template.headerHeight || 50) : 20;
+        if (bgBase64) doc.addImage(bgBase64, 'PNG', 0, 0, pageW, pageH);
+    }
     const labArr = typeof rx.labTests === 'string' ? rx.labTests.split(/(?:,\s*)+(?![^(]*\))/).map(t => t.trim()).filter(Boolean) : (rx.labTests || []);
     doc.setFontSize(11); doc.setFont('helvetica', 'bold'); doc.setTextColor(33, 37, 41);
-    doc.text('Lab Tests Ordered', 14, y); y += 6;
+    doc.text('Lab Tests Ordered', leftM, y); y += 6;
     if (labArr.length > 0) {
         autoTable(doc, {
             startY: y,
+            margin: { left: leftM, right: rightM },
             head: [['#', 'Test Name']],
             body: labArr.map((t, i) => [i + 1, t]),
             theme: 'striped',
@@ -167,27 +260,285 @@ const generatePrescriptionSlipPDF = (consulting, rx, vitalsData) => {
         y = doc.lastAutoTable.finalY + 10;
     } else {
         doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(100);
-        doc.text('No lab tests ordered.', 16, y); y += 8;
+        doc.text('No lab tests ordered.', leftM + 2, y); y += 8;
     }
 
     // Notes
     if (rx.notes) {
-        if (y > 250) { doc.addPage(); y = 20; }
+        if (y > 250) {
+            doc.addPage();
+            y = template ? (template.headerHeight || 50) : 20;
+            if (bgBase64) doc.addImage(bgBase64, 'PNG', 0, 0, pageW, pageH);
+        }
         doc.setFontSize(11); doc.setFont('helvetica', 'bold'); doc.setTextColor(33, 37, 41);
-        doc.text('Doctor Notes', 14, y); y += 6;
+        doc.text('Doctor Notes', leftM, y); y += 6;
         doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(60);
-        const wrapped = doc.splitTextToSize(rx.notes, 170);
-        doc.text(wrapped, 16, y); y += wrapped.length * 5 + 6;
+        const wrapped = doc.splitTextToSize(rx.notes, 210 - leftM - rightM);
+        doc.text(wrapped, leftM + 2, y); y += wrapped.length * 5 + 6;
     }
 
-    if (y > 260) { doc.addPage(); y = 20; }
-    doc.setDrawColor(200); doc.line(14, y, 196, y); y += 6;
+    const footerH = template ? (template.footerHeight || 30) : 20;
+    if (y > (297 - footerH - 10)) {
+        doc.addPage();
+        y = template ? (template.headerHeight || 50) : 20;
+        if (bgBase64) doc.addImage(bgBase64, 'PNG', 0, 0, pageW, pageH);
+    }
+    y = Math.max(y, 297 - footerH - 15);
+
+    doc.setDrawColor(200); doc.line(leftM, y, 210 - rightM, y); y += 6;
     doc.setFontSize(9); doc.setTextColor(120);
-    doc.text(`Generated: ${new Date().toLocaleString('en-IN')}`, 196, y, { align: 'right' });
+    doc.text(`Generated: ${new Date().toLocaleString('en-IN')}`, 210 - rightM, y, { align: 'right' });
     y += 5; doc.setFontSize(8);
     doc.text('This prescription is valid for 30 days from the date of issue.', 105, y, { align: 'center' });
     if (window.confirm("Do you want to download the Prescription Slip PDF?")) {
         doc.save(`Prescription_${pt.patientUid || pt._id}_Token${consulting.tokenNumber}.pdf`);
+    }
+};
+
+const generateConsolidatedBillPDF = async (patient, patientBills) => {
+    const doc = new jsPDF();
+    const { template, bgBase64 } = await loadTemplateAndBg('billing_payment');
+
+    const pageW = 210;
+    const pageH = 297;
+
+    const pdfFmt = (n) => `Rs. ${Number(n || 0).toLocaleString('en-IN')}`;
+
+    const drawBg = () => {
+        if (bgBase64) {
+            doc.addImage(bgBase64, 'PNG', 0, 0, pageW, pageH);
+        }
+    };
+
+    drawBg();
+
+    let y = 18;
+    const leftM = template ? (template.leftMargin || 15) : 14;
+    const rightM = template ? (template.rightMargin || 15) : 14;
+    const printW = pageW - leftM - rightM;
+
+    if (template) {
+        y = template.headerHeight || 50;
+    } else {
+        y = pdfHeader(doc, 'Consolidated Patient Bill', [14, 165, 233]);
+    }
+
+    // Header text title
+    doc.setFontSize(14); doc.setFont('helvetica', 'bold'); doc.setTextColor(15, 23, 42);
+    doc.text('CONSOLIDATED PATIENT BILL', leftM, y);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(100);
+    doc.text(`Date Generated: ${new Date().toLocaleString('en-IN')}`, pageW - rightM, y, { align: 'right' });
+    y += 8;
+
+    // Patient info block
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(leftM, y, printW, 25, 3, 3, 'F');
+    doc.setDrawColor(226, 232, 240);
+    doc.roundedRect(leftM, y, printW, 25, 3, 3, 'S');
+
+    doc.setTextColor(30, 41, 59); doc.setFont('helvetica', 'bold'); doc.setFontSize(10);
+    doc.text(`Patient: ${patient.name}`, leftM + 6, y + 7);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(100);
+    doc.text(`Patient ID: ${patient.patientUid || '-'}`, leftM + 6, y + 13);
+    doc.text(`Phone: ${patient.phone || '-'}`, leftM + 6, y + 19);
+
+    doc.text(`Gender: ${patient.gender || '-'}`, pageW - rightM - 60, y + 7);
+    doc.text(`Age: ${patient.age || '-'} Yrs`, pageW - rightM - 60, y + 13);
+    doc.text(`Blood Group: ${patient.bloodGroup || '-'}`, pageW - rightM - 60, y + 19);
+    y += 33;
+
+    let grandTotal = 0;
+    let paidTotal = 0;
+    let hasDrawnSection = false;
+
+    // Helper: draw section bar
+    const drawSectionHeader = (title, color) => {
+        doc.setFillColor(...color);
+        doc.rect(leftM, y, printW, 7, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8.5);
+        doc.text(title, leftM + 4, y + 5);
+        y += 8;
+    };
+
+    // Helper to check page bounds for tables
+    const checkPageBounds = () => {
+        const maxContentY = pageH - (template ? (template.footerHeight || 30) : 35);
+        if (y > maxContentY) {
+            doc.addPage();
+            drawBg();
+            y = template ? (template.headerHeight || 50) : 20;
+        }
+    };
+
+    // 1. Consultations
+    const appts = patientBills.appointments || [];
+    if (appts.length > 0) {
+        checkPageBounds();
+        drawSectionHeader('CONSULTATIONS & OPD VISITS', [14, 165, 233]);
+        hasDrawnSection = true;
+
+        const rows = appts.map(a => {
+            const amt = Number(a.amount || 0);
+            grandTotal += amt;
+            if (a.paymentStatus === 'paid') paidTotal += amt;
+            return [
+                fmtDate(a.appointmentDate),
+                a.serviceName || 'General Consultation',
+                a.paymentStatus === 'paid' ? 'Paid' : 'Unpaid',
+                pdfFmt(amt)
+            ];
+        });
+
+        autoTable(doc, {
+            startY: y,
+            margin: { left: leftM, right: rightM },
+            head: [[
+                { content: 'Visit Date', halign: 'left' },
+                { content: 'Particulars', halign: 'left' },
+                { content: 'Status', halign: 'left' },
+                { content: 'Amount', halign: 'right' }
+            ]],
+            body: rows,
+            theme: 'striped',
+            headStyles: { fillColor: [224, 242, 254], textColor: [14, 165, 233], fontSize: 8 },
+            bodyStyles: { fontSize: 8 },
+            columnStyles: { 3: { halign: 'right', fontStyle: 'bold' } }
+        });
+        y = doc.lastAutoTable.finalY + 6;
+    }
+
+    // 2. Pharmacy
+    const pharms = patientBills.pharmacy || [];
+    if (pharms.length > 0) {
+        if (hasDrawnSection) {
+            doc.addPage();
+            drawBg();
+            y = template ? (template.headerHeight || 50) : 20;
+            hasDrawnSection = false;
+        }
+        checkPageBounds();
+        drawSectionHeader('PHARMACY — DISPENSED MEDICINES', [16, 185, 129]);
+        hasDrawnSection = true;
+
+        const rows = pharms.map(o => {
+            const amt = Number(o.totalAmount || 0);
+            grandTotal += amt;
+            if (o.paymentStatus === 'Paid') paidTotal += amt;
+            const meds = o.items.map(item => `${item.medicineName} (x${item.quantity})`).join(', ');
+            return [
+                new Date(o.updatedAt || o.createdAt).toLocaleDateString('en-IN'),
+                meds,
+                o.paymentStatus === 'Paid' ? 'Paid' : 'Unpaid',
+                pdfFmt(amt)
+            ];
+        });
+
+        autoTable(doc, {
+            startY: y,
+            margin: { left: leftM, right: rightM },
+            head: [[
+                { content: 'Date', halign: 'left' },
+                { content: 'Medicines', halign: 'left' },
+                { content: 'Status', halign: 'left' },
+                { content: 'Amount', halign: 'right' }
+            ]],
+            body: rows,
+            theme: 'striped',
+            headStyles: { fillColor: [209, 250, 229], textColor: [16, 185, 129], fontSize: 8 },
+            bodyStyles: { fontSize: 8 },
+            columnStyles: { 3: { halign: 'right', fontStyle: 'bold' } }
+        });
+        y = doc.lastAutoTable.finalY + 6;
+    }
+
+    // 3. Treatment Plans
+    const plans = patientBills.plans || [];
+    if (plans.length > 0) {
+        if (hasDrawnSection) {
+            doc.addPage();
+            drawBg();
+            y = template ? (template.headerHeight || 50) : 20;
+            hasDrawnSection = false;
+        }
+        checkPageBounds();
+        drawSectionHeader('ACTIVE & COMPLETED TREATMENT PLANS', [245, 158, 11]);
+        hasDrawnSection = true;
+
+        const rows = plans.map(p => {
+            const amt = Number(p.totalAmount || 0);
+            const paid = Number(p.totalPaid || 0);
+            grandTotal += amt;
+            paidTotal += paid;
+            return [
+                p.title,
+                `${p.visits.length} visits total`,
+                p.status === 'completed' ? 'Completed' : `Active (${pdfFmt(paid)} paid)`,
+                pdfFmt(amt)
+            ];
+        });
+
+        autoTable(doc, {
+            startY: y,
+            margin: { left: leftM, right: rightM },
+            head: [[
+                { content: 'Plan Title', halign: 'left' },
+                { content: 'Visits Duration', halign: 'left' },
+                { content: 'Plan Status', halign: 'left' },
+                { content: 'Total Cost', halign: 'right' }
+            ]],
+            body: rows,
+            theme: 'striped',
+            headStyles: { fillColor: [254, 243, 199], textColor: [245, 158, 11], fontSize: 8 },
+            bodyStyles: { fontSize: 8 },
+            columnStyles: { 3: { halign: 'right', fontStyle: 'bold' } }
+        });
+        y = doc.lastAutoTable.finalY + 6;
+    }
+
+    const pendingTotal = grandTotal - paidTotal;
+
+    // Draw totals summary
+    const maxContentY = pageH - (template ? (template.footerHeight || 30) : 35);
+    if (y > maxContentY - 35) {
+        doc.addPage();
+        drawBg();
+        y = template ? (template.headerHeight || 50) : 20;
+    }
+
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(pageW - rightM - 75, y, 75, 30, 2, 2, 'F');
+    doc.setDrawColor(226, 232, 240);
+    doc.roundedRect(pageW - rightM - 75, y, 75, 30, 2, 2, 'S');
+
+    doc.setTextColor(71, 85, 105); doc.setFontSize(9); doc.setFont('helvetica', 'normal');
+    doc.text('Total Charges:', pageW - rightM - 70, y + 7);
+    doc.text('Paid So Far:', pageW - rightM - 70, y + 14);
+
+    doc.setFont('helvetica', 'bold');
+    doc.text(pdfFmt(grandTotal), pageW - rightM - 5, y + 7, { align: 'right' });
+    doc.setTextColor(22, 163, 74);
+    doc.text(pdfFmt(paidTotal), pageW - rightM - 5, y + 14, { align: 'right' });
+
+    doc.line(pageW - rightM - 70, y + 18, pageW - rightM - 5, y + 18);
+
+    doc.setTextColor(220, 38, 38);
+    doc.text('Outstanding:', pageW - rightM - 70, y + 24);
+    doc.text(pdfFmt(pendingTotal), pageW - rightM - 5, y + 24, { align: 'right' });
+
+    // Footer spacing check
+    const footerH = template ? (template.footerHeight || 30) : 20;
+    y = Math.max(y + 35, 297 - footerH - 15);
+
+    doc.setDrawColor(200); doc.line(leftM, y, 210 - rightM, y); y += 6;
+    const { issuedBy, hName } = getClinicInfo();
+    doc.setFontSize(8); doc.setTextColor(120); doc.setFont('helvetica', 'normal');
+    doc.text(`Issued by: ${issuedBy}  |  ${new Date().toLocaleString('en-IN')}`, 105, y, { align: 'center' }); y += 5;
+    doc.text(`Thank you for choosing ${hName}`, 105, y, { align: 'center' });
+
+    if (window.confirm("Do you want to download the Consolidated Bill PDF?")) {
+        doc.save(`Consolidated_Bill_${patient.patientUid || patient.name}.pdf`);
     }
 };
 
@@ -212,6 +563,7 @@ const MODES = [
     { id: 'pharmacy', icon: '💊', label: 'Pharmacy', color: '#f97316', bg: '#fff7ed' },
     { id: 'billing', icon: '💰', label: 'Billing', color: '#f59e0b', bg: '#fffbeb' },
     { id: 'plans', icon: '📅', label: 'Treatment Plans', color: '#0891b2', bg: '#ecfeff' },
+    { id: 'templates', icon: '🖼️', label: 'Templates', color: '#7c3aed', bg: '#f5f3ff' },
 ];
 
 // ─────────────────────────────────────────────
@@ -242,7 +594,13 @@ const ClinicDashboard = () => {
                     <button key={m.id}
                         className={`switcher-btn ${mode === m.id ? 'active' : ''}`}
                         style={mode === m.id ? { background: m.color, color: '#fff', borderColor: m.color } : {}}
-                        onClick={() => setMode(m.id)}>
+                        onClick={() => {
+                            if (m.id === 'templates') {
+                                navigate('/hospitaladmin/document-templates');
+                            } else {
+                                setMode(m.id);
+                            }
+                        }}>
                         <span>{m.icon}</span> {m.label}
                     </button>
                 ))}
@@ -282,7 +640,7 @@ const OverviewMode = () => {
             .finally(() => setLoading(false));
         clinicAPI.getConfig().then(r => {
             if (r.success) setConfig({ defaultFee: r.defaultFee ?? 0, defaultServiceName: r.defaultServiceName || 'General Consultation', appointmentMode: r.appointmentMode || 'token' });
-        }).catch(() => {});
+        }).catch(() => { });
     }, []);
 
     const saveConfig = async (e) => {
@@ -521,7 +879,7 @@ const PatientsMode = ({ onBookToken }) => {
     const [selectedPatient, setSelectedPatient] = useState(null);
     const [patientHistory, setPatientHistory] = useState(null);
     const [loadingHistory, setLoadingHistory] = useState(false);
-    const [form, setForm] = useState({ name: '', phone: '', email: '', dob: '', gender: 'Male', address: '', bloodGroup: '', allergies: '', chronicConditions: '', relatives: [] });
+    const [form, setForm] = useState({ name: '', phone: '', email: '', age: '', gender: 'Male', address: '', bloodGroup: '', allergies: '', chronicConditions: '', relatives: [] });
     const [saving, setSaving] = useState(false);
     const [msg, setMsg] = useState({ type: '', text: '' });
     const [justRegistered, setJustRegistered] = useState(null);
@@ -537,12 +895,18 @@ const PatientsMode = ({ onBookToken }) => {
 
     const flash = (type, text) => { setMsg({ type, text }); setTimeout(() => setMsg({ type: '', text: '' }), 6000); };
 
+    const [appointments, setAppointments] = useState([]);
+
     useEffect(() => {
-        clinicAPI.getPatients()
-            .then(r => {
-                if (r.success) setPatients(r.patients);
-                else flash('error', r.message || 'Failed to load patients');
-            })
+        setLoading(true);
+        const todayStr = new Date().toLocaleDateString('en-CA'); // 'YYYY-MM-DD'
+        Promise.all([
+            clinicAPI.getPatients(),
+            clinicAPI.getAppointments(todayStr)
+        ]).then(([pr, ar]) => {
+            if (pr.success) setPatients(pr.patients);
+            if (ar.success) setAppointments(ar.appointments);
+        })
             .catch(e => flash('error', e.response?.data?.message || e.message))
             .finally(() => setLoading(false));
     }, []);
@@ -616,7 +980,7 @@ const PatientsMode = ({ onBookToken }) => {
                 }
                 if (!r.existing) setPatients(prev => [r.patient, ...prev]);
                 setJustRegistered(r.patient);
-                setForm({ name: '', phone: '', email: '', dob: '', gender: 'Male', address: '', bloodGroup: '', allergies: '', chronicConditions: '', relatives: [] });
+                setForm({ name: '', phone: '', email: '', age: '', gender: 'Male', address: '', bloodGroup: '', allergies: '', chronicConditions: '', relatives: [] });
                 setRegReportFile(null);
                 setRegReportName('');
                 try { generateRegistrationSlipPDF(r.patient); } catch (pdfErr) { console.error('PDF generation error:', pdfErr); }
@@ -625,11 +989,40 @@ const PatientsMode = ({ onBookToken }) => {
         finally { setSaving(false); }
     };
 
+    // Map patientId → today's active/completed/pending appointment
+    const todayApptMap = {};
+    appointments.forEach(a => {
+        const pid = a.clinicPatientId?._id || a.clinicPatientId;
+        if (pid && ['confirmed', 'pending', 'completed'].includes(a.status)) {
+            todayApptMap[pid.toString()] = a;
+        }
+    });
+
     // Patient detail view
     if (selectedPatient) {
         return (
             <div>
-                <button className="clinic-back-btn" onClick={() => { setSelectedPatient(null); setPatientHistory(null); }}>← Back to Patients</button>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <button className="clinic-back-btn" style={{ margin: 0 }} onClick={() => { setSelectedPatient(null); setPatientHistory(null); }}>← Back to Patients</button>
+                    {todayApptMap[selectedPatient._id] ? (
+                        <span style={{
+                            background: todayApptMap[selectedPatient._id].status === 'completed' ? '#dcfce7' : '#e0e7ff',
+                            color: todayApptMap[selectedPatient._id].status === 'completed' ? '#15803d' : '#4f46e5',
+                            padding: '6px 14px',
+                            borderRadius: '8px',
+                            fontSize: '12px',
+                            fontWeight: 700
+                        }}>
+                            {todayApptMap[selectedPatient._id].status === 'completed'
+                                ? '✅ Done Today'
+                                : `🎟️ Token #${todayApptMap[selectedPatient._id].tokenNumber} Assigned`}
+                        </span>
+                    ) : (
+                        <button className="clinic-btn-primary" style={{ fontSize: '12px', padding: '6px 14px' }} onClick={() => onBookToken(selectedPatient)}>
+                            🎟️ Assign Today's Token
+                        </button>
+                    )}
+                </div>
                 <div className="clinic-card" style={{ marginTop: '12px', marginBottom: '16px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                         <div className="clinic-avatar-lg">{selectedPatient.name?.charAt(0)?.toUpperCase()}</div>
@@ -639,7 +1032,7 @@ const PatientsMode = ({ onBookToken }) => {
                                 <span style={{ background: '#eef2ff', color: '#6366f1', padding: '2px 8px', borderRadius: '4px', fontWeight: 700, fontSize: '12px', marginRight: '8px' }}>{selectedPatient.patientUid}</span>
                                 {selectedPatient.phone && `📞 ${selectedPatient.phone}`}
                                 {selectedPatient.gender && ` · ${selectedPatient.gender}`}
-                                {selectedPatient.dob && ` · DOB: ${fmtDate(selectedPatient.dob)}`}
+                                {selectedPatient.age && ` · Age: ${selectedPatient.age} Yrs`}
                             </div>
                             {selectedPatient.address && <div style={{ color: '#94a3b8', fontSize: '13px', marginTop: '4px' }}>📍 {selectedPatient.address}</div>}
                             <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginTop: '6px', fontSize: '12px' }}>
@@ -800,7 +1193,33 @@ const PatientsMode = ({ onBookToken }) => {
                                         <td>{p.phone}</td>
                                         <td>{p.gender || '—'}</td>
                                         <td style={{ fontSize: '12px', color: '#94a3b8' }}>{fmtDate(p.createdAt)}</td>
-                                        <td><button className="clinic-btn-secondary" style={{ fontSize: '12px', padding: '4px 10px' }}>View →</button></td>
+                                        <td>
+                                            <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                                                {todayApptMap[p._id] ? (
+                                                    <span style={{
+                                                        background: todayApptMap[p._id].status === 'completed' ? '#dcfce7' : '#e0e7ff',
+                                                        color: todayApptMap[p._id].status === 'completed' ? '#15803d' : '#4f46e5',
+                                                        padding: '4px 10px',
+                                                        borderRadius: '6px',
+                                                        fontSize: '11px',
+                                                        fontWeight: 700
+                                                    }}>
+                                                        {todayApptMap[p._id].status === 'completed'
+                                                            ? '✅ Done'
+                                                            : `🎟️ Token #${todayApptMap[p._id].tokenNumber}`}
+                                                    </span>
+                                                ) : (
+                                                    <button className="clinic-btn-primary" style={{ fontSize: '11px', padding: '4px 8px' }}
+                                                        onClick={(e) => { e.stopPropagation(); onBookToken(p); }}>
+                                                        🎟️ Assign Token
+                                                    </button>
+                                                )}
+                                                <button className="clinic-btn-secondary" style={{ fontSize: '11px', padding: '4px 8px' }}
+                                                    onClick={(e) => { e.stopPropagation(); openHistory(p); }}>
+                                                    Profile →
+                                                </button>
+                                            </div>
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -852,8 +1271,8 @@ const PatientsMode = ({ onBookToken }) => {
                                     <input className="clinic-input" type="email" placeholder="Optional" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
                                 </div>
                                 <div className="clinic-form-group">
-                                    <label>Date of Birth</label>
-                                    <input className="clinic-input" type="date" max={today} value={form.dob} onChange={e => { const val = e.target.value; setForm(f => ({ ...f, dob: val > today ? today : val })); }} />
+                                    <label>Age (Years)</label>
+                                    <input className="clinic-input" type="number" min="0" max="120" placeholder="Patient's age" value={form.age} onChange={e => setForm(f => ({ ...f, age: e.target.value }))} />
                                 </div>
                                 <div className="clinic-form-group">
                                     <label>Gender</label>
@@ -952,9 +1371,12 @@ const PatientsMode = ({ onBookToken }) => {
                                     </div>
                                 </div>
 
-                                <div style={{ gridColumn: '1/-1' }}>
+                                <div style={{ gridColumn: '1/-1', display: 'flex', gap: '8px' }}>
                                     <button type="submit" className="clinic-btn-primary" disabled={saving}>
                                         {saving ? 'Registering...' : '✅ Register Patient'}
+                                    </button>
+                                    <button type="button" className="clinic-btn-secondary" onClick={() => setTab('list')}>
+                                        Cancel
                                     </button>
                                 </div>
                             </form>
@@ -972,22 +1394,43 @@ const PatientsMode = ({ onBookToken }) => {
 // ── Inline booking form (supports token and slot modes) ────────────────────
 const BookTokenForm = ({ patient, onBook, onCancel, flash, mode = 'token', defaultFee = 0, defaultServiceName = 'General Consultation' }) => {
     const isSlotMode = mode === 'slot';
-    const [form, setForm] = useState({ amount: defaultFee > 0 ? String(defaultFee) : '', serviceName: defaultServiceName, notes: '', appointmentTime: '', paymentMethod: 'Cash', upiScreenshot: null, cardRef: '' });
+    const [form, setForm] = useState({ amount: defaultFee > 0 ? String(defaultFee) : '', serviceName: defaultServiceName, notes: '', appointmentTime: '', paymentMethod: 'Cash', upiScreenshot: null, cardRef: '', transactionId: '', doctorId: '' });
     const [booking, setBooking] = useState(false);
+    const [doctors, setDoctors] = useState([]);
+    const [doctorsLoading, setDoctorsLoading] = useState(true);
+
+    useEffect(() => {
+        clinicAPI.getDoctors()
+            .then(r => {
+                if (r.success && r.doctors) {
+                    setDoctors(r.doctors);
+                    if (r.doctors.length > 0) {
+                        setForm(f => ({ ...f, doctorId: r.doctors[0]._id }));
+                    }
+                }
+            })
+            .catch(console.error)
+            .finally(() => setDoctorsLoading(false));
+    }, []);
 
     const fee = Number(form.amount) || 0;
     const isUpi = form.paymentMethod === 'UPI';
     const isCard = form.paymentMethod === 'Card';
-    // Payment method is required when fee > 0
-    const canSubmit = !booking && (fee === 0 || form.paymentMethod) && (!isSlotMode || form.appointmentTime);
+    // Payment method is required when fee > 0. If UPI, screenshot is required.
+    const canSubmit = !booking && (fee === 0 || form.paymentMethod) && (!isUpi || form.upiScreenshot) && (!isSlotMode || form.appointmentTime);
 
     const submit = async (e) => {
         e.preventDefault();
         if (isSlotMode && !form.appointmentTime) { flash('error', 'Please select an appointment time'); return; }
         if (fee > 0 && !form.paymentMethod) { flash('error', 'Select a payment method to collect the fee'); return; }
+        if (fee > 0 && isUpi && !form.upiScreenshot) { flash('error', 'UPI Screenshot is required'); return; }
+        if (fee > 0 && isUpi && form.transactionId && (form.transactionId.length < 12 || form.transactionId.length > 18)) {
+            flash('error', 'Transaction ID must be between 12 and 18 characters');
+            return;
+        }
         setBooking(true);
         try {
-            // If UPI screenshot selected, upload it first
+            // Upload UPI screenshot
             let upiScreenshotUrl = null;
             if (isUpi && form.upiScreenshot) {
                 const fd = new FormData();
@@ -995,8 +1438,14 @@ const BookTokenForm = ({ patient, onBook, onCancel, flash, mode = 'token', defau
                 try {
                     const ur = await uploadAPI.uploadImages(fd);
                     if (ur.success && ur.urls?.length) upiScreenshotUrl = ur.urls[0];
-                } catch (_) { /* screenshot upload is optional; proceed without it */ }
+                } catch (_) {
+                    flash('error', 'Failed to upload UPI screenshot. Please try again.');
+                    setBooking(false);
+                    return;
+                }
             }
+
+            const refNumber = isUpi ? form.transactionId : form.cardRef;
 
             const payload = {
                 patientId: patient._id,
@@ -1004,7 +1453,8 @@ const BookTokenForm = ({ patient, onBook, onCancel, flash, mode = 'token', defau
                 serviceName: form.serviceName,
                 notes: form.notes,
                 paymentMethod: fee > 0 ? form.paymentMethod : 'Free',
-                ...(form.cardRef && { cardRef: form.cardRef }),
+                doctorId: form.doctorId,
+                ...(refNumber && { cardRef: refNumber }),
                 ...(upiScreenshotUrl && { upiScreenshotUrl }),
             };
             if (isSlotMode) payload.appointmentTime = form.appointmentTime;
@@ -1015,7 +1465,7 @@ const BookTokenForm = ({ patient, onBook, onCancel, flash, mode = 'token', defau
                     flash('success', `✅ Payment collected. Appointment at ${form.appointmentTime} confirmed for ${patient.name}`);
                 } else {
                     flash('success', `✅ Payment collected. Token #${r.appointment.tokenNumber} assigned to ${patient.name}`);
-                    try { generateTokenReceiptPDF(patient, r.appointment); } catch (pdfErr) { console.error('PDF generation error:', pdfErr); }
+                    try { await generateTokenReceiptPDF(patient, r.appointment); } catch (pdfErr) { console.error('PDF generation error:', pdfErr); }
                 }
                 onBook();
             } else flash('error', r.message);
@@ -1040,15 +1490,12 @@ const BookTokenForm = ({ patient, onBook, onCancel, flash, mode = 'token', defau
                 <span>💰</span>
                 <span><strong>Payment is collected upfront.</strong> Token / appointment is confirmed only after fee is paid.</span>
             </div>
-
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
                 <div style={{ flex: '2', minWidth: '150px' }}>
                     <label style={{ fontSize: '11px', color: '#64748b', display: 'block', marginBottom: '3px' }}>Service</label>
                     <input className="clinic-input" placeholder="General Consultation" value={form.serviceName}
                         onChange={e => setForm(f => ({ ...f, serviceName: e.target.value }))} />
-                </div>
-
-                {isSlotMode && (
+                </div>                {isSlotMode && (
                     <div style={{ flex: '1', minWidth: '120px' }}>
                         <label style={{ fontSize: '11px', color: '#64748b', display: 'block', marginBottom: '3px' }}>Time Slot *</label>
                         <select className="clinic-input" value={form.appointmentTime} onChange={e => setForm(f => ({ ...f, appointmentTime: e.target.value }))} required>
@@ -1069,7 +1516,7 @@ const BookTokenForm = ({ patient, onBook, onCancel, flash, mode = 'token', defau
                         Payment Method {fee > 0 ? '*' : ''}
                     </label>
                     <select className="clinic-input" value={form.paymentMethod}
-                        onChange={e => setForm(f => ({ ...f, paymentMethod: e.target.value, upiScreenshot: null, cardRef: '' }))}
+                        onChange={e => setForm(f => ({ ...f, paymentMethod: e.target.value, upiScreenshot: null, cardRef: '', transactionId: '' }))}
                         style={{ borderColor: fee > 0 && !form.paymentMethod ? '#dc2626' : '' }}>
                         <option value="Cash">Cash</option>
                         <option value="UPI">UPI</option>
@@ -1079,12 +1526,19 @@ const BookTokenForm = ({ patient, onBook, onCancel, flash, mode = 'token', defau
 
                 {/* UPI screenshot upload */}
                 {fee > 0 && isUpi && (
-                    <div style={{ flex: '2', minWidth: '160px' }}>
-                        <label style={{ fontSize: '11px', color: '#64748b', display: 'block', marginBottom: '3px' }}>UPI Screenshot (optional)</label>
-                        <input type="file" accept="image/*" className="clinic-input" style={{ padding: '4px 6px' }}
-                            onChange={e => setForm(f => ({ ...f, upiScreenshot: e.target.files[0] || null }))} />
-                        {form.upiScreenshot && <span style={{ fontSize: '11px', color: '#16a34a' }}>✓ {form.upiScreenshot.name}</span>}
-                    </div>
+                    <>
+                        <div style={{ flex: '2', minWidth: '160px' }}>
+                            <label style={{ fontSize: '11px', color: '#dc2626', display: 'block', marginBottom: '3px', fontWeight: 'bold' }}>UPI Screenshot *</label>
+                            <input type="file" accept="image/*" className="clinic-input" style={{ padding: '4px 6px' }}
+                                onChange={e => setForm(f => ({ ...f, upiScreenshot: e.target.files[0] || null }))} required />
+                            {form.upiScreenshot && <span style={{ fontSize: '11px', color: '#16a34a' }}>✓ {form.upiScreenshot.name}</span>}
+                        </div>
+                        <div style={{ flex: '1.5', minWidth: '140px' }}>
+                            <label style={{ fontSize: '11px', color: '#64748b', display: 'block', marginBottom: '3px' }}>Transaction ID (optional)</label>
+                            <input className="clinic-input" placeholder="12 to 18 digits" minLength={12} maxLength={18} pattern="[a-zA-Z0-9]{12,18}" title="Transaction ID must be between 12 and 18 alphanumeric characters" value={form.transactionId}
+                                onChange={e => setForm(f => ({ ...f, transactionId: e.target.value.replace(/[^a-zA-Z0-9]/g, '') }))} />
+                        </div>
+                    </>
                 )}
 
                 {/* Card reference number */}
@@ -1218,10 +1672,43 @@ const ReceptionMode = ({ preselectedPatient, clearPreselected }) => {
     const activeTokens = appointments.filter(a => a.status === 'confirmed' || a.status === 'pending');
     const doneToday = appointments.filter(a => a.status === 'completed');
 
-    // Merge: patients with today's token shown first
-    const withToken = patients.filter(p => todayApptMap[p._id] && ['confirmed', 'pending'].includes(todayApptMap[p._id]?.status));
-    const withoutToken = patients.filter(p => !todayApptMap[p._id] || todayApptMap[p._id]?.status === 'cancelled');
-    const displayList = [...withToken, ...withoutToken];
+    // Filter displayList:
+    // If there is an active search query, show all matched search results.
+    // Otherwise, only show patients that have a token today or are currently being assigned (preselected/newly registered).
+    const isSearchingActive = search.trim().length > 0;
+    const displayList = patients.filter(p => {
+        if (isSearchingActive) return true;
+        if (todayApptMap[p._id]) return true;
+        if (assigningFor === p._id) return true;
+        return false;
+    });
+
+    // Sort: patients with today's active token first, sorted serial-wise by token number or appointment time
+    displayList.sort((a, b) => {
+        const apptA = todayApptMap[a._id];
+        const apptB = todayApptMap[b._id];
+        const statusA = apptA ? apptA.status : '';
+        const statusB = apptB ? apptB.status : '';
+        const activeA = ['confirmed', 'pending'].includes(statusA) ? 1 : 0;
+        const activeB = ['confirmed', 'pending'].includes(statusB) ? 1 : 0;
+
+        if (activeA !== activeB) {
+            return activeB - activeA; // Active first
+        }
+
+        if (activeA) {
+            if (isSlotMode) {
+                const timeA = apptA?.appointmentTime || '';
+                const timeB = apptB?.appointmentTime || '';
+                return timeA.localeCompare(timeB);
+            } else {
+                const tokA = apptA?.tokenNumber || 0;
+                const tokB = apptB?.tokenNumber || 0;
+                return tokA - tokB;
+            }
+        }
+        return 0;
+    });
 
     return (
         <div>
@@ -1297,7 +1784,7 @@ const ReceptionMode = ({ preselectedPatient, clearPreselected }) => {
 
             {/* ── Patient list with inline token assignment ── */}
             {loading ? <Spinner /> : displayList.length === 0 ? (
-                <Empty text="No patients found. Register your first patient." />
+                <Empty text={search ? "No matches found." : "No patients in today's queue. Search for an existing patient or click '+ New Patient'."} />
             ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     {displayList.map(p => {
@@ -1670,7 +2157,7 @@ const DoctorMode = () => {
                 flash('success', 'Consultation saved. Prescription generated.');
                 setConsulting(null);
                 loadToday();
-                try { generatePrescriptionSlipPDF(consulting, rx, vitals); } catch (pdfErr) { console.error('PDF generation error:', pdfErr); }
+                try { await generatePrescriptionSlipPDF(consulting, rx, vitals); } catch (pdfErr) { console.error('PDF generation error:', pdfErr); }
             } else flash('error', r.message);
         } catch (e) { flash('error', e.response?.data?.message || e.message); }
         finally { setSaving(false); }
@@ -1966,83 +2453,83 @@ const DoctorMode = () => {
 
             {/* Queue tab */}
             {tab === 'queue' && <>
-            {/* Monthly Analytics */}
-            {analytics && (
-                <div className="clinic-card" style={{ marginBottom: '16px' }}>
-                    <h3 style={{ margin: '0 0 14px', fontSize: '15px' }}>📊 Clinic Performance — {new Date().toLocaleString('en-IN', { month: 'long', year: 'numeric' })}</h3>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '12px' }}>
-                        {[
-                            { label: 'Seen Today', value: analytics.todayAppointments ?? '—', color: '#6366f1' },
-                            { label: 'This Month Revenue', value: `₹${(analytics.monthRevenue || 0).toLocaleString('en-IN')}`, color: '#16a34a' },
-                            { label: 'Total Patients', value: analytics.totalPatients ?? '—', color: '#0891b2' },
-                            { label: 'Completed All Time', value: analytics.completedAppointments ?? '—', color: '#7c3aed' },
-                        ].map(s => (
-                            <div key={s.label} style={{ background: '#f8fafc', borderRadius: '10px', padding: '14px', textAlign: 'center', border: '1px solid #e2e8f0' }}>
-                                <div style={{ fontSize: '22px', fontWeight: 800, color: s.color }}>{s.value}</div>
-                                <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>{s.label}</div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
-
-            <div className="clinic-card" style={{ marginBottom: '16px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                    <div>
-                        <h3 style={{ margin: 0 }}>🩺 Today's Patients — {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}</h3>
-                        <p style={{ color: '#64748b', fontSize: '13px', margin: '4px 0 0' }}>
-                            {pending.length} waiting · {done.length} seen today
-                        </p>
-                    </div>
-                    <button className="clinic-btn-secondary" style={{ fontSize: '12px' }} onClick={loadToday}>↻ Refresh</button>
-                </div>
-
-                {loading ? <Spinner /> : pending.length === 0 ? (
-                    <Empty text="No patients in queue. Book tokens from Reception mode." />
-                ) : (
-                    <div className="clinic-token-queue">
-                        {pending.map(a => (
-                            <div key={a._id} className="clinic-token-card">
-                                <div className="token-number">#{a.tokenNumber}</div>
-                                <div className="token-info">
-                                    <div style={{ fontWeight: 700, fontSize: '15px' }}>{a.clinicPatientId?.name || '—'}</div>
-                                    <div style={{ fontSize: '12px', color: '#64748b' }}>
-                                        {a.clinicPatientId?.patientUid || a.patientId} · {a.serviceName || 'General'}
-                                        {a.notes && ` · "${a.notes}"`}
-                                    </div>
+                {/* Monthly Analytics */}
+                {analytics && (
+                    <div className="clinic-card" style={{ marginBottom: '16px' }}>
+                        <h3 style={{ margin: '0 0 14px', fontSize: '15px' }}>📊 Clinic Performance — {new Date().toLocaleString('en-IN', { month: 'long', year: 'numeric' })}</h3>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '12px' }}>
+                            {[
+                                { label: 'Seen Today', value: analytics.todayAppointments ?? '—', color: '#6366f1' },
+                                { label: 'This Month Revenue', value: `₹${(analytics.monthRevenue || 0).toLocaleString('en-IN')}`, color: '#16a34a' },
+                                { label: 'Total Patients', value: analytics.totalPatients ?? '—', color: '#0891b2' },
+                                { label: 'Completed All Time', value: analytics.completedAppointments ?? '—', color: '#7c3aed' },
+                            ].map(s => (
+                                <div key={s.label} style={{ background: '#f8fafc', borderRadius: '10px', padding: '14px', textAlign: 'center', border: '1px solid #e2e8f0' }}>
+                                    <div style={{ fontSize: '22px', fontWeight: 800, color: s.color }}>{s.value}</div>
+                                    <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>{s.label}</div>
                                 </div>
-                                <button className="clinic-btn-primary" style={{ marginLeft: 'auto', padding: '8px 18px' }} onClick={() => openConsult(a)}>
-                                    Start →
-                                </button>
-                            </div>
-                        ))}
+                            ))}
+                        </div>
                     </div>
                 )}
-            </div>
 
-            {done.length > 0 && (
-                <div className="clinic-card">
-                    <h3 style={{ marginBottom: '12px' }}>✅ Seen Today ({done.length})</h3>
-                    <table className="clinic-table">
-                        <thead><tr><th>Token</th><th>Patient</th><th>Diagnosis</th><th>Medicines</th></tr></thead>
-                        <tbody>
-                            {done.map(a => (
-                                <tr key={a._id}>
-                                    <td><strong style={{ color: '#6366f1' }}>#{a.tokenNumber}</strong></td>
-                                    <td>
-                                        <div style={{ fontWeight: 600 }}>{a.clinicPatientId?.name || '—'}</div>
-                                        <div style={{ fontSize: '11px', color: '#94a3b8' }}>{a.clinicPatientId?.patientUid || a.patientId}</div>
-                                    </td>
-                                    <td style={{ fontSize: '12px', maxWidth: '140px' }}>{a.diagnosis || '—'}</td>
-                                    <td style={{ fontSize: '11px', color: '#64748b' }}>
-                                        {(a.pharmacy || []).map((m, i) => <div key={i}>{m.medicineName || m.name}</div>)}
-                                    </td>
-                                </tr>
+                <div className="clinic-card" style={{ marginBottom: '16px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                        <div>
+                            <h3 style={{ margin: 0 }}>🩺 Today's Patients — {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}</h3>
+                            <p style={{ color: '#64748b', fontSize: '13px', margin: '4px 0 0' }}>
+                                {pending.length} waiting · {done.length} seen today
+                            </p>
+                        </div>
+                        <button className="clinic-btn-secondary" style={{ fontSize: '12px' }} onClick={loadToday}>↻ Refresh</button>
+                    </div>
+
+                    {loading ? <Spinner /> : pending.length === 0 ? (
+                        <Empty text="No patients in queue. Book tokens from Reception mode." />
+                    ) : (
+                        <div className="clinic-token-queue">
+                            {pending.map(a => (
+                                <div key={a._id} className="clinic-token-card">
+                                    <div className="token-number">#{a.tokenNumber}</div>
+                                    <div className="token-info">
+                                        <div style={{ fontWeight: 700, fontSize: '15px' }}>{a.clinicPatientId?.name || '—'}</div>
+                                        <div style={{ fontSize: '12px', color: '#64748b' }}>
+                                            {a.clinicPatientId?.patientUid || a.patientId} · {a.serviceName || 'General'}
+                                            {a.notes && ` · "${a.notes}"`}
+                                        </div>
+                                    </div>
+                                    <button className="clinic-btn-primary" style={{ marginLeft: 'auto', padding: '8px 18px' }} onClick={() => openConsult(a)}>
+                                        Start →
+                                    </button>
+                                </div>
                             ))}
-                        </tbody>
-                    </table>
+                        </div>
+                    )}
                 </div>
-            )}
+
+                {done.length > 0 && (
+                    <div className="clinic-card">
+                        <h3 style={{ marginBottom: '12px' }}>✅ Seen Today ({done.length})</h3>
+                        <table className="clinic-table">
+                            <thead><tr><th>Token</th><th>Patient</th><th>Diagnosis</th><th>Medicines</th></tr></thead>
+                            <tbody>
+                                {done.map(a => (
+                                    <tr key={a._id}>
+                                        <td><strong style={{ color: '#6366f1' }}>#{a.tokenNumber}</strong></td>
+                                        <td>
+                                            <div style={{ fontWeight: 600 }}>{a.clinicPatientId?.name || '—'}</div>
+                                            <div style={{ fontSize: '11px', color: '#94a3b8' }}>{a.clinicPatientId?.patientUid || a.patientId}</div>
+                                        </td>
+                                        <td style={{ fontSize: '12px', maxWidth: '140px' }}>{a.diagnosis || '—'}</td>
+                                        <td style={{ fontSize: '11px', color: '#64748b' }}>
+                                            {(a.pharmacy || []).map((m, i) => <div key={i}>{m.medicineName || m.name}</div>)}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
             </>}
         </div>
     );
@@ -2057,22 +2544,39 @@ const PharmacyMode = () => {
     const [tab, setTab] = useState('orders'); // default to prescription queue
     const [inventory, setInventory] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [addForm, setAddForm] = useState({ name: '', category: 'General', unit: 'Tablets', stock: 0, price: 0 });
+    const [addForm, setAddForm] = useState({ name: '', category: 'General', unit: 'Tablets', stock: 0, buyingPrice: 0, price: 0 });
     const [adding, setAdding] = useState(false);
     const [search, setSearch] = useState('');
+    const [historySearch, setHistorySearch] = useState('');
     const [msg, setMsg] = useState({ type: '', text: '' });
 
     // Prescription Queue States
     const [orders, setOrders] = useState([]);
     const [ordersLoading, setOrdersLoading] = useState(false);
     const [dispensingId, setDispensingId] = useState(null);
+    const [selectedPaymentMethods, setSelectedPaymentMethods] = useState({});
+    const [transactionIds, setTransactionIds] = useState({});
 
     // Inline Editing States
     const [editingId, setEditingId] = useState(null);
-    const [editForm, setEditForm] = useState({ stock: 0, price: 0 });
+    const [editForm, setEditForm] = useState({ stock: 0, buyingPrice: 0, price: 0 });
     const [savingEdit, setSavingEdit] = useState(false);
 
     const flash = (type, text) => { setMsg({ type, text }); setTimeout(() => setMsg({ type: '', text: '' }), 3000); };
+
+    const setPaymentMethodForOrder = (orderId, method) => {
+        setSelectedPaymentMethods(prev => ({ ...prev, [orderId]: method }));
+    };
+    const setTxIdForOrder = (orderId, val) => {
+        setTransactionIds(prev => ({ ...prev, [orderId]: val }));
+    };
+
+    const getMedicinePriceInfo = (item) => {
+        const unitPrice = item.unitPrice || inventory.find(inv => inv.name.toLowerCase() === item.medicineName.toLowerCase())?.sellingPrice || 0;
+        const qty = item.quantity || 10;
+        const totalPrice = unitPrice * qty;
+        return { unitPrice, totalPrice };
+    };
 
     const loadInventory = () => {
         setLoading(true);
@@ -2095,10 +2599,10 @@ const PharmacyMode = () => {
         loadOrders();
     }, []);
 
-    const handleDispense = async (orderId) => {
+    const handleDispense = async (orderId, paymentStatus = 'Pending') => {
         setDispensingId(orderId);
         try {
-            const r = await clinicAPI.dispenseOrder(orderId);
+            const r = await clinicAPI.dispenseOrder(orderId, { paymentStatus });
             if (r.success) {
                 flash('success', r.message || 'Medicines dispensed successfully!');
                 loadOrders();
@@ -2120,11 +2624,12 @@ const PharmacyMode = () => {
                 category: addForm.category,
                 unit: addForm.unit,
                 stock: Number(addForm.stock) || 0,
+                buyingPrice: Number(addForm.buyingPrice) || 0,
                 sellingPrice: Number(addForm.price) || 0
             });
             if (r.success) {
                 setInventory(prev => [...prev, r.item].sort((a, b) => a.name.localeCompare(b.name)));
-                setAddForm({ name: '', category: 'General', unit: 'Tablets', stock: 0, price: 0 });
+                setAddForm({ name: '', category: 'General', unit: 'Tablets', stock: 0, buyingPrice: 0, price: 0 });
                 setTab('list');
                 flash('success', `"${r.item.name}" added to medicine list.`);
             }
@@ -2137,6 +2642,7 @@ const PharmacyMode = () => {
         try {
             const r = await clinicAPI.updateInventory(id, {
                 stock: Number(editForm.stock) || 0,
+                buyingPrice: Number(editForm.buyingPrice) || 0,
                 sellingPrice: Number(editForm.price) || 0
             });
             if (r.success) {
@@ -2166,8 +2672,7 @@ const PharmacyMode = () => {
             <div className="clinic-sub-tabs">
                 {[
                     { id: 'orders', label: `📦 Prescription Queue (${orders.filter(o => o.orderStatus !== 'Completed').length})` },
-                    { id: 'list', label: `💊 Medicine List (${inventory.length})` },
-                    { id: 'add', label: '+ Add Medicine' },
+                    { id: 'list', label: `📋 Inventory (${inventory.length})` }
                 ].map(t => (
                     <button key={t.id} className={`clinic-sub-tab ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}>{t.label}</button>
                 ))}
@@ -2180,11 +2685,11 @@ const PharmacyMode = () => {
                     {tab === 'orders' && (
                         <div className="clinic-card">
                             <h3 style={{ marginBottom: '14px' }}>📦 Prescription Queue</h3>
-                            {ordersLoading ? <Spinner /> : orders.length === 0 ? (
-                                <Empty text="No prescriptions in queue." />
+                            {ordersLoading ? <Spinner /> : orders.filter(o => o.orderStatus !== 'Completed').length === 0 ? (
+                                <Empty text="No active prescriptions in queue." />
                             ) : (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                                    {orders.map(order => {
+                                    {orders.filter(o => o.orderStatus !== 'Completed').map(order => {
                                         const isCompleted = order.orderStatus === 'Completed';
                                         return (
                                             <div key={order._id} style={{
@@ -2194,11 +2699,11 @@ const PharmacyMode = () => {
                                                 background: isCompleted ? '#f8fafc' : '#fff',
                                                 display: 'flex',
                                                 justifyContent: 'space-between',
-                                                alignItems: 'flex-start',
+                                                alignItems: 'stretch',
                                                 flexWrap: 'wrap',
                                                 gap: '16px'
                                             }}>
-                                                <div>
+                                                <div style={{ flex: '2', minWidth: '280px' }}>
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
                                                         <strong style={{ fontSize: '15px', color: '#1e293b' }}>Patient UID: {order.patientId}</strong>
                                                         <span style={{
@@ -2209,29 +2714,161 @@ const PharmacyMode = () => {
                                                             background: isCompleted ? '#dcfce7' : '#fef9c3',
                                                             color: isCompleted ? '#16a34a' : '#a16207'
                                                         }}>
-                                                            {order.orderStatus}
+                                                            {order.orderStatus === 'Completed' ? `Dispensed (${order.paymentStatus})` : order.orderStatus}
                                                         </span>
                                                     </div>
                                                     <div style={{ fontSize: '13px', color: '#64748b', marginBottom: '10px' }}>
                                                         Prescribed: {new Date(order.createdAt).toLocaleString('en-IN')}
                                                     </div>
-                                                    <div style={{ background: '#f1f5f9', borderRadius: '6px', padding: '10px', minWidth: '280px' }}>
-                                                        <span style={{ fontSize: '12px', fontWeight: 600, color: '#475569', display: 'block', marginBottom: '6px' }}>Prescribed Medicines:</span>
-                                                        <ul style={{ margin: 0, paddingLeft: '16px', fontSize: '13px', color: '#334155' }}>
-                                                            {order.items.map((item, idx) => (
-                                                                <li key={idx} style={{ marginBottom: '4px' }}>
-                                                                    <strong>{item.medicineName}</strong> {item.frequency ? `(${item.frequency})` : ''} — {item.quantity || 10} qty
-                                                                </li>
-                                                            ))}
+                                                    <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px 14px', minWidth: '320px', marginTop: '10px' }}>
+                                                        <span style={{ fontSize: '12px', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '8px', borderBottom: '1px solid #cbd5e1', paddingBottom: '4px' }}>Prescribed Medicines:</span>
+                                                        <ul style={{ margin: 0, padding: 0, listStyle: 'none', fontSize: '13px', color: '#334155' }}>
+                                                            {order.items.map((item, idx) => {
+                                                                const { unitPrice, totalPrice } = getMedicinePriceInfo(item);
+                                                                return (
+                                                                    <li key={idx} style={{ marginBottom: '6px', display: 'flex', justifyContent: 'space-between', gap: '16px' }}>
+                                                                        <span>
+                                                                            <strong>{item.medicineName}</strong> {item.frequency ? `(${item.frequency})` : ''}
+                                                                            <span style={{ color: '#64748b', fontSize: '11px', marginLeft: '6px' }}>x{item.quantity || 10}</span>
+                                                                        </span>
+                                                                        <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>
+                                                                            ₹{unitPrice} × {item.quantity || 10} = ₹{totalPrice}
+                                                                        </span>
+                                                                    </li>
+                                                                );
+                                                            })}
                                                         </ul>
+                                                        <div style={{ borderTop: '2px dashed #cbd5e1', marginTop: '10px', paddingTop: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                            <strong style={{ fontSize: '13px', color: '#1e293b' }}>Total Amount to Pay:</strong>
+                                                            <strong style={{ fontSize: '15px', color: '#16a34a', background: '#dcfce7', padding: '2px 8px', borderRadius: '4px' }}>
+                                                                ₹{order.items.reduce((sum, item) => sum + getMedicinePriceInfo(item).totalPrice, 0)}
+                                                            </strong>
+                                                        </div>
                                                     </div>
                                                 </div>
-                                                {!isCompleted && (
-                                                    <button className="clinic-btn-primary" style={{ padding: '8px 16px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
-                                                        disabled={dispensingId === order._id} onClick={() => handleDispense(order._id)}>
-                                                        {dispensingId === order._id ? 'Dispensing...' : '💊 Dispense & Deduct Stock'}
-                                                    </button>
-                                                )}
+                                                {isCompleted ? (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '6px', minWidth: '240px', borderLeft: '1px solid #cbd5e1', paddingLeft: '16px', flex: '1' }}>
+                                                        <span style={{
+                                                            background: '#dcfce7',
+                                                            color: '#16a34a',
+                                                            border: '1px solid #bbf7d0',
+                                                            padding: '8px 16px',
+                                                            borderRadius: '6px',
+                                                            fontWeight: 700,
+                                                            fontSize: '13px',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            gap: '6px'
+                                                        }}>
+                                                            ✅ Medicine Dispatched
+                                                        </span>
+                                                        <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 500 }}>
+                                                            Saved in history
+                                                        </span>
+                                                    </div>
+                                                ) : (() => {
+                                                    const orderTotal = order.items.reduce((sum, item) => sum + getMedicinePriceInfo(item).totalPrice, 0);
+                                                    const currentMethod = selectedPaymentMethods[order._id] || 'Cash';
+                                                    const currentTxId = transactionIds[order._id] || '';
+                                                    return (
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', minWidth: '240px', borderLeft: '1px solid #cbd5e1', paddingLeft: '16px', flex: '1', justifyContent: 'center' }}>
+                                                            {orderTotal > 0 ? (
+                                                                <>
+                                                                    <div style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>💳 Payment Method:</div>
+                                                                    <div style={{ display: 'flex', gap: '4px', background: '#f1f5f9', padding: '3px', borderRadius: '8px' }}>
+                                                                        {['Cash', 'UPI', 'Card'].map(m => (
+                                                                            <button
+                                                                                key={m}
+                                                                                type="button"
+                                                                                onClick={() => setPaymentMethodForOrder(order._id, m)}
+                                                                                style={{
+                                                                                    flex: 1,
+                                                                                    padding: '6px',
+                                                                                    fontSize: '11px',
+                                                                                    fontWeight: 600,
+                                                                                    border: 'none',
+                                                                                    borderRadius: '6px',
+                                                                                    cursor: 'pointer',
+                                                                                    background: currentMethod === m ? '#fff' : 'transparent',
+                                                                                    color: currentMethod === m ? '#6366f1' : '#475569',
+                                                                                    boxShadow: currentMethod === m ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                                                                                    transition: 'all 0.2s'
+                                                                                }}
+                                                                            >
+                                                                                {m}
+                                                                            </button>
+                                                                        ))}
+                                                                    </div>
+
+                                                                    {currentMethod === 'UPI' && (
+                                                                        <div>
+                                                                            <input
+                                                                                className="clinic-input"
+                                                                                style={{ fontSize: '11px', padding: '6px', marginTop: '4px' }}
+                                                                                placeholder="Transaction ID (12-18 digits)"
+                                                                                maxLength={18}
+                                                                                value={currentTxId}
+                                                                                onChange={e => setTxIdForOrder(order._id, e.target.value.replace(/[^a-zA-Z0-9]/g, ''))}
+                                                                            />
+                                                                        </div>
+                                                                    )}
+
+                                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '4px' }}>
+                                                                        <button
+                                                                            type="button"
+                                                                            className="clinic-btn-primary"
+                                                                            disabled={dispensingId === order._id}
+                                                                            style={{
+                                                                                background: '#16a34a',
+                                                                                borderColor: '#16a34a',
+                                                                                fontSize: '12px',
+                                                                                padding: '8px 12px',
+                                                                                display: 'flex',
+                                                                                alignItems: 'center',
+                                                                                justifyContent: 'center',
+                                                                                gap: '6px'
+                                                                            }}
+                                                                            onClick={() => {
+                                                                                if (currentMethod === 'UPI' && currentTxId && (currentTxId.length < 12 || currentTxId.length > 18)) {
+                                                                                    flash('error', 'Transaction ID must be between 12 and 18 characters');
+                                                                                    return;
+                                                                                }
+                                                                                handleDispense(order._id, 'Paid');
+                                                                            }}
+                                                                        >
+                                                                            💵 Collect ₹{orderTotal} & Dispense
+                                                                        </button>
+                                                                        <button
+                                                                            type="button"
+                                                                            className="clinic-btn-secondary"
+                                                                            disabled={dispensingId === order._id}
+                                                                            style={{
+                                                                                fontSize: '12px',
+                                                                                padding: '8px 12px',
+                                                                                border: '1px solid #cbd5e1',
+                                                                                color: '#d97706',
+                                                                                background: '#fffbeb',
+                                                                                fontWeight: 600
+                                                                            }}
+                                                                            onClick={() => handleDispense(order._id, 'Pending')}
+                                                                        >
+                                                                            ⏳ Keep Payment Pending
+                                                                        </button>
+                                                                    </div>
+                                                                </>
+                                                            ) : (
+                                                                <button
+                                                                    className="clinic-btn-primary"
+                                                                    style={{ padding: '8px 16px', fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', width: '100%' }}
+                                                                    disabled={dispensingId === order._id}
+                                                                    onClick={() => handleDispense(order._id, 'Paid')}
+                                                                >
+                                                                    {dispensingId === order._id ? 'Dispensing...' : '💊 Dispense (Free)'}
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })()}
                                             </div>
                                         );
                                     })}
@@ -2240,11 +2877,11 @@ const PharmacyMode = () => {
                         </div>
                     )}
 
+
                     {tab === 'list' && (
                         <div className="clinic-card">
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-                                <h3 style={{ margin: 0 }}>💊 Medicine List</h3>
-                                <button className="clinic-btn-primary" style={{ fontSize: '12px', padding: '6px 14px' }} onClick={() => setTab('add')}>+ Add Medicine</button>
+                                <h3 style={{ margin: 0 }}>📋 Inventory</h3>
                             </div>
                             {inventory.length > 0 && (
                                 <input
@@ -2260,7 +2897,7 @@ const PharmacyMode = () => {
                             ) : (
                                 <table className="clinic-table">
                                     <thead>
-                                        <tr><th>#</th><th>Medicine Name</th><th>Category</th><th>Unit / Form</th><th>Price (₹)</th><th>Stock</th><th style={{ width: '130px', textAlign: 'center' }}>Action</th></tr>
+                                        <tr><th>#</th><th>Medicine Name</th><th>Category</th><th>Unit / Form</th><th>Buying Price (₹)</th><th>Selling Price (₹)</th><th>Stock</th><th style={{ width: '130px', textAlign: 'center' }}>Action</th></tr>
                                     </thead>
                                     <tbody>
                                         {filtered.map((m, i) => {
@@ -2277,6 +2914,14 @@ const PharmacyMode = () => {
                                                     <td style={{ fontSize: '12px', color: '#64748b' }}>{m.unit || '—'}</td>
                                                     <td>
                                                         {isEditing ? (
+                                                            <input type="number" className="clinic-input" style={{ width: '80px', padding: '4px' }} value={editForm.buyingPrice}
+                                                                onChange={e => setEditForm({ ...editForm, buyingPrice: e.target.value })} />
+                                                        ) : (
+                                                            `₹${m.buyingPrice || 0}`
+                                                        )}
+                                                    </td>
+                                                    <td>
+                                                        {isEditing ? (
                                                             <input type="number" className="clinic-input" style={{ width: '80px', padding: '4px' }} value={editForm.price}
                                                                 onChange={e => setEditForm({ ...editForm, price: e.target.value })} />
                                                         ) : (
@@ -2290,8 +2935,8 @@ const PharmacyMode = () => {
                                                         ) : (
                                                             <span style={
                                                                 m.stock <= 0 ? { background: '#fee2e2', color: '#dc2626', padding: '2px 6px', borderRadius: '4px', fontSize: '11px', fontWeight: 600 } :
-                                                                m.stock < 50 ? { background: '#fef3c7', color: '#d97706', padding: '2px 6px', borderRadius: '4px', fontSize: '11px', fontWeight: 600 } :
-                                                                { color: '#16a34a', fontWeight: 600 }
+                                                                    m.stock < 50 ? { background: '#fef3c7', color: '#d97706', padding: '2px 6px', borderRadius: '4px', fontSize: '11px', fontWeight: 600 } :
+                                                                        { color: '#16a34a', fontWeight: 600 }
                                                             }>
                                                                 {m.stock ?? 0} {m.unit || 'Tablets'}
                                                             </span>
@@ -2311,7 +2956,7 @@ const PharmacyMode = () => {
                                                             <button className="clinic-btn-secondary" style={{ padding: '3px 8px', fontSize: '11px' }}
                                                                 onClick={() => {
                                                                     setEditingId(m._id);
-                                                                    setEditForm({ stock: m.stock || 0, price: m.sellingPrice || 0 });
+                                                                    setEditForm({ stock: m.stock || 0, buyingPrice: m.buyingPrice || 0, price: m.sellingPrice || 0 });
                                                                 }}>
                                                                 Edit Stock
                                                             </button>
@@ -2371,6 +3016,17 @@ const PharmacyMode = () => {
                                     />
                                 </div>
                                 <div className="clinic-form-group">
+                                    <label>Buying Price (₹) *</label>
+                                    <input
+                                        type="number"
+                                        className="clinic-input"
+                                        placeholder="e.g. 10"
+                                        value={addForm.buyingPrice}
+                                        onChange={e => setAddForm(f => ({ ...f, buyingPrice: e.target.value }))}
+                                        required
+                                    />
+                                </div>
+                                <div className="clinic-form-group">
                                     <label>Selling Price (₹) *</label>
                                     <input
                                         type="number"
@@ -2385,7 +3041,7 @@ const PharmacyMode = () => {
                                     <button type="submit" className="clinic-btn-primary" disabled={adding}>
                                         {adding ? 'Adding…' : '+ Add to List'}
                                     </button>
-                                    <button type="button" className="clinic-btn-secondary" onClick={() => { setTab('list'); setAddForm({ name: '', category: 'General', unit: 'Tablets', stock: 0, price: 0 }); }}>
+                                    <button type="button" className="clinic-btn-secondary" onClick={() => { setTab('list'); setAddForm({ name: '', category: 'General', unit: 'Tablets', stock: 0, buyingPrice: 0, price: 0 }); }}>
                                         Cancel
                                     </button>
                                 </div>
@@ -2422,6 +3078,20 @@ const TreatmentPlanMode = () => {
     const [payInput, setPayInput] = useState({ amountPaid: '', paymentMethod: 'Cash', notes: '' });
 
     const flash = (type, text) => { setMsg({ type, text }); setTimeout(() => setMsg({ type: '', text: '' }), 5000); };
+
+    const copyFirstDateToAll = () => {
+        if (visits.length > 0) {
+            const firstDate = visits[0].scheduledDate;
+            setVisits(prev => prev.map(v => ({ ...v, scheduledDate: firstDate })));
+        }
+    };
+
+    const copyFirstTimeToAll = () => {
+        if (visits.length > 0) {
+            const firstTime = visits[0].scheduledTime;
+            setVisits(prev => prev.map(v => ({ ...v, scheduledTime: firstTime })));
+        }
+    };
 
     const loadAll = () => {
         setLoading(true);
@@ -2567,7 +3237,7 @@ const TreatmentPlanMode = () => {
             {msg.text && <div className={`clinic-msg clinic-msg-${msg.type}`}>{msg.text}</div>}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                 <h3 style={{ margin: 0, color: '#0f172a' }}>📅 Treatment Plans</h3>
-                <button className="clinic-btn-primary" onClick={() => { setView('create'); loadPatients(''); }}>+ New Plan</button>
+                <button className="clinic-btn-primary" onClick={() => { setView('create'); setPatients([]); setPatSearch(''); }}>+ New Plan</button>
             </div>
 
             {loading ? <Spinner /> : plans.length === 0 ? <Empty text="No treatment plans yet." /> : (
@@ -2622,8 +3292,16 @@ const TreatmentPlanMode = () => {
                     <label>Patient *</label>
                     <input className="clinic-input" placeholder="Search by name or ID..."
                         value={patSearch}
-                        onChange={e => { setPatSearch(e.target.value); loadPatients(e.target.value); }} />
-                    {patients.length > 0 && !form.clinicPatientId && (
+                        onChange={e => {
+                            const val = e.target.value;
+                            setPatSearch(val);
+                            if (val.trim()) {
+                                loadPatients(val);
+                            } else {
+                                setPatients([]);
+                            }
+                        }} />
+                    {patSearch.trim() && patients.length > 0 && !form.clinicPatientId && (
                         <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', maxHeight: '160px', overflowY: 'auto', marginTop: '4px' }}>
                             {patients.map(p => (
                                 <div key={p._id} onClick={() => { setForm(f => ({ ...f, clinicPatientId: p._id })); setPatSearch(`${p.name} (${p.patientUid || p.phone})`); setPatients([]); }}
@@ -2678,9 +3356,19 @@ const TreatmentPlanMode = () => {
                             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                                 <thead>
                                     <tr style={{ background: '#f1f5f9' }}>
-                                        {['#', 'Date', 'Time', 'Procedure / Notes'].map(h => (
-                                            <th key={h} style={{ padding: '8px 10px', textAlign: 'left', fontWeight: '700', color: '#374151', borderBottom: '1px solid #e2e8f0' }}>{h}</th>
-                                        ))}
+                                        <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: '700', color: '#374151', borderBottom: '1px solid #e2e8f0', width: '6%' }}>#</th>
+                                        <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: '700', color: '#374151', borderBottom: '1px solid #e2e8f0', width: '22%' }}>
+                                            Date
+                                        </th>
+                                        <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: '700', color: '#374151', borderBottom: '1px solid #e2e8f0', width: '18%' }}>
+                                            Time
+                                            {visits.length > 1 && (
+                                                <button type="button" onClick={copyFirstTimeToAll} style={{ marginLeft: '6px', fontSize: '10px', background: '#cbd5e1', border: 'none', padding: '2px 6px', borderRadius: '4px', cursor: 'pointer', fontWeight: '600', color: '#1e293b' }}>
+                                                    Copy 1st
+                                                </button>
+                                            )}
+                                        </th>
+                                        <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: '700', color: '#374151', borderBottom: '1px solid #e2e8f0' }}>Procedure / Notes</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -2897,29 +3585,77 @@ const TreatmentPlanMode = () => {
 };
 
 // ═══════════════════════════════════════════════════
-// BILLING MODE — Collection history only. All payments are upfront.
+// BILLING MODE — Collection history and summary
 // ═══════════════════════════════════════════════════
 const BillingMode = () => {
     const [appointments, setAppointments] = useState([]);
     const [allAppointments, setAllAppointments] = useState([]);
+    const [allRawAppointments, setAllRawAppointments] = useState([]);
+    const [pharmacyOrders, setPharmacyOrders] = useState([]);
+    const [allRawPharmacyOrders, setAllRawPharmacyOrders] = useState([]);
+    const [treatmentPlans, setTreatmentPlans] = useState([]);
     const [loading, setLoading] = useState(true);
     const [stats, setStats] = useState(null);
     const [patSearch, setPatSearch] = useState('');
+    const [billTab, setBillTab] = useState('consultation');
 
-    useEffect(() => {
+    // Patient bill selection states
+    const [selectedBillPatient, setSelectedBillPatient] = useState(null);
+    const [billSearch, setBillSearch] = useState('');
+    const [billPatients, setBillPatients] = useState([]);
+    const [searchingBillPat, setSearchingBillPat] = useState(false);
+
+    // Payment recording states
+    const [selectedPlan, setSelectedPlan] = useState(null);
+    const [payModal, setPayModal] = useState(null);
+    const [payInput, setPayInput] = useState({ amountPaid: '', paymentMethod: 'Cash', notes: '' });
+    const [saving, setSaving] = useState(false);
+    const [msg, setMsg] = useState({ type: '', text: '' });
+
+    const flash = (type, text) => { setMsg({ type, text }); setTimeout(() => setMsg({ type: '', text: '' }), 5000); };
+
+    const loadAll = () => {
+        setLoading(true);
         Promise.all([
             clinicAPI.getAppointments(),
             clinicAPI.getStats(),
-        ]).then(([apptR, statsR]) => {
+            clinicAPI.getPharmacyOrders(),
+            clinicAPI.getTreatmentPlans(),
+        ]).then(([apptR, statsR, pharmacyR, plansR]) => {
             if (apptR.success) {
-                // Only show paid appointments (all should be paid, but filter defensively)
+                setAllRawAppointments(apptR.appointments || []);
                 const paid = apptR.appointments.filter(a => a.paymentStatus === 'paid');
                 setAllAppointments(paid);
                 setAppointments(paid);
             }
             if (statsR.success) setStats(statsR.stats);
+            if (pharmacyR.success) {
+                setAllRawPharmacyOrders(pharmacyR.orders || []);
+                const paidOrders = (pharmacyR.orders || []).filter(o => o.paymentStatus === 'Paid');
+                setPharmacyOrders(paidOrders);
+            }
+            if (plansR.success) {
+                setTreatmentPlans(plansR.plans || []);
+            }
         }).catch(console.error).finally(() => setLoading(false));
+    };
+
+    useEffect(() => {
+        loadAll();
     }, []);
+
+    // Search patient logic for consolidated billing
+    useEffect(() => {
+        if (!billSearch.trim()) { setBillPatients([]); return; }
+        setSearchingBillPat(true);
+        const delay = setTimeout(() => {
+            clinicAPI.getPatients(billSearch)
+                .then(r => { if (r.success) setBillPatients(r.patients || []); })
+                .catch(console.error)
+                .finally(() => setSearchingBillPat(false));
+        }, 300);
+        return () => clearTimeout(delay);
+    }, [billSearch]);
 
     const filterByPatient = () => {
         if (!patSearch.trim()) { setAppointments(allAppointments); return; }
@@ -2930,24 +3666,162 @@ const BillingMode = () => {
         ));
     };
 
-    const todayTotal = allAppointments
-        .filter(a => new Date(a.appointmentDate).toDateString() === new Date().toDateString())
-        .reduce((s, a) => s + (a.amount || 0), 0);
+    const handlePay = async () => {
+        if (!payModal) return;
+        const paid = Number(payInput.amountPaid) || 0;
+        if (paid <= 0) return flash('error', 'Enter a valid amount.');
+        setSaving(true);
+        try {
+            const r = await clinicAPI.payVisit(payModal.planId, payModal.visit._id, {
+                amountPaid: paid, paymentMethod: payInput.paymentMethod, notes: payInput.notes,
+            });
+            if (r.success) {
+                setTreatmentPlans(prev => prev.map(p => p._id === r.plan._id ? r.plan : p));
+                if (selectedPlan && selectedPlan._id === r.plan._id) {
+                    setSelectedPlan(r.plan);
+                }
+                setPayModal(null);
+                flash('success', `₹${paid.toLocaleString('en-IN')} recorded for Treatment Plan.`);
+                clinicAPI.getStats().then(statsR => {
+                    if (statsR.success) setStats(statsR.stats);
+                });
+            } else flash('error', r.message);
+        } catch (e) { flash('error', e.response?.data?.message || e.message); }
+        finally { setSaving(false); }
+    };
+
+    const pharmacyTotalRevenue = pharmacyOrders.reduce((s, o) => s + (o.totalAmount || 0), 0);
+
+    const filteredPharmacy = pharmacyOrders.filter(o =>
+        !patSearch.trim() ||
+        (o.patientId || '').toLowerCase().includes(patSearch.trim().toLowerCase())
+    );
+
+    const filteredPlans = treatmentPlans.filter(p =>
+        !patSearch.trim() ||
+        (p.clinicPatientId?.name || '').toLowerCase().includes(patSearch.trim().toLowerCase()) ||
+        (p.clinicPatientId?.patientUid || '').toLowerCase().includes(patSearch.trim().toLowerCase()) ||
+        (p.title || '').toLowerCase().includes(patSearch.trim().toLowerCase())
+    );
+
+    // Get consolidated bill details for the selected patient
+    const getPatientBillingSummary = (patient) => {
+        if (!patient) return null;
+
+        const patAppts = allRawAppointments.filter(a =>
+            a.clinicPatientId?._id === patient._id ||
+            a.patientId === patient.patientUid
+        );
+
+        const patPharmacy = allRawPharmacyOrders.filter(o =>
+            o.patientId === patient.patientUid ||
+            (o.patientId && patient.patientUid && String(o.patientId).toLowerCase() === String(patient.patientUid).toLowerCase())
+        );
+
+        const patPlans = treatmentPlans.filter(p =>
+            p.clinicPatientId?._id === patient._id ||
+            p.clinicPatientId?.patientUid === patient.patientUid
+        );
+
+        return { appointments: patAppts, pharmacy: patPharmacy, plans: patPlans };
+    };
+
+    const patientBillData = selectedBillPatient ? getPatientBillingSummary(selectedBillPatient) : null;
+
+    // Calculate totals for consolidated billing
+    const getConsolidatedTotals = () => {
+        if (!patientBillData) return { grandTotal: 0, paidTotal: 0, outstanding: 0 };
+        let grandTotal = 0;
+        let paidTotal = 0;
+
+        patientBillData.appointments.forEach(a => {
+            const amt = Number(a.amount || 0);
+            grandTotal += amt;
+            if (a.paymentStatus === 'paid') paidTotal += amt;
+        });
+
+        patientBillData.pharmacy.forEach(o => {
+            const amt = Number(o.totalAmount || 0);
+            grandTotal += amt;
+            if (o.paymentStatus === 'Paid') paidTotal += amt;
+        });
+
+        patientBillData.plans.forEach(p => {
+            grandTotal += Number(p.totalAmount || 0);
+            paidTotal += Number(p.totalPaid || 0);
+        });
+
+        return { grandTotal, paidTotal, outstanding: grandTotal - paidTotal };
+    };
+
+    const billTotals = getConsolidatedTotals();
+
+    // Trigger PDF generation
+    const printConsolidatedBill = async () => {
+        if (!selectedBillPatient || !patientBillData) return;
+        try {
+            await generateConsolidatedBillPDF(selectedBillPatient, patientBillData);
+        } catch (err) {
+            console.error('Failed to generate PDF:', err);
+            flash('error', 'Error generating PDF. Please try again.');
+        }
+    };
+
+    const isLastScheduled = (visitId) => {
+        if (!selectedPlan) return false;
+        const index = selectedPlan.visits.findIndex(v => v._id === visitId);
+        return index === selectedPlan.visits.length - 1;
+    };
+
+    const handleComplete = async (planId, visitId) => {
+        if (!window.confirm('Mark this visit as completed?')) return;
+        try {
+            const r = await clinicAPI.completeVisit(planId, visitId);
+            if (r.success) {
+                setTreatmentPlans(prev => prev.map(p => p._id === r.plan._id ? r.plan : p));
+                if (selectedPlan && selectedPlan._id === r.plan._id) setSelectedPlan(r.plan);
+                flash('success', 'Visit marked as completed successfully!');
+            }
+        } catch (e) { flash('error', e.message); }
+    };
+
+    const handleMiss = async (planId, visitId) => {
+        if (!window.confirm('Mark this visit as missed?')) return;
+        try {
+            const r = await clinicAPI.missVisit(planId, visitId);
+            if (r.success) {
+                setTreatmentPlans(prev => prev.map(p => p._id === r.plan._id ? r.plan : p));
+                if (selectedPlan && selectedPlan._id === r.plan._id) setSelectedPlan(r.plan);
+                flash('success', 'Visit marked as missed.');
+            }
+        } catch (e) { flash('error', e.message); }
+    };
+
+    const visitStatusColor = {
+        scheduled: '#3b82f6',
+        completed: '#10b981',
+        missed: '#ef4444'
+    };
 
     return (
         <div>
+            {msg.text && <div className={`clinic-msg clinic-msg-${msg.type}`} style={{ marginBottom: '15px' }}>{msg.text}</div>}
+
             {/* Collection Summary Strip */}
             {stats && (
                 <div className="clinic-kpi-grid" style={{ marginBottom: '20px' }}>
                     {[
-                        { label: 'Total Collection', value: fmt(stats.totalRevenue), icon: '💰', color: '#f59e0b' },
-                        { label: "Today's Collection", value: fmt(todayTotal), icon: '📅', color: '#10b981' },
-                        { label: 'This Month', value: fmt(stats.monthRevenue), icon: '📊', color: '#6366f1' },
-                        { label: 'Total Paid Visits', value: allAppointments.length, icon: '✅', color: '#0ea5e9' },
+                        { label: 'Total Collection', value: fmt(stats.totalRevenue + pharmacyTotalRevenue), icon: '💰', color: '#f59e0b' },
+                        { label: "Today's Collection", value: fmt(stats.todayRevenue + (pharmacyOrders.filter(o => new Date(o.updatedAt || o.createdAt).toDateString() === new Date().toDateString()).reduce((s, o) => s + (o.totalAmount || 0), 0))), icon: '📅', color: '#10b981' },
+                        { label: 'Pharmacy Revenue', value: fmt(pharmacyTotalRevenue), icon: '💊', color: '#ec4899' },
+                        { label: 'Treatment Plans', value: fmt(stats.treatmentPlanRevenue), sub: stats.treatmentPlanPending ? `${fmt(stats.treatmentPlanPending)} outstanding` : 'No outstanding', icon: '📋', color: '#0ea5e9' },
                     ].map((k, i) => (
                         <div key={i} className="clinic-kpi-card" style={{ borderTop: `4px solid ${k.color}` }}>
-                            <div style={{ fontSize: '24px' }}>{k.icon}</div>
-                            <div style={{ fontSize: '20px', fontWeight: 800, color: k.color }}>{k.value}</div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                <div style={{ fontSize: '24px' }}>{k.icon}</div>
+                                {k.sub && <div style={{ fontSize: '10px', background: '#fee2e2', color: '#dc2626', padding: '2px 6px', borderRadius: '4px', fontWeight: 600 }}>{k.sub}</div>}
+                            </div>
+                            <div style={{ fontSize: '20px', fontWeight: 800, color: k.color, marginTop: '8px' }}>{k.value}</div>
                             <div style={{ fontSize: '12px', color: '#64748b' }}>{k.label}</div>
                         </div>
                     ))}
@@ -2955,67 +3829,486 @@ const BillingMode = () => {
             )}
 
             <div className="clinic-card">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
                     <h3 style={{ margin: 0 }}>🧾 Collection Records</h3>
-                    <span style={{ fontSize: '12px', background: '#dcfce7', color: '#16a34a', padding: '3px 10px', borderRadius: '10px', fontWeight: 700 }}>
-                        All payments collected upfront
-                    </span>
+                    <div className="clinic-sub-tabs" style={{ margin: 0, padding: 0 }}>
+                        <button className={`clinic-sub-tab ${billTab === 'consultation' ? 'active' : ''}`} style={{ fontSize: '12px', padding: '4px 12px' }} onClick={() => setBillTab('consultation')}>🩺 Consultation</button>
+                        <button className={`clinic-sub-tab ${billTab === 'pharmacy' ? 'active' : ''}`} style={{ fontSize: '12px', padding: '4px 12px' }} onClick={() => setBillTab('pharmacy')}>💊 Pharmacy ({pharmacyOrders.length})</button>
+                        <button className={`clinic-sub-tab ${billTab === 'treatment' ? 'active' : ''}`} style={{ fontSize: '12px', padding: '4px 12px' }} onClick={() => setBillTab('treatment')}>📋 Treatment Plans ({treatmentPlans.length})</button>
+                        <button className={`clinic-sub-tab ${billTab === 'generate_bill' ? 'active' : ''}`} style={{ fontSize: '12px', padding: '4px 12px' }} onClick={() => setBillTab('generate_bill')}>🧾 Generate Bill</button>
+                    </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
-                    <input className="clinic-input" style={{ flex: 1 }} placeholder="Search by patient name or ID…"
-                        value={patSearch} onChange={e => setPatSearch(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && filterByPatient()} />
-                    <button className="clinic-btn-secondary" onClick={filterByPatient}>Search</button>
-                    {patSearch && <button className="clinic-btn-secondary" onClick={() => { setPatSearch(''); setAppointments(allAppointments); }}>✕ Clear</button>}
-                </div>
+                {billTab !== 'generate_bill' && (
+                    <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
+                        <input className="clinic-input" style={{ flex: 1 }} placeholder="Search records…"
+                            value={patSearch} onChange={e => setPatSearch(e.target.value)}
+                            onKeyDown={e => e.key === 'Enter' && (billTab === 'consultation' ? filterByPatient() : null)} />
+                        {billTab === 'consultation' && (
+                            <>
+                                <button className="clinic-btn-secondary" onClick={filterByPatient}>Search</button>
+                                {patSearch && <button className="clinic-btn-secondary" onClick={() => { setPatSearch(''); setAppointments(allAppointments); }}>✕ Clear</button>}
+                            </>
+                        )}
+                    </div>
+                )}
 
-                {loading ? <Spinner /> : appointments.length === 0 ? (
-                    <Empty text="No collection records yet." />
-                ) : (
-                    <table className="clinic-table">
-                        <thead>
-                            <tr>
-                                <th>Date</th>
-                                <th>Token / Slot</th>
-                                <th>Patient</th>
-                                <th>Service</th>
-                                <th>Fee</th>
-                                <th>Method</th>
-                                <th>Visit Status</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {appointments.map(a => (
-                                <tr key={a._id}>
-                                    <td style={{ fontSize: '12px' }}>{fmtDate(a.appointmentDate)}</td>
-                                    <td>
-                                        {a.tokenNumber
-                                            ? <strong style={{ color: '#6366f1' }}>#{a.tokenNumber}</strong>
-                                            : <span style={{ color: '#3b82f6', fontWeight: 600 }}>🕐 {a.appointmentTime}</span>}
-                                    </td>
-                                    <td>
-                                        <div style={{ fontWeight: 600 }}>{a.clinicPatientId?.name || '—'}</div>
-                                        <div style={{ fontSize: '11px', color: '#94a3b8' }}>{a.clinicPatientId?.patientUid || a.patientId}</div>
-                                    </td>
-                                    <td style={{ fontSize: '12px', color: '#64748b' }}>{a.serviceName || 'General'}</td>
-                                    <td><strong style={{ color: '#16a34a' }}>{fmt(a.amount)}</strong></td>
-                                    <td>
-                                        <span style={{ background: '#f1f5f9', color: '#475569', padding: '2px 8px', borderRadius: '8px', fontSize: '11px', fontWeight: 600 }}>
-                                            {a.paymentMethod || 'Cash'}
-                                        </span>
-                                        {a.cardRef && <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px' }}>Ref: {a.cardRef}</div>}
-                                        {a.upiScreenshotUrl && (
-                                            <a href={a.upiScreenshotUrl} target="_blank" rel="noreferrer" style={{ fontSize: '10px', color: '#3b82f6', display: 'block', marginTop: '2px' }}>📎 Screenshot</a>
-                                        )}
-                                    </td>
-                                    <td><StatusBadge status={a.status} /></td>
+                {loading ? <Spinner /> : billTab === 'consultation' ? (
+                    appointments.length === 0 ? (
+                        <Empty text="No consultation collection records yet." />
+                    ) : (
+                        <table className="clinic-table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Token / Slot</th>
+                                    <th>Patient</th>
+                                    <th>Service</th>
+                                    <th>Fee</th>
+                                    <th>Method</th>
+                                    <th>Visit Status</th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                                {appointments.map(a => (
+                                    <tr key={a._id}>
+                                        <td style={{ fontSize: '12px' }}>{fmtDate(a.appointmentDate)}</td>
+                                        <td>
+                                            {a.tokenNumber
+                                                ? <strong style={{ color: '#6366f1' }}>#{a.tokenNumber}</strong>
+                                                : <span style={{ color: '#3b82f6', fontWeight: 600 }}>🕐 {a.appointmentTime}</span>}
+                                        </td>
+                                        <td>
+                                            <div style={{ fontWeight: 600 }}>{a.clinicPatientId?.name || '—'}</div>
+                                            <div style={{ fontSize: '11px', color: '#94a3b8' }}>{a.clinicPatientId?.patientUid || a.patientId}</div>
+                                        </td>
+                                        <td style={{ fontSize: '12px', color: '#64748b' }}>{a.serviceName || 'General'}</td>
+                                        <td><strong style={{ color: '#16a34a' }}>{fmt(a.amount)}</strong></td>
+                                        <td>
+                                            <span style={{ background: '#f1f5f9', color: '#475569', padding: '2px 8px', borderRadius: '8px', fontSize: '11px', fontWeight: 600 }}>
+                                                {a.paymentMethod || 'Cash'}
+                                            </span>
+                                        </td>
+                                        <td><StatusBadge status={a.status} /></td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    )
+                ) : billTab === 'pharmacy' ? (
+                    filteredPharmacy.length === 0 ? (
+                        <Empty text="No pharmacy collection records found." />
+                    ) : (
+                        <table className="clinic-table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Patient UID</th>
+                                    <th>Medicines</th>
+                                    <th>Amount Paid</th>
+                                    <th>Payment Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {filteredPharmacy.map(o => (
+                                    <tr key={o._id}>
+                                        <td style={{ fontSize: '12px' }}>{new Date(o.updatedAt || o.createdAt).toLocaleDateString('en-IN')}</td>
+                                        <td>
+                                            <strong style={{ color: '#1e293b' }}>{o.patientId}</strong>
+                                        </td>
+                                        <td style={{ fontSize: '12px', color: '#64748b' }}>
+                                            {o.items.map(item => `${item.medicineName} (x${item.quantity})`).join(', ')}
+                                        </td>
+                                        <td><strong style={{ color: '#16a34a' }}>{fmt(o.totalAmount)}</strong></td>
+                                        <td>
+                                            <span style={{ background: '#dcfce7', color: '#16a34a', padding: '2px 8px', borderRadius: '8px', fontSize: '11px', fontWeight: 700 }}>
+                                                Paid
+                                            </span>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    )
+                ) : billTab === 'treatment' ? (
+                    filteredPlans.length === 0 ? (
+                        <Empty text="No treatment plans found." />
+                    ) : (
+                        <table className="clinic-table">
+                            <thead>
+                                <tr>
+                                    <th>Patient</th>
+                                    <th>Plan Title</th>
+                                    <th>Total Cost</th>
+                                    <th>Paid So Far</th>
+                                    <th>Pending</th>
+                                    <th>Status</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {filteredPlans.map(plan => (
+                                    <tr key={plan._id}>
+                                        <td>
+                                            <div style={{ fontWeight: 600 }}>{plan.clinicPatientId?.name || '—'}</div>
+                                            <div style={{ fontSize: '11px', color: '#94a3b8' }}>{plan.clinicPatientId?.patientUid || '—'}</div>
+                                        </td>
+                                        <td>
+                                            <div style={{ fontWeight: 600 }}>{plan.title}</div>
+                                            <div style={{ fontSize: '11px', color: '#64748b' }}>{plan.visits.length} visits total</div>
+                                        </td>
+                                        <td><strong style={{ color: '#1e293b' }}>{fmt(plan.totalAmount)}</strong></td>
+                                        <td><strong style={{ color: '#16a34a' }}>{fmt(plan.totalPaid)}</strong></td>
+                                        <td>
+                                            {plan.pendingBalance > 0 ? (
+                                                <strong style={{ color: '#dc2626' }}>{fmt(plan.pendingBalance)}</strong>
+                                            ) : (
+                                                <span style={{ color: '#16a34a', fontWeight: 'bold' }}>✓ Paid</span>
+                                            )}
+                                        </td>
+                                        <td>
+                                            <span style={{
+                                                padding: '3px 8px',
+                                                borderRadius: '4px',
+                                                fontSize: '11px',
+                                                fontWeight: 700,
+                                                textTransform: 'uppercase',
+                                                background: plan.status === 'completed' ? '#dcfce7' : '#dbeafe',
+                                                color: plan.status === 'completed' ? '#16a34a' : '#1d4ed8'
+                                            }}>
+                                                {plan.status}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <button className="clinic-btn-secondary" style={{ fontSize: '11px', padding: '4px 10px' }} onClick={() => setSelectedPlan(plan)}>
+                                                ⚙️ Manage / Pay
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    )
+                ) : (
+                    /* Consolidated Patient Billing Tab */
+                    <div>
+                        {/* Patient Searcher */}
+                        <div style={{ position: 'relative', marginBottom: '20px' }}>
+                            <label style={{ fontSize: '12px', fontWeight: 600, color: '#64748b', display: 'block', marginBottom: '6px' }}>Select Patient for Billing</label>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                                <input
+                                    className="clinic-input"
+                                    style={{ flex: 1 }}
+                                    placeholder="Type patient name or ID to lookup..."
+                                    value={billSearch}
+                                    onChange={e => setBillSearch(e.target.value)}
+                                />
+                                {selectedBillPatient && (
+                                    <button className="clinic-btn-secondary" onClick={() => { setSelectedBillPatient(null); setBillSearch(''); }}>✕ Clear Patient</button>
+                                )}
+                            </div>
+
+                            {searchingBillPat && <div style={{ fontSize: '12px', color: '#64748b', marginTop: '6px' }}>Searching patients...</div>}
+
+                            {billPatients.length > 0 && (
+                                <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', boxShadow: '0 10px 20px rgba(0,0,0,0.1)', zIndex: 99, maxHeight: '200px', overflowY: 'auto', marginTop: '4px' }}>
+                                    {billPatients.map(p => (
+                                        <div
+                                            key={p._id}
+                                            onClick={() => { setSelectedBillPatient(p); setBillPatients([]); setBillSearch(''); }}
+                                            style={{ padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                                            onMouseEnter={e => e.target.style.background = '#f8fafc'}
+                                            onMouseLeave={e => e.target.style.background = '#fff'}
+                                        >
+                                            <div>
+                                                <strong>{p.name}</strong>
+                                                <div style={{ fontSize: '11px', color: '#94a3b8' }}>ID: {p.patientUid || p._id}</div>
+                                            </div>
+                                            <span style={{ fontSize: '11px', background: '#e2e8f0', padding: '2px 6px', borderRadius: '4px' }}>{p.gender} · {p.age} Yrs</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        {selectedBillPatient ? (
+                            <div>
+                                {/* Selected Patient Briefing */}
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '16px', marginBottom: '20px' }}>
+                                    <div>
+                                        <h4 style={{ margin: 0, fontSize: '16px', color: '#0f172a' }}>🏥 {selectedBillPatient.name}</h4>
+                                        <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#64748b' }}>
+                                            Patient UID: <strong>{selectedBillPatient.patientUid}</strong> | Contact: {selectedBillPatient.phone || 'N/A'}
+                                        </p>
+                                    </div>
+                                    <button className="clinic-btn-primary" onClick={printConsolidatedBill}>
+                                        🖨️ Print Consolidated Bill
+                                    </button>
+                                </div>
+
+                                {/* Financial Metrics Grid */}
+                                <div className="clinic-kpi-grid" style={{ marginBottom: '20px', gridTemplateColumns: 'repeat(3, 1fr)' }}>
+                                    <div className="clinic-kpi-card" style={{ borderTop: '4px solid #0ea5e9' }}>
+                                        <div style={{ fontSize: '11px', color: '#64748b' }}>TOTAL CHARGES INCURRED</div>
+                                        <div style={{ fontSize: '22px', fontWeight: 800, color: '#0ea5e9', marginTop: '6px' }}>{fmt(billTotals.grandTotal)}</div>
+                                    </div>
+                                    <div className="clinic-kpi-card" style={{ borderTop: '4px solid #10b981' }}>
+                                        <div style={{ fontSize: '11px', color: '#64748b' }}>TOTAL PAYMENTS MADE</div>
+                                        <div style={{ fontSize: '22px', fontWeight: 800, color: '#10b981', marginTop: '6px' }}>{fmt(billTotals.paidTotal)}</div>
+                                    </div>
+                                    <div className="clinic-kpi-card" style={{ borderTop: '4px solid #ef4444' }}>
+                                        <div style={{ fontSize: '11px', color: '#64748b' }}>OUTSTANDING BALANCE</div>
+                                        <div style={{ fontSize: '22px', fontWeight: 800, color: '#ef4444', marginTop: '6px' }}>{fmt(billTotals.outstanding)}</div>
+                                    </div>
+                                </div>
+
+                                {/* Breakdowns */}
+                                <h4 style={{ color: '#0f172a', margin: '0 0 10px' }}>🩺 Consultation Visits</h4>
+                                {patientBillData.appointments.length === 0 ? (
+                                    <p style={{ fontSize: '12px', color: '#64748b', margin: '0 0 20px 4px' }}>No consultation records for this patient.</p>
+                                ) : (
+                                    <table className="clinic-table" style={{ marginBottom: '20px' }}>
+                                        <thead>
+                                            <tr>
+                                                <th>Date</th>
+                                                <th>Service</th>
+                                                <th>Fee</th>
+                                                <th>Payment Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {patientBillData.appointments.map(a => (
+                                                <tr key={a._id}>
+                                                    <td>{fmtDate(a.appointmentDate)}</td>
+                                                    <td>{a.serviceName || 'General Consultation'}</td>
+                                                    <td><strong>{fmt(a.amount)}</strong></td>
+                                                    <td>
+                                                        <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', background: a.paymentStatus === 'paid' ? '#dcfce7' : '#fee2e2', color: a.paymentStatus === 'paid' ? '#16a34a' : '#dc2626' }}>
+                                                            {a.paymentStatus === 'paid' ? 'Paid' : 'Unpaid'}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                )}
+
+                                <h4 style={{ color: '#0f172a', margin: '0 0 10px' }}>💊 Pharmacy Purchases</h4>
+                                {patientBillData.pharmacy.length === 0 ? (
+                                    <p style={{ fontSize: '12px', color: '#64748b', margin: '0 0 20px 4px' }}>No pharmacy purchase records for this patient.</p>
+                                ) : (
+                                    <table className="clinic-table" style={{ marginBottom: '20px' }}>
+                                        <thead>
+                                            <tr>
+                                                <th>Date</th>
+                                                <th>Medicines</th>
+                                                <th>Amount</th>
+                                                <th>Payment Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {patientBillData.pharmacy.map(o => (
+                                                <tr key={o._id}>
+                                                    <td>{new Date(o.updatedAt || o.createdAt).toLocaleDateString('en-IN')}</td>
+                                                    <td style={{ fontSize: '12px' }}>{o.items.map(item => `${item.medicineName} (x${item.quantity})`).join(', ')}</td>
+                                                    <td><strong>{fmt(o.totalAmount)}</strong></td>
+                                                    <td>
+                                                        <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', background: o.paymentStatus === 'Paid' ? '#dcfce7' : '#fee2e2', color: o.paymentStatus === 'Paid' ? '#16a34a' : '#dc2626' }}>
+                                                            {o.paymentStatus === 'Paid' ? 'Paid' : 'Unpaid'}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                )}
+
+                                <h4 style={{ color: '#0f172a', margin: '0 0 10px' }}>📋 Treatment Plans</h4>
+                                {patientBillData.plans.length === 0 ? (
+                                    <p style={{ fontSize: '12px', color: '#64748b', margin: '0 0 20px 4px' }}>No treatment plans active or completed for this patient.</p>
+                                ) : (
+                                    <table className="clinic-table" style={{ marginBottom: '20px' }}>
+                                        <thead>
+                                            <tr>
+                                                <th>Plan Title</th>
+                                                <th>Total Cost</th>
+                                                <th>Paid So Far</th>
+                                                <th>Pending</th>
+                                                <th>Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {patientBillData.plans.map(p => (
+                                                <tr key={p._id}>
+                                                    <td><strong>{p.title}</strong> ({p.visits.length} visits)</td>
+                                                    <td>{fmt(p.totalAmount)}</td>
+                                                    <td style={{ color: '#16a34a', fontWeight: 'bold' }}>{fmt(p.totalPaid)}</td>
+                                                    <td style={{ color: p.pendingBalance > 0 ? '#dc2626' : '#16a34a', fontWeight: 'bold' }}>{fmt(p.pendingBalance)}</td>
+                                                    <td>
+                                                        <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', background: p.status === 'completed' ? '#dcfce7' : '#dbeafe', color: p.status === 'completed' ? '#16a34a' : '#1d4ed8' }}>
+                                                            {p.status}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                )}
+                            </div>
+                        ) : (
+                            <Empty text="Search and select a patient above to view their consolidated ledger statement and print a unified bill." />
+                        )}
+                    </div>
                 )}
             </div>
+
+            {/* Treatment Plan Detail View modal */}
+            {selectedPlan && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ background: '#fff', borderRadius: '14px', padding: '24px', width: '700px', maxWidth: '95vw', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 40px rgba(0,0,0,0.15)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+                            <div>
+                                <h3 style={{ margin: 0, color: '#0f172a' }}>📋 {selectedPlan.title}</h3>
+                                <div style={{ fontSize: '13px', color: '#64748b', marginTop: '4px' }}>
+                                    Patient: <strong>{selectedPlan.clinicPatientId?.name}</strong> ({selectedPlan.clinicPatientId?.patientUid})
+                                </div>
+                            </div>
+                            <button className="clinic-btn-secondary" style={{ padding: '4px 10px', fontSize: '12px' }} onClick={() => setSelectedPlan(null)}>✕ Close</button>
+                        </div>
+
+                        <div style={{ background: '#f8fafc', borderRadius: '8px', padding: '12px', marginBottom: '16px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', fontSize: '13px' }}>
+                            <div>
+                                <span style={{ color: '#64748b', display: 'block' }}>Total Plan Amount</span>
+                                <strong style={{ fontSize: '15px', color: '#1e293b' }}>{fmt(selectedPlan.totalAmount)}</strong>
+                            </div>
+                            <div>
+                                <span style={{ color: '#64748b', display: 'block' }}>Total Paid</span>
+                                <strong style={{ fontSize: '15px', color: '#16a34a' }}>{fmt(selectedPlan.totalPaid)}</strong>
+                            </div>
+                            <div>
+                                <span style={{ color: '#64748b', display: 'block' }}>Outstanding Balance</span>
+                                <strong style={{ fontSize: '15px', color: '#dc2626' }}>{fmt(selectedPlan.pendingBalance)}</strong>
+                            </div>
+                        </div>
+
+                        <h4 style={{ margin: '0 0 10px', color: '#0f172a' }}>Visits & Payments</h4>
+                        <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden' }}>
+                                <thead>
+                                    <tr style={{ background: '#f1f5f9', borderBottom: '1px solid #e2e8f0' }}>
+                                        <th style={{ padding: '8px', textAlign: 'left' }}>#</th>
+                                        <th style={{ padding: '8px', textAlign: 'left' }}>Date & Time</th>
+                                        <th style={{ padding: '8px', textAlign: 'left' }}>Procedure</th>
+                                        <th style={{ padding: '8px', textAlign: 'left' }}>Amount Paid</th>
+                                        <th style={{ padding: '8px', textAlign: 'left' }}>Status</th>
+                                        <th style={{ padding: '8px', textAlign: 'left' }}>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {selectedPlan.visits.map((v, idx) => (
+                                        <tr key={v._id} style={{ borderBottom: '1px solid #f1f5f9', background: idx % 2 === 0 ? '#fff' : '#f8fafc' }}>
+                                            <td style={{ padding: '8px', fontWeight: 'bold', color: '#6366f1' }}>{v.visitNumber}</td>
+                                            <td style={{ padding: '8px' }}>
+                                                <div>{new Date(v.scheduledDate).toLocaleDateString('en-IN')}</div>
+                                                {v.scheduledTime && <div style={{ fontSize: '10px', color: '#64748b' }}>🕐 {v.scheduledTime}</div>}
+                                            </td>
+                                            <td style={{ padding: '8px' }}>
+                                                <div>{v.procedure || '—'}</div>
+                                                {v.notes && <div style={{ color: '#94a3b8', fontSize: '11px' }}>{v.notes}</div>}
+                                            </td>
+                                            <td style={{ padding: '8px 10px', borderBottom: '1px solid #f1f5f9', fontWeight: '600' }}>
+                                                {v.amountPaid > 0
+                                                    ? <span style={{ color: '#16a34a' }}>₹{v.amountPaid.toLocaleString('en-IN')}{v.paymentMethod ? ` · ${v.paymentMethod}` : ''}</span>
+                                                    : <span style={{ color: '#94a3b8', fontSize: '11px' }}>—</span>}
+                                            </td>
+                                            <td style={{ padding: '8px 10px', borderBottom: '1px solid #f1f5f9' }}>
+                                                <span style={{ fontSize: '11px', fontWeight: '700', padding: '3px 8px', borderRadius: '4px', background: (visitStatusColor[v.status] || '#94a3b8') + '20', color: visitStatusColor[v.status] || '#94a3b8', textTransform: 'uppercase' }}>{v.status}</span>
+                                            </td>
+                                            <td style={{ padding: '8px 10px', borderBottom: '1px solid #f1f5f9' }}>
+                                                {v.status === 'scheduled' && selectedPlan.status === 'active' && (
+                                                    <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                                                        <button
+                                                            onClick={() => { setPayModal({ visit: v, planId: selectedPlan._id }); setPayInput({ amountPaid: '', paymentMethod: 'Cash', notes: '' }); }}
+                                                            style={{ fontSize: '11px', padding: '3px 8px', background: '#dcfce7', color: '#16a34a', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: '700' }}>
+                                                            💵 Pay
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleComplete(selectedPlan._id, v._id)}
+                                                            disabled={isLastScheduled(v._id) && selectedPlan.pendingBalance > 0}
+                                                            title={isLastScheduled(v._id) && selectedPlan.pendingBalance > 0 ? `Collect ₹${selectedPlan.pendingBalance.toLocaleString('en-IN')} first` : ''}
+                                                            style={{ fontSize: '11px', padding: '3px 8px', background: isLastScheduled(v._id) && selectedPlan.pendingBalance > 0 ? '#f1f5f9' : '#dbeafe', color: isLastScheduled(v._id) && selectedPlan.pendingBalance > 0 ? '#94a3b8' : '#1d4ed8', border: 'none', borderRadius: '4px', cursor: isLastScheduled(v._id) && selectedPlan.pendingBalance > 0 ? 'not-allowed' : 'pointer', fontWeight: '700' }}>
+                                                            ✓ Done
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleMiss(selectedPlan._id, v._id)}
+                                                            style={{ fontSize: '11px', padding: '3px 8px', background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: '700' }}>
+                                                            ✗ Missed
+                                                        </button>
+                                                    </div>
+                                                )}
+                                                {v.status === 'completed' && <span style={{ fontSize: '11px', color: '#94a3b8' }}>{v.completedAt ? new Date(v.completedAt).toLocaleDateString('en-IN') : '—'}</span>}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Visit payment modal */}
+            {payModal && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ background: '#fff', borderRadius: '14px', padding: '28px', width: '420px', maxWidth: '95vw', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 40px rgba(0,0,0,0.15)' }}>
+                        <h3 style={{ margin: '0 0 16px', color: '#0f172a' }}>💵 Record Payment — Visit {payModal.visit.visitNumber}</h3>
+                        {/* Overall plan balance */}
+                        <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px', marginBottom: '16px', fontSize: '13px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                <span>Total Treatment</span><b>₹{selectedPlan.totalAmount.toLocaleString('en-IN')}</b>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px' }}>
+                                <span>Paid so far</span><b style={{ color: '#16a34a' }}>₹{selectedPlan.totalPaid.toLocaleString('en-IN')}</b>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px', fontWeight: '800', color: '#dc2626', fontSize: '14px' }}>
+                                <span>Outstanding Balance</span><span>₹{selectedPlan.pendingBalance.toLocaleString('en-IN')}</span>
+                            </div>
+                        </div>
+                        <div className="clinic-form-group" style={{ marginBottom: '12px' }}>
+                            <label>Amount Paying Now (₹) *</label>
+                            <input className="clinic-input" type="number" min="1" placeholder={`Up to ₹${selectedPlan.pendingBalance.toLocaleString('en-IN')}`}
+                                value={payInput.amountPaid}
+                                onChange={e => setPayInput(p => ({ ...p, amountPaid: e.target.value }))} />
+                            {payInput.amountPaid > 0 && (
+                                <div style={{ fontSize: '12px', marginTop: '4px', color: Number(payInput.amountPaid) >= selectedPlan.pendingBalance ? '#16a34a' : '#f97316', fontWeight: '600' }}>
+                                    {Number(payInput.amountPaid) >= selectedPlan.pendingBalance
+                                        ? '✓ This will clear the full outstanding balance.'
+                                        : `After payment: ₹${Math.max(0, selectedPlan.pendingBalance - Number(payInput.amountPaid)).toLocaleString('en-IN')} still pending.`}
+                                </div>
+                            )}
+                        </div>
+                        <div className="clinic-form-group" style={{ marginBottom: '12px' }}>
+                            <label>Payment Method</label>
+                            <select className="clinic-input" value={payInput.paymentMethod} onChange={e => setPayInput(p => ({ ...p, paymentMethod: e.target.value }))}>
+                                <option>Cash</option>
+                                <option>UPI</option>
+                                <option>Card</option>
+                                <option>NEFT</option>
+                            </select>
+                        </div>
+                        <div className="clinic-form-group" style={{ marginBottom: '16px' }}>
+                            <label>Notes (optional)</label>
+                            <input className="clinic-input" placeholder="e.g. Advance payment..." value={payInput.notes} onChange={e => setPayInput(p => ({ ...p, notes: e.target.value }))} />
+                        </div>
+                        <div style={{ display: 'flex', gap: '10px' }}>
+                            <button className="clinic-btn-secondary" style={{ flex: 1 }} onClick={() => setPayModal(null)}>Cancel</button>
+                            <button className="clinic-btn-primary" style={{ flex: 1 }} disabled={saving} onClick={handlePay}>
+                                {saving ? 'Saving...' : '✅ Save Payment'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

@@ -16,6 +16,9 @@ export const loadActiveTemplate = async (type) => {
         
         if (res.data?.success && res.data.template) {
             const template = res.data.template;
+            if (template.bgBase64) {
+                return { template, bgBase64: template.bgBase64 };
+            }
             if (template.url && !template.url.endsWith('.pdf')) {
                 try {
                     const resp = await fetch(template.url);

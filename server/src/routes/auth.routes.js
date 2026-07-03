@@ -223,13 +223,12 @@ router.post('/login', loginLimiter, async (req, res) => {
         message: `Too many failed login attempts. Your account is temporarily locked. Try again in ${remainingTime} minute(s).`
       });
     }
-
     if (!user) {
       try {
         const AuditLogModel = require('../models/auditLog.model');
         const ua = req.headers['user-agent'] || '';
         const parsed = parseUserAgent(ua);
-        await AuditLogModel.create({
+        AuditLogModel.create({
             clinicId: hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
             userName: normalizedEmail,
             action: 'FAILED_LOGIN',
@@ -241,7 +240,7 @@ router.post('/login', loginLimiter, async (req, res) => {
             browser: parsed.browser,
             os: parsed.os,
             device: parsed.device
-        });
+        }).catch(() => {});
       } catch (logErr) {}
       return res.status(401).json({ success: false, message: 'Invalid email or password' });
     }
@@ -251,7 +250,7 @@ router.post('/login', loginLimiter, async (req, res) => {
         const AuditLogModel = require('../models/auditLog.model');
         const ua = req.headers['user-agent'] || '';
         const parsed = parseUserAgent(ua);
-        await AuditLogModel.create({
+        AuditLogModel.create({
             clinicId: user.hospitalId || hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
             userId: user._id,
             userName: user.name || normalizedEmail,
@@ -264,10 +263,11 @@ router.post('/login', loginLimiter, async (req, res) => {
             browser: parsed.browser,
             os: parsed.os,
             device: parsed.device
-        });
+        }).catch(() => {});
       } catch (logErr) {}
       return res.status(403).json({ success: false, message: 'Account is disabled. Contact administrator.' });
     }
+
 
     // Central admins must use their dedicated login pages — use generic message to avoid enumeration
     if (user.role === 'superadmin' || user.role === 'centraladmin') {
@@ -275,7 +275,7 @@ router.post('/login', loginLimiter, async (req, res) => {
         const AuditLogModel = require('../models/auditLog.model');
         const ua = req.headers['user-agent'] || '';
         const parsed = parseUserAgent(ua);
-        await AuditLogModel.create({
+        AuditLogModel.create({
             clinicId: user.hospitalId || hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
             userId: user._id,
             userName: user.name || normalizedEmail,
@@ -289,7 +289,7 @@ router.post('/login', loginLimiter, async (req, res) => {
             browser: parsed.browser,
             os: parsed.os,
             device: parsed.device
-        });
+        }).catch(() => {});
       } catch (logErr) {}
       return res.status(401).json({ success: false, message: 'Invalid email or password' });
     }
@@ -373,7 +373,7 @@ router.post('/login', loginLimiter, async (req, res) => {
         const AuditLogModel = require('../models/auditLog.model');
         const ua = req.headers['user-agent'] || '';
         const parsed = parseUserAgent(ua);
-        await AuditLogModel.create({
+        AuditLogModel.create({
             clinicId: user.hospitalId || hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
             userId: user._id,
             userName: user.name,
@@ -387,9 +387,9 @@ router.post('/login', loginLimiter, async (req, res) => {
             browser: parsed.browser,
             os: parsed.os,
             device: parsed.device
-        });
+        }).catch(() => {});
         if (locked) {
-          await AuditLogModel.create({
+          AuditLogModel.create({
               clinicId: user.hospitalId || hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
               userId: user._id,
               userName: user.name,
@@ -403,7 +403,7 @@ router.post('/login', loginLimiter, async (req, res) => {
               browser: parsed.browser,
               os: parsed.os,
               device: parsed.device
-          });
+          }).catch(() => {});
         }
       } catch (logErr) {}
       
@@ -502,7 +502,11 @@ router.post('/login', loginLimiter, async (req, res) => {
     let clinicType = null;
     if (user.hospitalId) {
       try {
-        const hosp = await Hospital.findById(user.hospitalId).select('clinicType');
+        let hosp = await Hospital.findById(user.hospitalId).select('clinicType');
+        if (!hosp) {
+          const Clinic = require('../models/clinic.model');
+          hosp = await Clinic.findById(user.hospitalId).select('clinicType');
+        }
         clinicType = hosp?.clinicType || 'hospital';
       } catch (_) {}
     }
@@ -532,7 +536,7 @@ router.post('/login', loginLimiter, async (req, res) => {
       const AuditLogModel = require('../models/auditLog.model');
       const ua = req.headers['user-agent'] || '';
       const parsed = parseUserAgent(ua);
-      await AuditLogModel.create({
+      AuditLogModel.create({
           clinicId: user.hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
           userId: user._id,
           userName: user.name,
@@ -545,7 +549,7 @@ router.post('/login', loginLimiter, async (req, res) => {
           browser: parsed.browser,
           os: parsed.os,
           device: parsed.device
-      });
+      }).catch(() => {});
     } catch (logErr) {}
 
     res.json({
@@ -623,7 +627,11 @@ router.get('/me', verifyToken, async (req, res) => {
     let subdomain = null;
     if (user.hospitalId) {
       try {
-        const hosp = await Hospital.findById(user.hospitalId).select('clinicType tenantKey slug');
+        let hosp = await Hospital.findById(user.hospitalId).select('clinicType tenantKey slug');
+        if (!hosp) {
+          const Clinic = require('../models/clinic.model');
+          hosp = await Clinic.findById(user.hospitalId).select('clinicType tenantKey slug');
+        }
         clinicType = hosp?.clinicType || 'hospital';
         tenantKey = hosp?.tenantKey || null;
         subdomain = hosp?.slug || null;

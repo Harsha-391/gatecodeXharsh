@@ -2,13 +2,9 @@
 require('dotenv').config();
 const dns = require('dns');
 
-// Configure standard DNS resolvers to prevent ECONNREFUSED issues with Node's c-ares on Windows
-try {
-    dns.setServers(['8.8.8.8', '1.1.1.1']);
-    console.log('🌐 Configured custom DNS resolvers (8.8.8.8, 1.1.1.1) for SRV records.');
-} catch (e) {
-    console.warn('⚠️ Failed to configure DNS resolvers:', e.message);
-}
+// Force Google's public DNS (8.8.8.8) for SRV record resolution.
+// ISP routers commonly block or refuse SRV-type DNS queries required by mongodb+srv:// URIs.
+dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']);
 
 const app = require('./src/app');
 const connectDB = require('./src/db/db'); // <--- Import the DB connection logic
@@ -189,7 +185,7 @@ if (DEPLOYMENT_MODE !== 'local') {
 }
 
 // 4. Start Server
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
     console.log(`Server is running on port ${PORT} [mode: ${DEPLOYMENT_MODE}]`);
 
     // 5. Post-startup services (after DB is ready — give it 3s)

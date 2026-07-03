@@ -271,12 +271,12 @@ router.get('/patients', verifyClinicAdmin, async (req, res) => {
         const { search } = req.query;
         const query = { clinicId: hid(req), isActive: true };
 
-        if (search && search.trim().length >= 2) {
+        if (search && search.trim().length >= 1) {
             const s = search.trim();
             query.$or = [
-                { name:       { $regex: s, $options: 'i' } },
+                { name:       { $regex: `^${s}`, $options: 'i' } },
                 { phone:      { $regex: s, $options: 'i' } },
-                { patientUid: { $regex: s, $options: 'i' } },
+                { patientUid: { $regex: `^${s}`, $options: 'i' } },
             ];
         }
 
@@ -297,7 +297,7 @@ router.get('/patients', verifyClinicAdmin, async (req, res) => {
 router.post('/patients', verifyClinicAdmin, async (req, res) => {
     try {
         const { Hospital, Appointment, Inventory, PharmacyOrder, ClinicPatient, ClinicSubscription, TreatmentPlan, Notification, User } = req.models;
-        const { name, phone, email, dob, gender, address, bloodGroup, allergies, chronicConditions, relatives } = req.body;
+        const { name, phone, email, age, gender, address, bloodGroup, allergies, chronicConditions, relatives } = req.body;
         if (!name || !phone) return res.status(400).json({ success: false, message: 'Name and phone are required' });
 
         const cleanPhone = phone.replace(/\D/g, '');
@@ -330,7 +330,7 @@ router.post('/patients', verifyClinicAdmin, async (req, res) => {
             name: name.trim(),
             phone: cleanPhone,
             email: email || '',
-            dob: dob ? new Date(dob) : null,
+            age: age ? Number(age) : null,
             gender: gender || 'Male',
             bloodGroup: bloodGroup || '',
             address: address || '',
@@ -376,8 +376,8 @@ router.get('/patients/:id/history', verifyClinicAdmin, async (req, res) => {
 router.put('/patients/:id', verifyClinicAdmin, async (req, res) => {
     try {
         const { Hospital, Appointment, Inventory, PharmacyOrder, ClinicPatient, ClinicSubscription, TreatmentPlan, Notification, User } = req.models;
-        const { name, email, dob, gender, address, bloodGroup, allergies, chronicConditions, medicalNotes, relatives } = req.body;
-        const updateData = { name, email, dob, gender, address, bloodGroup, allergies, chronicConditions, medicalNotes };
+        const { name, email, age, gender, address, bloodGroup, allergies, chronicConditions, medicalNotes, relatives } = req.body;
+        const updateData = { name, email, age: age ? Number(age) : null, gender, address, bloodGroup, allergies, chronicConditions, medicalNotes };
         if (Array.isArray(relatives)) {
             updateData.relatives = relatives.filter(r => r.name?.trim() || r.phone?.trim()).map(r => ({
                 name: (r.name || '').trim(),
@@ -402,6 +402,7 @@ router.put('/patients/:id', verifyClinicAdmin, async (req, res) => {
 // ─────────────────────────────────────────────
 router.post('/patients/:id/reports', verifyClinicAdmin, uploadReport.single('report'), async (req, res) => {
     try {
+        const { Hospital, Appointment, Inventory, PharmacyOrder, ClinicPatient, ClinicSubscription, TreatmentPlan, Notification, User } = req.models;
         if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded' });
 
         const typeErr = await validateFileType(req.file, ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
@@ -487,14 +488,14 @@ router.get('/appointments', verifyClinicAdmin, async (req, res) => {
 router.get('/config', verifyClinicAdmin, async (req, res) => {
     try {
         const { Hospital, Appointment, Inventory, PharmacyOrder, ClinicPatient, ClinicSubscription, TreatmentPlan, Notification, User } = req.models;
-        const clinic = await Hospital.findById(hid(req)).select('appointmentMode name clinicCode defaultFee defaultServiceName').lean();
+        const clinic = await Hospital.findById(hid(req)).select('appointmentMode name clinicCode defaultFee defaultServiceName appointmentFee').lean();
         if (!clinic) return res.status(404).json({ success: false, message: 'Clinic not found' });
         res.json({
             success: true,
             appointmentMode: clinic.appointmentMode || 'token',
             name: clinic.name,
             clinicCode: clinic.clinicCode,
-            defaultFee: clinic.defaultFee ?? 0,
+            defaultFee: clinic.defaultFee || clinic.appointmentFee || 0,
             defaultServiceName: clinic.defaultServiceName || 'General Consultation',
         });
     } catch (err) {
@@ -548,13 +549,26 @@ router.put('/config', verifyClinicAdmin, async (req, res) => {
 });
 
 // ─────────────────────────────────────────────
+// LIST DOCTORS — GET /api/clinic/doctors
+// ─────────────────────────────────────────────
+router.get('/doctors', verifyClinicAdmin, async (req, res) => {
+    try {
+        const { Doctor } = req.models;
+        const doctors = await Doctor.find({ hospitalId: hid(req) }).select('name userId doctorId specialty').lean();
+        res.json({ success: true, doctors });
+    } catch (err) {
+        res.status(500).json({ success: false, message: 'An internal error occurred' });
+    }
+});
+
+// ─────────────────────────────────────────────
 // BOOK APPOINTMENT — POST /api/clinic/appointments
 // Supports both token mode and time-slot mode
 // ─────────────────────────────────────────────
 router.post('/appointments', verifyClinicAdmin, async (req, res) => {
     try {
-        const { Hospital, Appointment, Inventory, PharmacyOrder, ClinicPatient, ClinicSubscription, TreatmentPlan, Notification, User } = req.models;
-        const { patientId, amount, notes, serviceName, appointmentTime, paymentMethod, cardRef, upiScreenshotUrl } = req.body;
+        const { Hospital, Appointment, Inventory, PharmacyOrder, ClinicPatient, ClinicSubscription, TreatmentPlan, Notification, User, Doctor } = req.models;
+        const { patientId, amount, notes, serviceName, appointmentTime, paymentMethod, cardRef, upiScreenshotUrl, doctorId, doctorUserId } = req.body;
         // patientId here is ClinicPatient._id
         if (!patientId) return res.status(400).json({ success: false, message: 'patientId is required' });
 
@@ -567,14 +581,28 @@ router.post('/appointments', verifyClinicAdmin, async (req, res) => {
         const clinicId = hid(req);
         const [patient, clinic] = await Promise.all([
             ClinicPatient.findOne({ _id: patientId, clinicId }),
-            Hospital.findById(clinicId).select('appointmentMode').lean(),
+            Hospital.findById(clinicId).select('appointmentMode defaultFee defaultServiceName').lean(),
         ]);
-        if (!patient) return res.status(404).json({ success: false, message: 'Patient not found in this clinic' });
+        if (!patient) return res.status(404).json({ success: false, message: 'Patient not found' });
+
+        // Resolve the doctor present in this clinic
+        let targetDoctor = null;
+        if (doctorId) {
+            targetDoctor = await Doctor.findOne({ _id: doctorId });
+        } else if (doctorUserId) {
+            targetDoctor = await Doctor.findOne({ userId: doctorUserId });
+        } else {
+            targetDoctor = await Doctor.findOne({ hospitalId: clinicId });
+        }
 
         const isTokenMode = (clinic?.appointmentMode || 'token') === 'token';
-        const { start: today, end: todayEnd } = todayRange();
         let tokenNumber = null;
-        let finalTime   = new Date().toTimeString().slice(0, 5);
+        let finalTime = '';
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const todayEnd = new Date();
+        todayEnd.setHours(23, 59, 59, 999);
 
         if (isTokenMode) {
             // Token mode: assign next sequential token for today
@@ -584,7 +612,7 @@ router.post('/appointments', verifyClinicAdmin, async (req, res) => {
                 status: { $ne: 'cancelled' }
             });
             tokenNumber = count + 1;
-            finalTime   = new Date().toTimeString().slice(0, 5);
+            finalTime = new Date().toTimeString().slice(0, 5);
         } else {
             // Slot mode: appointmentTime is required, check for double-booking
             if (!appointmentTime) {
@@ -605,9 +633,16 @@ router.post('/appointments', verifyClinicAdmin, async (req, res) => {
         const appointment = new Appointment({
             clinicPatientId: patient._id,
             patientId:       patient.patientUid, // display ID
+            patientName:     patient.name || '',
+            patientPhone:    patient.phone || '',
+            patientEmail:    patient.email || '',
+            patientGender:   patient.gender || '',
+            parentName:      patient.parentName || '',
+            parentPhone:     patient.parentPhone || '',
             hospitalId:      clinicId,
-            doctorUserId:    req.user._id,
-            doctorName:      req.user.name,
+            doctorId:        targetDoctor ? targetDoctor._id : null,
+            doctorUserId:    targetDoctor ? targetDoctor.userId : req.user._id,
+            doctorName:      targetDoctor ? targetDoctor.name : req.user.name,
             serviceName:     serviceName || 'General Consultation',
             appointmentDate: new Date(),
             appointmentTime: finalTime,
@@ -786,7 +821,7 @@ router.get('/inventory', verifyClinicAdmin, async (req, res) => {
 router.post('/inventory', verifyClinicAdmin, async (req, res) => {
     try {
         const { Hospital, Appointment, Inventory, PharmacyOrder, ClinicPatient, ClinicSubscription, TreatmentPlan, Notification, User } = req.models;
-        const { name, category, unit, stock, sellingPrice } = req.body;
+        const { name, category, unit, stock, buyingPrice, sellingPrice } = req.body;
         if (!name) return res.status(400).json({ success: false, message: 'Medicine name required' });
 
         // Check for duplicate name in this clinic
@@ -799,7 +834,7 @@ router.post('/inventory', verifyClinicAdmin, async (req, res) => {
             category:     category || 'General',
             stock:        stock !== undefined ? Number(stock) : 0,
             unit:         unit     || 'Tablets',
-            buyingPrice:  0,
+            buyingPrice:  buyingPrice !== undefined ? Number(buyingPrice) : 0,
             sellingPrice: sellingPrice !== undefined ? Number(sellingPrice) : 0,
         });
         await item.save();
@@ -812,7 +847,7 @@ router.post('/inventory', verifyClinicAdmin, async (req, res) => {
 // PUT /api/clinic/inventory/:id
 router.put('/inventory/:id', verifyClinicAdmin, async (req, res) => {
     try {
-        const { name, category, unit, stock, sellingPrice } = req.body;
+        const { name, category, unit, stock, buyingPrice, sellingPrice } = req.body;
         const { Inventory } = req.models;
         
         const item = await Inventory.findOne({ _id: req.params.id, hospitalId: hid(req) });
@@ -822,6 +857,7 @@ router.put('/inventory/:id', verifyClinicAdmin, async (req, res) => {
         if (category) item.category = category;
         if (unit) item.unit = unit;
         if (stock !== undefined) item.stock = Number(stock) || 0;
+        if (buyingPrice !== undefined) item.buyingPrice = Number(buyingPrice) || 0;
         if (sellingPrice !== undefined) item.sellingPrice = Number(sellingPrice) || 0;
 
         await item.save();
@@ -852,6 +888,7 @@ router.get('/pharmacy-orders', verifyClinicAdmin, async (req, res) => {
 router.put('/pharmacy-orders/:id/dispense', verifyClinicAdmin, async (req, res) => {
     try {
         const { Hospital, Appointment, Inventory, PharmacyOrder, ClinicPatient, ClinicSubscription, TreatmentPlan, Notification, User } = req.models;
+        const { paymentStatus } = req.body;
         const order = await PharmacyOrder.findOne({ _id: req.params.id, hospitalId: hid(req) });
         if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
 
@@ -873,6 +910,9 @@ router.put('/pharmacy-orders/:id/dispense', verifyClinicAdmin, async (req, res) 
         }
 
         order.orderStatus = 'Completed';
+        if (paymentStatus) {
+            order.paymentStatus = paymentStatus;
+        }
         await order.save();
 
         res.json({ success: true, order, message: 'Medicines dispensed and stock levels updated successfully' });
@@ -1100,10 +1140,20 @@ router.put('/treatment-plans/:id/cancel', verifyClinicAdmin, async (req, res) =>
     }
 });
 
+// GET /api/clinic/doctors
+// Returns doctors registered in this clinic
+router.get('/doctors', verifyClinicAdmin, async (req, res) => {
+    try {
+        const { Doctor } = req.models;
+        const doctors = await Doctor.find({ hospitalId: hid(req) }).select('name userId doctorId specialty').lean();
+        res.json({ success: true, doctors });
+    } catch (err) {
+        res.status(500).json({ success: false, message: 'An internal error occurred' });
+    }
+});
+
 // ─────────────────────────────────────────────
 // CLINIC STAFF — GET /api/clinic/staff
-// Returns doctor and receptionist staff for this clinic
-// ─────────────────────────────────────────────
 router.get('/staff', verifyClinicAdmin, async (req, res) => {
     try {
         const { Hospital, Appointment, Inventory, PharmacyOrder, ClinicPatient, ClinicSubscription, TreatmentPlan, Notification, User } = req.models;
@@ -1148,7 +1198,8 @@ router.post('/staff', verifyClinicAdmin, async (req, res) => {
         const staffRole = role === 'receptionist' ? 'receptionist' : 'doctor';
         const clinicId = hid(req);
 
-        const clinic = await Hospital.findOne({ _id: clinicId, clinicType: 'clinic' });
+        const Clinic = require('../models/clinic.model');
+        const clinic = await Clinic.findOne({ _id: clinicId });
         if (!clinic) return res.status(404).json({ success: false, message: 'Clinic not found' });
 
         // Tier limit check
@@ -1156,7 +1207,7 @@ router.post('/staff', verifyClinicAdmin, async (req, res) => {
             ? (clinic.tier?.maxDoctors       || 1)
             : (clinic.tier?.maxReceptionists || 1);
 
-        const { User } = req.models;
+        const { User, Doctor, Reception } = req.models;
         const currentCount = await User.countDocuments({ hospitalId: clinicId, role: staffRole });
         if (currentCount >= maxForRole) {
             return res.status(400).json({
@@ -1175,12 +1226,46 @@ router.post('/staff', verifyClinicAdmin, async (req, res) => {
         });
         await staffMember.save();
 
+        if (staffRole === 'doctor') {
+            const { nanoid } = require('nanoid');
+            let doctorId = nanoid(10);
+            while (await Doctor.findOne({ doctorId })) doctorId = nanoid(10);
+            const defaultAvailability = {
+                monday: { available: true, startTime: '09:00', endTime: '17:00' },
+                tuesday: { available: true, startTime: '09:00', endTime: '17:00' },
+                wednesday: { available: true, startTime: '09:00', endTime: '17:00' },
+                thursday: { available: true, startTime: '09:00', endTime: '17:00' },
+                friday: { available: true, startTime: '09:00', endTime: '17:00' },
+                saturday: { available: true, startTime: '09:00', endTime: '17:00' },
+                sunday: { available: false, startTime: '09:00', endTime: '17:00' }
+            };
+            await Doctor.create({
+                doctorId,
+                userId: staffMember._id,
+                name: staffMember.name,
+                email: staffMember.email,
+                phone: staffMember.phone,
+                hospitalId: clinicId,
+                availability: defaultAvailability,
+                specialty: 'General',
+                consultationFee: 0,
+                departments: [],
+                services: []
+            });
+        } else if (staffRole === 'receptionist') {
+            await Reception.create({
+                userId: staffMember._id,
+                hospitalId: clinicId
+            });
+        }
+
         res.status(201).json({
             success: true,
             staff: { _id: staffMember._id, name, email, phone, role: staffRole },
             message: `${staffRole === 'doctor' ? 'Doctor' : 'Receptionist'} account created successfully`,
         });
     } catch (err) {
+        console.error('[Add Staff Error]', err);
         res.status(500).json({ success: false, message: 'An internal error occurred' });
     }
 });
@@ -1189,9 +1274,15 @@ router.post('/staff', verifyClinicAdmin, async (req, res) => {
 router.delete('/staff/:id', verifyClinicAdmin, async (req, res) => {
     try {
         const clinicId = hid(req);
-        const { User } = req.models;
+        const { User, Doctor, Reception } = req.models;
         const user = await User.findOneAndDelete({ _id: req.params.id, hospitalId: clinicId });
         if (!user) return res.status(404).json({ success: false, message: 'Staff member not found' });
+
+        if (user.role === 'doctor') {
+            await Doctor.findOneAndDelete({ userId: req.params.id });
+        } else if (user.role === 'receptionist') {
+            await Reception.findOneAndDelete({ userId: req.params.id });
+        }
 
         // Unlink from clinic admin if needed
         await Hospital.updateOne({ _id: clinicId, adminUserId: req.params.id }, { $set: { adminUserId: null } });

@@ -1,13 +1,10 @@
 const mongoose = require('mongoose');
 const dns = require('dns');
 
-// Configure standard DNS resolvers to prevent ECONNREFUSED issues with Node's c-ares on Windows
-try {
-    dns.setServers(['8.8.8.8', '1.1.1.1']);
-    console.log('🌐 Configured custom DNS resolvers (8.8.8.8, 1.1.1.1) for SRV records.');
-} catch (e) {
-    console.warn('⚠️ Failed to configure DNS resolvers:', e.message);
-}
+// Force Google's public DNS for SRV record resolution.
+// Many ISP routers block or refuse SRV-type DNS queries needed by mongodb+srv:// URIs.
+// Using 8.8.8.8 (Google) ensures reliable SRV lookup for MongoDB Atlas clusters.
+dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']);
 
 async function connectDB() {
     try {
@@ -28,6 +25,7 @@ async function connectDB() {
 
         // MongoDB Atlas connection options
         const options = {
+            bufferCommands: false,
             serverSelectionTimeoutMS: 30000, // Increased timeout for Atlas
             socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
             connectTimeoutMS: 30000, // Give up initial connection after 30 seconds
@@ -37,6 +35,7 @@ async function connectDB() {
             minPoolSize: 2, // Maintain at least 2 socket connections
         };
 
+        mongoose.set('bufferCommands', false);
         await mongoose.connect(mongoUrl, options);
         console.log('✅ Connected to MongoDB successfully');
 

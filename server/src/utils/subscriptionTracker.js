@@ -16,7 +16,11 @@ const trackNewPatient = async (req, hospitalId) => {
         const year = now.getFullYear();
 
         // 1. Fetch hospital details
-        const hospital = await Hospital.findById(hospitalId).select('clinicType subscription');
+        let hospital = await Hospital.findById(hospitalId).select('clinicType subscription');
+        if (!hospital) {
+            const Clinic = require('../models/clinic.model');
+            hospital = await Clinic.findById(hospitalId).select('clinicType subscription');
+        }
         if (!hospital) return;
 
         const rate = hospital.subscription?.ratePerPatient || 0;

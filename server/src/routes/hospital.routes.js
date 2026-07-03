@@ -340,7 +340,8 @@ router.post('/', hospitalCreationLimiter, verifyCentralAdmin, auditLog('HOSPITAL
             tenantDb: getTenantDbName(String(hospital._id))
         });
     } catch (err) {
-        res.status(500).json({ success: false, message: 'An internal error occurred' });
+        console.error('[Create Hospital Error]', err);
+        res.status(500).json({ success: false, message: err.message || 'An internal error occurred' });
     }
 });
 
@@ -650,19 +651,21 @@ router.post('/admin/login', async (req, res) => {
         const user = await User.findOne({ email: normalizedEmail });
 
         // Helper: write AuditLog to the tenant DB of the given hospitalId (or master DB if not resolvable)
-        const writeAuditLog = async (hospitalId, payload) => {
-            try {
-                let AuditLogModel = require('../models/auditLog.model');
-                if (hospitalId) {
-                    try {
-                        const tenantDb = await getTenantConnection(String(hospitalId));
-                        if (tenantDb) {
-                            AuditLogModel = getTenantModels(tenantDb).AuditLog;
-                        }
-                    } catch (_) {}
-                }
-                await AuditLogModel.create(payload);
-            } catch (_) {}
+        const writeAuditLog = (hospitalId, payload) => {
+            setImmediate(async () => {
+                try {
+                    let AuditLogModel = require('../models/auditLog.model');
+                    if (hospitalId) {
+                        try {
+                            const tenantDb = await getTenantConnection(String(hospitalId));
+                            if (tenantDb) {
+                                AuditLogModel = getTenantModels(tenantDb).AuditLog;
+                            }
+                        } catch (_) {}
+                    }
+                    await AuditLogModel.create(payload);
+                } catch (_) {}
+            });
         };
 
         if (!user) {

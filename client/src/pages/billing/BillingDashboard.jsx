@@ -903,6 +903,7 @@ const BillingDashboard = ({ tab }) => {
         let grandTotal = 0;
         let totalPaid = 0;
         let totalOutstanding = 0;
+        let hasDrawnSection = false;
 
         // Helper to check page bounds for tables
         const checkPageBoundsBeforeTable = () => {
@@ -918,6 +919,7 @@ const BillingDashboard = ({ tab }) => {
         const appts = billing.appointments || [];
         if (appts.length > 0) {
             drawSectionBar('🩺  CONSULTATIONS & OPD', [91, 33, 182]);
+            hasDrawnSection = true;
             const rows = appts.map(a => {
                 const isPaid = a.paymentStatus === 'Paid';
                 grandTotal += (a.amount || 0);
@@ -948,6 +950,7 @@ const BillingDashboard = ({ tab }) => {
         const labs = billing.labReports || [];
         if (labs.length > 0) {
             drawSectionBar('🧪  LABORATORY DIAGNOSTICS', [15, 118, 110]);
+            hasDrawnSection = true;
             const rows = [];
             labs.forEach(l => {
                 const isPaid = l.paymentStatus === 'PAID';
@@ -973,7 +976,14 @@ const BillingDashboard = ({ tab }) => {
         // 3. Pharmacy
         const pharms = billing.pharmacyOrders || [];
         if (pharms.length > 0) {
+            if (hasDrawnSection) {
+                doc.addPage();
+                if (bgBase64) doc.addImage(bgBase64, 'PNG', 0, 0, pageW, pageH);
+                y = template ? (template.headerHeight || 50) : 20;
+                hasDrawnSection = false;
+            }
             drawSectionBar('💊  PHARMACY — DISPENSED MEDICINES', [21, 128, 61]);
+            hasDrawnSection = true;
             const rows = [];
             pharms.forEach(p => {
                 const isPaid = p.paymentStatus === 'Paid';
@@ -1007,7 +1017,14 @@ const BillingDashboard = ({ tab }) => {
         // 4. Facility Charges
         const facs = billing.facilityCharges || [];
         if (facs.length > 0) {
+            if (hasDrawnSection) {
+                doc.addPage();
+                if (bgBase64) doc.addImage(bgBase64, 'PNG', 0, 0, pageW, pageH);
+                y = template ? (template.headerHeight || 50) : 20;
+                hasDrawnSection = false;
+            }
             drawSectionBar('🏨  FACILITY & ROOM CHARGES', [146, 64, 14]);
+            hasDrawnSection = true;
             const rows = facs.map(f => {
                 const isPaid = f.paymentStatus === 'Paid';
                 grandTotal += (f.totalAmount || 0);
@@ -1030,7 +1047,14 @@ const BillingDashboard = ({ tab }) => {
         // 5. IPD Admissions
         const admissions = (billing.admissions || []).filter(a => a.status === 'Admitted' || a.status === 'Discharged');
         if (admissions.length > 0) {
+            if (hasDrawnSection) {
+                doc.addPage();
+                if (bgBase64) doc.addImage(bgBase64, 'PNG', 0, 0, pageW, pageH);
+                y = template ? (template.headerHeight || 50) : 20;
+                hasDrawnSection = false;
+            }
             drawSectionBar('🏥  IPD HOSPITALIZATION', [153, 27, 27]);
+            hasDrawnSection = true;
             const rows = admissions.map(a => {
                 const isPaid = a.paymentStatus === 'Paid';
                 grandTotal += (a.totalAmount || 0);
@@ -1053,11 +1077,11 @@ const BillingDashboard = ({ tab }) => {
         // ── INVOICES & PAYMENT RECEIPTS ───────────────────────────
         const allInvoices = billing.invoices || [];
         if (allInvoices.length > 0) {
-            const maxContentY = pageH - (template ? (template.footerHeight || 30) : 35);
-            if (y > maxContentY - 30) { 
+            if (hasDrawnSection) {
                 doc.addPage(); 
                 if (bgBase64) doc.addImage(bgBase64, 'PNG', 0, 0, pageW, pageH);
                 y = template ? (template.headerHeight || 50) : 20; 
+                hasDrawnSection = false;
             }
 
             doc.setTextColor(...primaryColor);
@@ -1093,6 +1117,7 @@ const BillingDashboard = ({ tab }) => {
                 });
             });
             if (allReceipts.length > 0) {
+                const maxContentY = pageH - (template ? (template.footerHeight || 30) : 35);
                 if (y > maxContentY - 30) { 
                     doc.addPage(); 
                     if (bgBase64) doc.addImage(bgBase64, 'PNG', 0, 0, pageW, pageH);

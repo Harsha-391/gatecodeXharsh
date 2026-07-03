@@ -56,23 +56,107 @@ function sanitizeDbName(tenantKey) {
  * @param {string} hospitalIdOrKey - The MongoDB ObjectId string or the tenantKey of the hospital
  * @returns {Promise<mongoose.Connection>}
  */
-async function getTenantConnection(hospitalIdOrKey) {
-    let tenantKey = hospitalIdOrKey;
+async function cleanupClinicCollections(connection, dbName) {
+    try {
+        const collections = await connection.db.listCollections().toArray();
+        const colNames = collections.map(c => c.name);
+        
+        const forbiddenForClinic = [
+            'admissions', 'transfers', 'labreports', 'labs', 'labtests',
+            'testpackages', 'resources', 'facilities', 'facilitycharges',
+            'insuranceclaims', 'reconciliations', 'payrollrecords',
+            'doctorpayouts', 'discountrequests', 'collectiontransactions',
+            'hospitalpatients', 'expenses', 'expensecategories', 'invoices', 'refunds',
+            'auditlogs', 'hospitals', 'pharmacypurchaserequests', 'medicines', 'notifications',
+            'questionlibraries', 'receptions', 'roles', 'services', 'useractivitylogs'
+        ];
 
-    // If it is a 24-character hex ObjectId, it is a hospitalId. We must resolve its tenantKey.
-    if (/^[0-9a-fA-F]{24}$/.test(hospitalIdOrKey)) {
-        if (idToTenantKeyCache.has(hospitalIdOrKey)) {
-            tenantKey = idToTenantKeyCache.get(hospitalIdOrKey);
-        } else {
-            const Hospital = require('../models/hospital.model');
-            const hospital = await Hospital.findById(hospitalIdOrKey).lean();
-            if (hospital) {
-                tenantKey = hospital.tenantKey || `${hospital.originalSubdomain || hospital.slug}-${hospital._id.toString()}`;
-                idToTenantKeyCache.set(hospitalIdOrKey, tenantKey);
-            } else {
-                tenantKey = hospitalIdOrKey; // Fallback
+        const unconditionalDrops = [
+            'auditlogs', 'hospitals', 'pharmacypurchaserequests', 'medicines', 'notifications',
+            'questionlibraries', 'receptions', 'roles', 'services', 'useractivitylogs'
+        ];
+
+        let droppedCount = 0;
+        for (const name of colNames) {
+            if (forbiddenForClinic.includes(name)) {
+                if (unconditionalDrops.includes(name)) {
+                    await connection.db.dropCollection(name);
+                    droppedCount++;
+                } else {
+                    const count = await connection.db.collection(name).countDocuments();
+                    if (count === 0) {
+                        await connection.db.dropCollection(name);
+                        droppedCount++;
+                    }
+                }
             }
         }
+        if (droppedCount > 0) {
+            console.log(`🧹 Dropped ${droppedCount} empty forbidden hospital collections from clinic database: ${dbName}`);
+        }
+    } catch (err) {
+        console.error(`[cleanupClinicCollections error for ${dbName}]`, err);
+    }
+}
+
+async function cleanupEmptyHospitalCollections(connection, dbName) {
+    try {
+        const collections = await connection.db.listCollections().toArray();
+        const colNames = collections.map(c => c.name);
+        
+        let droppedCount = 0;
+        for (const name of colNames) {
+            if (name.startsWith('system.')) continue;
+            
+            // Check if collection is empty
+            const count = await connection.db.collection(name).countDocuments();
+            if (count === 0) {
+                await connection.db.dropCollection(name);
+                droppedCount++;
+            }
+        }
+        if (droppedCount > 0) {
+            console.log(`🧹 Cleaned up ${droppedCount} unused empty collections from hospital database: ${dbName}`);
+        }
+    } catch (err) {
+        console.error(`[cleanupEmptyHospitalCollections error for ${dbName}]`, err);
+    }
+}
+
+async function getTenantConnection(hospitalIdOrKey) {
+    let tenantKey = hospitalIdOrKey;
+    let isClinic = false;
+
+    // Resolve tenantKey and check clinicType
+    try {
+        const Hospital = require('../models/hospital.model');
+        let query = {};
+        if (/^[0-9a-fA-F]{24}$/.test(hospitalIdOrKey)) {
+            query._id = hospitalIdOrKey;
+        } else {
+            const parts = hospitalIdOrKey.split('-');
+            const potentialId = parts[parts.length - 1];
+            if (/^[0-9a-fA-F]{24}$/.test(potentialId)) {
+                query._id = potentialId;
+            } else {
+                query.tenantKey = hospitalIdOrKey;
+            }
+        }
+        
+        let hospital = await Hospital.findOne(query).select('tenantKey originalSubdomain slug clinicType').lean();
+        if (!hospital) {
+            const Clinic = require('../models/clinic.model');
+            hospital = await Clinic.findOne(query).select('tenantKey originalSubdomain slug clinicType').lean();
+        }
+        if (hospital) {
+            tenantKey = hospital.tenantKey || `${hospital.originalSubdomain || hospital.slug}-${hospital._id.toString()}`;
+            if (/^[0-9a-fA-F]{24}$/.test(hospitalIdOrKey)) {
+                idToTenantKeyCache.set(hospitalIdOrKey, tenantKey);
+            }
+            isClinic = hospital.clinicType === 'clinic';
+        }
+    } catch (err) {
+        console.error('[getTenantConnection clinic resolve error]', err);
     }
 
     const dbName = sanitizeDbName(tenantKey);
@@ -94,7 +178,7 @@ async function getTenantConnection(hospitalIdOrKey) {
     const baseUri = getBaseClusterUri();
     const tenantUri = `${baseUri}/${dbName}?retryWrites=true&w=majority`;
 
-    console.log(`🏥 Opening tenant DB connection: ${dbName}`);
+    console.log(`🏥 Opening tenant DB connection: ${dbName}${isClinic ? ' [type: clinic]' : ' [type: hospital]'}`);
 
     const connectionPromise = (async () => {
         const connection = mongoose.createConnection(tenantUri, {
@@ -102,7 +186,10 @@ async function getTenantConnection(hospitalIdOrKey) {
             socketTimeoutMS: 45000,
             connectTimeoutMS: 30000,
             maxPoolSize: 5,
+            autoIndex: false, // Prevents Mongoose from auto-creating empty collections on startup
         });
+
+        connection.isClinic = isClinic;
 
         await new Promise((resolve, reject) => {
             const onOpen = () => {
@@ -119,6 +206,18 @@ async function getTenantConnection(hospitalIdOrKey) {
 
         console.log(`✅ Tenant DB connected: ${dbName}`);
         connectionPromise.value = connection;
+
+        // Clean up empty forbidden hospital collections inside clinic databases in background
+        if (isClinic) {
+            setImmediate(() => {
+                cleanupClinicCollections(connection, dbName).catch(console.error);
+            });
+        } else {
+            setImmediate(() => {
+                cleanupEmptyHospitalCollections(connection, dbName).catch(console.error);
+            });
+        }
+
         return connection;
     })();
 

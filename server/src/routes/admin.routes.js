@@ -329,7 +329,7 @@ router.post('/login', async (req, res) => {
         if (!user) {
             try {
                 const AuditLogModel = require('../models/auditLog.model');
-                await AuditLogModel.create({
+                AuditLogModel.create({
                     clinicId: new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
                     userName: normalizedEmail,
                     action: 'FAILED_LOGIN',
@@ -338,7 +338,7 @@ router.post('/login', async (req, res) => {
                     reason: 'User not found',
                     ip: req.ip || '',
                     userAgent: req.headers['user-agent'] || ''
-                });
+                }).catch(() => {});
             } catch (_) {}
             return res.status(401).json({ success: false, message: 'Invalid email or password' });
         }
@@ -353,11 +353,10 @@ router.post('/login', async (req, res) => {
             roleName = user.role.toLowerCase();
         }
 
-        // Only centraladmin/superadmin allowed through this endpoint
         if (roleName !== 'superadmin' && roleName !== 'centraladmin' && roleName !== 'admin') {
             try {
                 const AuditLogModel = require('../models/auditLog.model');
-                await AuditLogModel.create({
+                AuditLogModel.create({
                     clinicId: user.hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
                     userId: user._id,
                     userName: user.name || normalizedEmail,
@@ -368,7 +367,7 @@ router.post('/login', async (req, res) => {
                     reason: 'Access denied. Central Admin only.',
                     ip: req.ip || '',
                     userAgent: req.headers['user-agent'] || ''
-                });
+                }).catch(() => {});
             } catch (_) {}
             return res.status(403).json({ success: false, message: 'Access denied. Central Admin only.' });
         }
@@ -377,7 +376,7 @@ router.post('/login', async (req, res) => {
         if (!isPasswordValid) {
             try {
                 const AuditLogModel = require('../models/auditLog.model');
-                await AuditLogModel.create({
+                AuditLogModel.create({
                     clinicId: user.hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
                     userId: user._id,
                     userName: user.name || normalizedEmail,
@@ -388,7 +387,7 @@ router.post('/login', async (req, res) => {
                     reason: 'Incorrect password',
                     ip: req.ip || '',
                     userAgent: req.headers['user-agent'] || ''
-                });
+                }).catch(() => {});
             } catch (_) {}
             return res.status(401).json({ success: false, message: 'Invalid email or password' });
         }
@@ -404,7 +403,7 @@ router.post('/login', async (req, res) => {
         // Audit successful central admin login
         try {
             const AuditLogModel = require('../models/auditLog.model');
-            await AuditLogModel.create({
+            AuditLogModel.create({
                 clinicId: user.hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
                 userId: user._id,
                 userName: user.name || normalizedEmail,
@@ -414,7 +413,7 @@ router.post('/login', async (req, res) => {
                 sessionId: jti,
                 ip: req.ip || '',
                 userAgent: req.headers['user-agent'] || ''
-            });
+            }).catch(() => {});
         } catch (_) {}
 
         res.json({
