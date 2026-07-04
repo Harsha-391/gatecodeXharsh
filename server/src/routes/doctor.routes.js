@@ -30,7 +30,8 @@ const getModels = (req) => {
             LabTest: m.LabTest,
             Notification: m.Notification,
             ClinicalVisit: m.ClinicalVisit,
-            Lab: m.Lab
+            Lab: m.Lab,
+            Doctor: m.Doctor
         };
     }
     return {
@@ -43,7 +44,8 @@ const getModels = (req) => {
         LabTest: require('../models/labTest.model'),
         Notification: require('../models/notification.model'),
         ClinicalVisit: require('../models/clinicalVisit.model'),
-        Lab: Lab
+        Lab: Lab,
+        Doctor: Doctor
     };
 };
 
@@ -58,9 +60,10 @@ const upload = multer({
 });
 
 // --- HELPER ---
-const getDoctorQuery = async (userId, hospitalId) => {
+const getDoctorQuery = async (userId, hospitalId, req) => {
     try {
-        const doctorProfile = await Doctor.findOne({ userId });
+        const models = getModels(req);
+        const doctorProfile = await models.Doctor.findOne({ userId });
         const query = { $or: [{ doctorUserId: userId }] };
         if (doctorProfile) {
             query.$or.push({ doctorId: doctorProfile._id });
@@ -145,7 +148,7 @@ router.get('/', async (req, res) => {
 router.get('/patients', verifyToken, resolveTenant, async (req, res) => {
     try {
         const doctorUserId = req.user.id || req.user.userId;
-        const query = await getDoctorQuery(doctorUserId, req.user.hospitalId);
+        const query = await getDoctorQuery(doctorUserId, req.user.hospitalId, req);
 
         const { Appointment } = getModels(req);
         const appointments = await Appointment.find(query)
@@ -273,11 +276,10 @@ router.post('/session/start', verifyToken, resolveTenant, async (req, res) => {
     try {
         const { patientId } = req.body;
         const doctorUserId = req.user.id || req.user.userId;
+        const { Doctor, Appointment } = getModels(req);
         const doctor = await Doctor.findOne({ userId: doctorUserId });
 
         if (!doctor) return res.status(404).json({ message: 'Doctor profile not found' });
-
-        const { Appointment } = getModels(req);
         const newSession = new Appointment({
             userId: patientId,
             hospitalId: req.user.hospitalId || doctor.hospitalId,
@@ -362,7 +364,7 @@ router.get('/appointments', verifyToken, resolveTenant, async (req, res) => {
     try {
         const { Appointment, ClinicalVisit } = getModels(req);
         const doctorUserId = req.user.id || req.user.userId;
-        const query = await getDoctorQuery(doctorUserId, req.user.hospitalId);
+        const query = await getDoctorQuery(doctorUserId, req.user.hospitalId, req);
 
         if (req.query.all !== 'true') {
             const baseDateStr = req.query.date || new Date().toISOString().split('T')[0];
@@ -430,7 +432,7 @@ router.get('/appointments', verifyToken, resolveTenant, async (req, res) => {
 // only show appointments where the doctor belongs to one of those departments.
 router.get('/all-appointments', verifyToken, resolveTenant, async (req, res) => {
     try {
-        const { Appointment, User } = getModels(req);
+        const { Appointment, User, Doctor } = getModels(req);
         let query = {};
         if (req.user.hospitalId) {
             query.hospitalId = req.user.hospitalId;

@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
 const Service = require('../models/service.model');
-const Doctor = require('../models/doctor.model');
 const { getTenantConnection } = require('../db/tenantDb');
 const { getTenantModels } = require('../db/tenantModels');
 const Hospital = require('../models/hospital.model');
