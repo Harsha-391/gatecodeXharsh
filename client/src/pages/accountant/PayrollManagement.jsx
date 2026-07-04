@@ -184,15 +184,13 @@ const PayrollManagement = () => {
             setError('');
             
             const employee = isUserObject ? item : item.employeeId;
+            const empId = employee?._id || employee;
             setHistoryEmployee(employee);
             
-            const res = await financeAPI.getPayrollRecords({ status: 'Paid' });
+            // Pass employeeId directly — database filters at query time, no client-side scan
+            const res = await financeAPI.getPayrollRecords({ employeeId: empId, status: 'Paid' });
             if (res.success) {
-                const empId = employee?._id || employee;
-                const history = res.records.filter(r => 
-                    (r.employeeId?._id || r.employeeId) === empId && r.status === 'Paid'
-                );
-                setEmployeeHistory(history);
+                setEmployeeHistory(res.records);
                 setShowHistoryModal(true);
             }
         } catch (err) {

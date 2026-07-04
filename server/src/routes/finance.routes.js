@@ -1651,13 +1651,14 @@ router.put('/payroll/staff/:id', verifyFinanceAccess, async (req, res) => {
 router.get('/payroll/records', verifyFinanceAccess, async (req, res) => {
     try {
         const hospitalId = req.user.hospitalId;
-        const { month, status } = req.query;
+        const { month, status, employeeId } = req.query;
         const { PayrollRecord } = getModels(req.tenantDb);
         const Role = require('../models/role.model');
 
         const query = { hospitalId };
         if (month) query.month = month;
         if (status) query.status = status;
+        if (employeeId) query.employeeId = employeeId;
 
         const records = await PayrollRecord.find(query)
             .populate({ path: 'employeeId', model: require('../models/user.model'), select: 'name email role phone basicSalary allowances deductions designation' })
