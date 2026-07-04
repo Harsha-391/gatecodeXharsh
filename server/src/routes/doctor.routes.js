@@ -29,7 +29,8 @@ const getModels = (req) => {
             HospitalPatient: m.HospitalPatient,
             LabTest: m.LabTest,
             Notification: m.Notification,
-            ClinicalVisit: m.ClinicalVisit
+            ClinicalVisit: m.ClinicalVisit,
+            Lab: m.Lab
         };
     }
     return {
@@ -41,7 +42,8 @@ const getModels = (req) => {
         HospitalPatient: MasterHospitalPatient,
         LabTest: require('../models/labTest.model'),
         Notification: require('../models/notification.model'),
-        ClinicalVisit: require('../models/clinicalVisit.model')
+        ClinicalVisit: require('../models/clinicalVisit.model'),
+        Lab: Lab
     };
 };
 
@@ -517,7 +519,6 @@ router.patch('/appointments/:id/prescription', verifyToken, resolveTenant, uploa
             appointment.prescriptions.push({ type: 'prescription', ...uploadedFileEntry });
         }
 
-        if (labId) appointment.labId = labId;
         if (status) appointment.status = status;
         if (status === 'completed') {
             appointment.completedAt = new Date();
@@ -536,6 +537,52 @@ router.patch('/appointments/:id/prescription', verifyToken, resolveTenant, uploa
             } else {
                 appointment.labTests = labTests;
             }
+        }
+
+        // Auto-match and assign lab depending on the tests written
+        let resolvedLabId = labId || appointment.labId || null;
+        if (!labId && appointment.labTests && appointment.labTests.length > 0) {
+            try {
+                const { Lab } = getModels(req);
+                const targetHospitalId = req.user.hospitalId || appointment.hospitalId;
+                const hospitalLabs = await Lab.find({ hospitalId: targetHospitalId }).lean();
+                
+                let foundMatch = false;
+                for (const testName of appointment.labTests) {
+                    const normalizedTest = testName.trim().toLowerCase();
+                    const matchingLab = hospitalLabs.find(l => 
+                        Array.isArray(l.services) && l.services.some(s => s.trim().toLowerCase() === normalizedTest)
+                    );
+                    if (matchingLab) {
+                        resolvedLabId = matchingLab._id;
+                        foundMatch = true;
+                        break;
+                    }
+                }
+
+                if (!foundMatch) {
+                    for (const testName of appointment.labTests) {
+                        const normalizedTest = testName.trim().toLowerCase();
+                        const matchingLab = hospitalLabs.find(l => 
+                            Array.isArray(l.services) && l.services.some(s => s.trim().toLowerCase().includes(normalizedTest) || normalizedTest.includes(s.trim().toLowerCase()))
+                        );
+                        if (matchingLab) {
+                            resolvedLabId = matchingLab._id;
+                            foundMatch = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (!resolvedLabId && hospitalLabs.length > 0) {
+                    resolvedLabId = hospitalLabs[0]._id;
+                }
+            } catch (matchErr) {
+                console.error("[Prescription Lab Auto-Match Error]:", matchErr);
+            }
+        }
+        if (resolvedLabId) {
+            appointment.labId = resolvedLabId;
         }
 
         if (dietPlan) appointment.dietPlan = typeof dietPlan === 'string' ? JSON.parse(dietPlan) : dietPlan;
@@ -626,7 +673,8 @@ router.patch('/appointments/:id/prescription', verifyToken, resolveTenant, uploa
                     prescription: appointment.prescription,
                     prescriptions: appointment.prescriptions,
                     completedAt: appointment.completedAt,
-                    completedBy: appointment.completedBy
+                    completedBy: appointment.completedBy,
+                    labId: appointment.labId
                 };
                 await MasterAppointment.findByIdAndUpdate(appointment._id, { $set: updateData });
             } catch (syncErr) {
@@ -678,7 +726,7 @@ router.patch('/appointments/:id/prescription', verifyToken, resolveTenant, uploa
                     userId: appointment.userId,
                     doctorId: req.user.id,
                     hospitalId: req.user.hospitalId || appointment.hospitalId,
-                    labId: labId || null,
+                    labId: appointment.labId || null,
                     testNames: appointment.labTests,
                     testStatus: 'PENDING',
                     reportStatus: 'PENDING',
@@ -688,7 +736,7 @@ router.patch('/appointments/:id/prescription', verifyToken, resolveTenant, uploa
                 reportId = newReport._id;
             } else {
                 existingReport.testNames = appointment.labTests;
-                existingReport.labId = labId || existingReport.labId;
+                existingReport.labId = appointment.labId || existingReport.labId;
                 existingReport.amount = totalAmount; // Update price in case tests were added/removed
                 await existingReport.save();
                 reportId = existingReport._id;
