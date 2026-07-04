@@ -319,14 +319,38 @@ const AdminLabs = () => {
                   <small className="form-hint">Minimum 6 characters. User will login with this email and password.</small>
                 </div>
               </div>
-
-              <div className="form-group" style={{ position: 'relative' }}>
+              <div className="form-group">
                 <label htmlFor="services" style={{ fontWeight: 600, display: 'block', marginBottom: '8px' }}>Assign Lab Services (from Lab Tests Catalog)</label>
                 
+                {/* Select Dropdown */}
+                <select
+                  id="services"
+                  onChange={(e) => {
+                    const selectedVal = e.target.value;
+                    if (selectedVal && !formData.services.includes(selectedVal)) {
+                      setFormData(prev => ({
+                        ...prev,
+                        services: [...prev.services, selectedVal]
+                      }));
+                    }
+                    e.target.value = ""; // Reset dropdown
+                  }}
+                  style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#fff', marginBottom: '10px', fontSize: '0.9rem', color: '#334155' }}
+                >
+                  <option value="">-- Choose a test to add to lab services --</option>
+                  {labTestsCatalog
+                    .filter(t => !formData.services.includes(t.name))
+                    .map((test) => (
+                      <option key={test._id} value={test.name}>
+                        {test.name} {test.category ? `(${test.category})` : ''}
+                      </option>
+                    ))}
+                </select>
+
                 {/* Selected services tags */}
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '10px', padding: '10px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', minHeight: '45px' }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', padding: '10px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', minHeight: '45px' }}>
                   {formData.services.length === 0 ? (
-                    <span style={{ color: '#94a3b8', fontSize: '0.85rem' }}>No services selected. Choose from the catalog below.</span>
+                    <span style={{ color: '#94a3b8', fontSize: '0.85rem' }}>No services selected. Choose a test from the dropdown above.</span>
                   ) : (
                     formData.services.map((service, index) => (
                       <span key={index} style={{ display: 'inline-flex', alignItems: 'center', background: '#e2f9f5', color: '#0d9488', padding: '6px 12px', borderRadius: '20px', fontSize: '0.85rem', fontWeight: 600, border: '1px solid #99f6e4' }}>
@@ -343,55 +367,6 @@ const AdminLabs = () => {
                     ))
                   )}
                 </div>
-
-                {/* Dropdown Input search */}
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <input
-                    type="text"
-                    placeholder="🔍 Search and add tests from Lab Tests Catalog..."
-                    value={searchTestQuery}
-                    onChange={(e) => {
-                      setSearchTestQuery(e.target.value);
-                      setShowDropdown(true);
-                    }}
-                    onFocus={() => setShowDropdown(true)}
-                    style={{ flex: 1, padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1' }}
-                  />
-                  {searchTestQuery && (
-                    <button type="button" onClick={() => setSearchTestQuery('')} style={{ padding: '8px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer' }}>
-                      Clear
-                    </button>
-                  )}
-                </div>
-
-                {/* Dropdown list of filtered catalog tests */}
-                {showDropdown && (
-                  <div style={{ position: 'absolute', zIndex: 100, top: '100%', left: 0, right: 0, background: '#fff', border: '1px solid #cbd5e1', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', maxHeight: '200px', overflowY: 'auto', marginTop: '4px' }}>
-                    {labTestsCatalog
-                      .filter(t => 
-                        t.name.toLowerCase().includes(searchTestQuery.toLowerCase()) && 
-                        !formData.services.includes(t.name)
-                      )
-                      .map((test) => (
-                        <div key={test._id} onClick={() => {
-                          setFormData(prev => ({
-                            ...prev,
-                            services: [...prev.services, test.name]
-                          }));
-                          setSearchTestQuery('');
-                          setShowDropdown(false);
-                        }} style={{ padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ fontWeight: 500, color: '#334155' }}>{test.name}</span>
-                          <span style={{ fontSize: '0.75rem', background: '#f1f5f9', color: '#64748b', padding: '2px 8px', borderRadius: '4px' }}>{test.category || 'General'}</span>
-                        </div>
-                      ))}
-                    {labTestsCatalog.filter(t => t.name.toLowerCase().includes(searchTestQuery.toLowerCase()) && !formData.services.includes(t.name)).length === 0 && (
-                      <div style={{ padding: '12px', color: '#64748b', textAlign: 'center', fontSize: '0.85rem' }}>
-                        No matching tests found.
-                      </div>
-                    )}
-                  </div>
-                )}
               </div>
 
               <div className="form-group">
