@@ -272,6 +272,15 @@ router.post('/login', loginLimiter, async (req, res) => {
       return res.status(403).json({ success: false, message: 'Account is disabled. Contact administrator.' });
     }
 
+    // Deactivated Hospital check
+    if (user.hospitalId && user.role !== 'superadmin' && user.role !== 'centraladmin') {
+      const Hospital = require('../models/hospital.model');
+      const hospital = await Hospital.findById(user.hospitalId).select('isActive');
+      if (hospital && hospital.isActive === false) {
+        return res.status(403).json({ success: false, message: 'Your hospital access has been deactivated. Please contact the system administrator.' });
+      }
+    }
+
 
     // Central admins must use their dedicated login pages — use generic message to avoid enumeration
     if (user.role === 'superadmin' || user.role === 'centraladmin') {

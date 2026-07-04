@@ -40,6 +40,15 @@ exports.verifyToken = async (req, res, next) => {
             return res.status(403).json({ success: false, message: 'Account is disabled. Contact administrator.' });
         }
 
+        // Deactivated Hospital check
+        if (user.hospitalId && user.role !== 'superadmin' && user.role !== 'centraladmin') {
+            const Hospital = require('../models/hospital.model');
+            const hospital = await Hospital.findById(user.hospitalId).select('isActive');
+            if (hospital && hospital.isActive === false) {
+                return res.status(403).json({ success: false, message: 'Your hospital access has been deactivated. Please contact the system administrator.' });
+            }
+        }
+
         // hospitalId: prefer JWT payload (authoritative for hospital admins), fallback to DB
         if (decoded.hospitalId) {
             user.hospitalId = decoded.hospitalId;

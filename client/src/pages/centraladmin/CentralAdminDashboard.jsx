@@ -464,6 +464,27 @@ const CentralAdminDashboard = () => {
         finally { setSavingHospital(false); }
     };
 
+    const handleToggleHospitalStatus = async (h) => {
+        const confirmMessage = h.isActive 
+            ? `Are you sure you want to deactivate "${h.name}"? This will immediately restrict staff login and block all hospital features.`
+            : `Are you sure you want to activate "${h.name}"?`;
+            
+        if (!window.confirm(confirmMessage)) return;
+        
+        try {
+            setError('');
+            setSuccess('');
+            const res = await hospitalAPI.updateHospital(h._id, { isActive: !h.isActive });
+            if (res.success) {
+                setSuccess(`Hospital "${h.name}" ${h.isActive ? 'deactivated' : 'activated'} successfully!`);
+                fetchHospitals();
+            }
+        } catch (err) {
+            console.error('Error toggling hospital status:', err);
+            setError(err.response?.data?.message || 'Error updating hospital status.');
+        }
+    };
+
     const handleDeleteHospital = async (id) => {
         try {
             const res = await hospitalAPI.deleteHospital(id);
@@ -1253,6 +1274,17 @@ const CentralAdminDashboard = () => {
                                                     onClick={() => openDeptAccess(h)}
                                                 >🔑 Depts</button>
                                                 <button className="btn-edit" onClick={() => openEditHospital(h)}>Edit</button>
+                                                <button
+                                                    className="btn-edit"
+                                                    style={{ 
+                                                        background: h.isActive ? 'linear-gradient(135deg,#fffbeb,#fde68a)' : 'linear-gradient(135deg,#ecfeff,#a5f3fc)', 
+                                                        color: h.isActive ? '#b45309' : '#0e7490', 
+                                                        border: h.isActive ? '1.5px solid #fcd34d' : '1.5px solid #67e8f9' 
+                                                    }}
+                                                    onClick={() => handleToggleHospitalStatus(h)}
+                                                >
+                                                    {h.isActive ? '🚫 Deactivate' : '✅ Activate'}
+                                                </button>
                                                 <button className="btn-delete" onClick={() => setDeleteHospitalConfirm(h._id)}>Delete</button>
                                             </div>
                                         </div>
