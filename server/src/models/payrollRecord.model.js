@@ -62,6 +62,16 @@ const payrollRecordSchema = new mongoose.Schema({
     notes: {
         type: String,
         default: ''
+    },
+    // Denormalised fields: stored at generation time so history displays correctly
+    // even if the employee is deleted or renamed later
+    employeeName: {
+        type: String,
+        default: ''
+    },
+    employeeRole: {
+        type: String,
+        default: ''
     }
 }, {
     timestamps: true

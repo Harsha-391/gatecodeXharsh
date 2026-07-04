@@ -514,9 +514,9 @@ const PayrollManagement = () => {
                                 <p className="subtitle">Official Staff Salary Slip</p>
                             </div>
                             <div className="slip-info-grid">
-                                <div><strong>Employee ID:</strong> #{slipRecord.employeeId?._id ? slipRecord.employeeId._id.substring(slipRecord.employeeId._id.length - 6).toUpperCase() : 'N/A'}</div>
-                                <div><strong>Employee Name:</strong> {slipRecord.employeeId?.name}</div>
-                                <div><strong>Designation:</strong> {formatRole(slipRecord.employeeId?.roleName, slipRecord.employeeId?.designation)}</div>
+                                <div><strong>Employee ID:</strong> #{slipRecord.employeeId?._id ? slipRecord.employeeId._id.substring(slipRecord.employeeId._id.length - 6).toUpperCase() : (slipRecord.employeeId?.toString().slice(-6).toUpperCase() || 'N/A')}</div>
+                                <div><strong>Employee Name:</strong> {slipRecord.employeeName || slipRecord.employeeId?.name || '—'}</div>
+                                <div><strong>Designation:</strong> {slipRecord.employeeRole || formatRole(slipRecord.employeeId?.roleName, slipRecord.employeeId?.designation) || 'Staff'}</div>
                                 <div><strong>Email:</strong> {slipRecord.employeeId?.email}</div>
                                 <div><strong>Pay Month:</strong> {slipRecord.month}</div>
                                 <div><strong>Payment Date:</strong> {new Date(slipRecord.paymentDate).toLocaleDateString()}</div>
@@ -569,8 +569,8 @@ const PayrollManagement = () => {
             {showHistoryModal && historyEmployee && (
                 <div className="modal-overlay history-modal">
                     <div className="modal-content history-content" style={{ maxWidth: '800px' }}>
-                        <h3>Payment History: {historyEmployee.name}</h3>
-                        <p>Role / Department: <strong>{formatRole(historyEmployee.roleName, historyEmployee.designation)}</strong></p>
+                        <h3>Payment History: {historyEmployee.name || employeeHistory[0]?.employeeName || 'Employee'}</h3>
+                        <p>Role / Department: <strong>{historyEmployee.roleName || historyEmployee.designation || employeeHistory[0]?.employeeRole || 'Staff'}</strong></p>
                         
                         <div className="table-responsive" style={{ maxHeight: '300px', overflowY: 'auto' }}>
                             {employeeHistory.length === 0 ? (

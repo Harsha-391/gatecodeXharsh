@@ -1707,6 +1707,7 @@ router.post('/payroll/records/generate', verifyFinanceAccess, async (req, res) =
         }
         
         const { User, PayrollRecord } = getModels(req.tenantDb);
+        const Role = require('../models/role.model');
         
         // Fetch eligible staff
         // IMPORTANT: role is Mixed (ObjectId ref OR plain string). Must exclude by both forms.
@@ -1718,6 +1719,23 @@ router.post('/payroll/records/generate', verifyFinanceAccess, async (req, res) =
             role: { $nin: allExclusions }
         }).lean();
         
+        // Resolve ObjectId role references to human-readable names
+        const roleIds = staff
+            .map(s => s.role)
+            .filter(r => r && /^[a-f\d]{24}$/i.test(r.toString()));
+        let roleMap = {};
+        if (roleIds.length > 0) {
+            const roles = await Role.find({ _id: { $in: roleIds } }).select('_id name').lean();
+            roles.forEach(r => { roleMap[r._id.toString()] = r.name; });
+        }
+        const resolveRole = (s) => {
+            const raw = s.role?.toString() || '';
+            return roleMap[raw]
+                || (typeof s.role === 'string' && !/^[a-f\d]{24}$/i.test(s.role) ? s.role : null)
+                || s.designation
+                || 'Staff';
+        };
+
         // Fetch existing records for this month to prevent overwriting
         const existingRecords = await PayrollRecord.find({ hospitalId, month }).lean();
         const existingEmployeeIds = new Set(existingRecords.map(r => r.employeeId.toString()));
@@ -1730,6 +1748,8 @@ router.post('/payroll/records/generate', verifyFinanceAccess, async (req, res) =
         const records = toGenerate.map(s => ({
             hospitalId,
             employeeId: s._id,
+            employeeName: s.name || '',
+            employeeRole: resolveRole(s),
             month,
             basicSalary: s.basicSalary || 0,
             allowances: s.allowances || 0,
