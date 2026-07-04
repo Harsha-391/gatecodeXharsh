@@ -57,6 +57,7 @@ const App = () => {
         ? user.role.toLowerCase()
         : user._roleData?.name?.toLowerCase();
 
+      // ── Room join helper (called on connect and on every reconnect) ──────────
       const joinRooms = () => {
         const uId = user._id || user.id;
         if (uId) socket.emit('join', uId);
@@ -64,8 +65,6 @@ const App = () => {
         const roomsToJoin = [];
         if (roleStr) {
           roomsToJoin.push(roleStr);
-
-          // Role aliases mapping
           if (['reception', 'receptionist', 'receptiondeskmanager'].includes(roleStr)) {
             roomsToJoin.push('reception', 'receptionist', 'receptiondeskmanager');
           } else if (['pharmacy', 'pharmacist'].includes(roleStr)) {
@@ -75,40 +74,56 @@ const App = () => {
           }
         }
 
-        // Emit joins for global rooms
         const uniqueRooms = [...new Set(roomsToJoin)];
         uniqueRooms.forEach(room => socket.emit('join', room));
 
-        // Join hospital-scoped rooms for multi-tenancy isolation
         if (user.hospitalId) {
           socket.emit('join', `hospital_${user.hospitalId}`);
-          uniqueRooms.forEach(room => {
-            socket.emit('join', `hospital_${user.hospitalId}_${room}`);
-          });
+          uniqueRooms.forEach(room => socket.emit('join', `hospital_${user.hospitalId}_${room}`));
         }
       };
 
-      // Register listener so that we re-join on reconnect
-      socket.on('connect', joinRooms);
+      // ── Named notification handler — prevents duplicate listeners ────────────
+      const handleNewNotification = (notification) => {
+        dispatch({ type: 'notifications/addNotification', payload: notification });
+      };
 
-      // Connect if disconnected
+      // ── Auth-error handler — handles token expiration gracefully ─────────────
+      const handleConnectError = (err) => {
+        if (err.message && err.message.toLowerCase().includes('authentication')) {
+          // Token is expired or invalid — disconnect cleanly.
+          // The user will be redirected to login by the api.js 401 interceptor.
+          socket.disconnect();
+        }
+      };
+
+      // ── Always refresh the JWT before connecting ──────────────────────────────
+      // This ensures a fresh token is sent in the handshake after every login,
+      // not the stale token captured at module-load time.
+      socket.auth = { token: localStorage.getItem('token') || '' };
+
+      // Register listeners (each is a stable named reference so off() is precise)
+      socket.on('connect', joinRooms);
+      socket.on('new_notification', handleNewNotification);
+      socket.on('connect_error', handleConnectError);
+
+      // Connect (or re-join rooms if already connected)
       if (!socket.connected) {
         socket.connect();
       } else {
-        // Already connected, join immediately
         joinRooms();
       }
 
-      socket.on('new_notification', (notification) => {
-        dispatch({ type: 'notifications/addNotification', payload: notification });
-      });
-
+      // ── Cleanup — remove only OUR listeners, don't touch others ─────────────
       return () => {
         socket.off('connect', joinRooms);
-        socket.off('new_notification');
+        socket.off('new_notification', handleNewNotification);
+        socket.off('connect_error', handleConnectError);
         socket.disconnect();
       };
     } else {
+      // Logged out — refresh auth token to empty and disconnect
+      socket.auth = { token: '' };
       socket.disconnect();
     }
   }, [isAuthenticated, user, dispatch]);
