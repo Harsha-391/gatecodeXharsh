@@ -42,7 +42,11 @@ router.get('/', verifyToken, resolveTenant, async (req, res) => {
 
         if (hospitalId) {
             library = await QuestionLibrary.findOne({ hospitalId }).sort({ version: -1 });
-            const hospital = await Hospital.findById(hospitalId);
+            let hospital = await Hospital.findById(hospitalId);
+            if (!hospital) {
+                const Clinic = require('../models/clinic.model');
+                hospital = await Clinic.findById(hospitalId);
+            }
             if (hospital && hospital.departments) {
                 allowedDepartments = hospital.departments;
             } else {
@@ -130,7 +134,11 @@ router.post('/', verifyAdminOrSuperAdmin, resolveTenant, async (req, res) => {
 
         let allowedDepartments = null; // null means all allowed (super/central admin)
         if (hospitalId) {
-            const hospital = await Hospital.findById(hospitalId);
+            let hospital = await Hospital.findById(hospitalId);
+            if (!hospital) {
+                const Clinic = require('../models/clinic.model');
+                hospital = await Clinic.findById(hospitalId);
+            }
             if (hospital && hospital.departments) {
                 allowedDepartments = hospital.departments;
             } else {

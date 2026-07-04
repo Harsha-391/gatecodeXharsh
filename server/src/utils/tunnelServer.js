@@ -25,7 +25,11 @@ const CLOUD_API_KEYS = {};   // loaded lazily from Hospital model
 const verifyClinicApiKey = async (clinicId, apiKey) => {
     try {
         const Hospital = require('../models/hospital.model');
-        const clinic = await Hospital.findById(clinicId).select('clinicApiKey isActive');
+        let clinic = await Hospital.findById(clinicId).select('clinicApiKey isActive');
+        if (!clinic) {
+            const Clinic = require('../models/clinic.model');
+            clinic = await Clinic.findById(clinicId).select('clinicApiKey isActive');
+        }
         if (!clinic || !clinic.isActive) return false;
         // clinicApiKey is stored hashed (bcrypt) on the Hospital document
         const bcrypt = require('bcryptjs');

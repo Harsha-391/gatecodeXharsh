@@ -426,7 +426,11 @@ router.patch('/appointments/:id/reschedule', verifyToken, verifyReception, async
             // Check if hospital is in token mode, then assign token number
             const Hospital = require('../models/hospital.model');
             const hospitalId = appt.hospitalId || req.user.hospitalId;
-            const hospital = hospitalId ? await Hospital.findById(hospitalId).select('appointmentMode') : null;
+            let hospital = hospitalId ? await Hospital.findById(hospitalId).select('appointmentMode') : null;
+            if (hospitalId && !hospital) {
+                const Clinic = require('../models/clinic.model');
+                hospital = await Clinic.findById(hospitalId).select('appointmentMode');
+            }
             if (hospital?.appointmentMode === 'token') {
                 const startOfDay = new Date(date);
                 startOfDay.setUTCHours(0, 0, 0, 0);
@@ -645,7 +649,11 @@ router.post('/book-appointment', verifyToken, verifyReception, async (req, res) 
 
         // Determine appointment mode
         const Hospital = require('../models/hospital.model');
-        const hospital = hospitalId ? await Hospital.findById(hospitalId).select('appointmentMode') : null;
+        let hospital = hospitalId ? await Hospital.findById(hospitalId).select('appointmentMode') : null;
+        if (hospitalId && !hospital) {
+            const Clinic = require('../models/clinic.model');
+            hospital = await Clinic.findById(hospitalId).select('appointmentMode');
+        }
         const isTokenMode = hospital?.appointmentMode === 'token';
 
         let finalTime = time;

@@ -132,50 +132,5 @@ hospitalSchema.pre('save', function (next) {
     next();
 });
 
-// Post-save hook to automatically mirror clinic documents to the clinics collection
-hospitalSchema.post('save', async function (doc, next) {
-    if (doc.clinicType === 'clinic') {
-        try {
-            // Import model dynamically to prevent circular dependencies
-            const Clinic = mongoose.model('Clinic');
-            const docObj = doc.toObject();
-            await Clinic.replaceOne({ _id: doc._id }, docObj, { upsert: true });
-        } catch (err) {
-            console.error('❌ Error syncing clinic document to clinics collection:', err.message);
-        }
-    } else {
-        try {
-            const Clinic = mongoose.model('Clinic');
-            await Clinic.deleteOne({ _id: doc._id });
-        } catch (_) {}
-    }
-    next();
-});
-
-// Post-remove hook to delete mirrored clinic documents
-hospitalSchema.post('remove', async function (doc, next) {
-    if (doc.clinicType === 'clinic') {
-        try {
-            const Clinic = mongoose.model('Clinic');
-            await Clinic.deleteOne({ _id: doc._id });
-        } catch (err) {
-            console.error('❌ Error removing clinic document from clinics collection:', err.message);
-        }
-    }
-    next();
-});
-
-// Post-findOneAndDelete hook to delete mirrored clinic documents
-hospitalSchema.post('findOneAndDelete', async function (doc, next) {
-    if (doc && doc.clinicType === 'clinic') {
-        try {
-            const Clinic = mongoose.model('Clinic');
-            await Clinic.deleteOne({ _id: doc._id });
-        } catch (err) {
-            console.error('❌ Error removing clinic document from clinics collection on delete:', err.message);
-        }
-    }
-    next();
-});
-
 module.exports = mongoose.model('Hospital', hospitalSchema);
+

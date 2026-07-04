@@ -174,7 +174,11 @@ router.post('/auth/verify-otp', otpVerifyLimiter, async (req, res) => {
         if (effectiveClinicId) {
             try {
                 const Hospital = require('../models/hospital.model');
-                const hosp = await Hospital.findById(effectiveClinicId).select('tenantKey slug');
+                let hosp = await Hospital.findById(effectiveClinicId).select('tenantKey slug');
+                if (!hosp) {
+                    const Clinic = require('../models/clinic.model');
+                    hosp = await Clinic.findById(effectiveClinicId).select('tenantKey slug');
+                }
                 if (hosp) {
                     tenantKey = hosp.tenantKey;
                     subdomain = hosp.slug;
@@ -434,8 +438,13 @@ router.post('/:clinicId/book', verifyPatientToken, enforcePatientTenantBoundary,
 // ─── GET /:clinicId/status — is clinic online? ────────────────────────────────
 router.get('/:clinicId/status', async (req, res) => {
     const tunnelServer = require('../utils/tunnelServer');
-    const clinic = await Hospital.findById(req.params.clinicId)
+    let clinic = await Hospital.findById(req.params.clinicId)
         .select('name localServer isActive').lean();
+    if (!clinic) {
+        const Clinic = require('../models/clinic.model');
+        clinic = await Clinic.findById(req.params.clinicId)
+            .select('name localServer isActive').lean();
+    }
 
     if (!clinic) return res.status(404).json({ success: false, message: 'Clinic not found' });
 

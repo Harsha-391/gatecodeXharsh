@@ -186,15 +186,15 @@ router.put('/:id', verifyCentralAdmin, async (req, res) => {
 // ==========================================
 router.delete('/:id', verifyCentralAdmin, async (req, res) => {
     try {
-        const clinic = await Clinic.findOneAndDelete({ _id: req.params.id });
-        if (!clinic) return res.status(404).json({ success: false, message: 'Clinic not found' });
+        const clinicId = req.params.id;
+        const clinic = await Clinic.findOneAndDelete({ _id: clinicId });
 
-        // Delete all staff associated with this clinic
-        await User.deleteMany({ hospitalId: clinic._id });
+        // Delete all staff associated with this clinic ID
+        await User.deleteMany({ hospitalId: clinicId });
 
         // Remove tenant DB connection
         try {
-            await removeTenantConnection(clinic._id.toString());
+            await removeTenantConnection(clinicId);
         } catch (e) { /* non-fatal */ }
 
         res.json({ success: true, message: 'Clinic and all associated data deleted' });

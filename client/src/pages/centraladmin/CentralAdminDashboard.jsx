@@ -280,6 +280,7 @@ const CentralAdminDashboard = () => {
     };
 
     const handleDeleteClinic = async (id) => {
+        setError(''); setSuccess('');
         try {
             const res = await simpleClinicAPI.deleteClinic(id);
             if (res.success) { setSuccess('Clinic deleted.'); fetchClinics(); setDeleteClinicConfirm(null); }

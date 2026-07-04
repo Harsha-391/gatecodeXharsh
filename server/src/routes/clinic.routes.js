@@ -14,7 +14,7 @@ const fs = require('fs');
 const multer = require('multer');
 const { verifyToken } = require('../middleware/auth.middleware');
 const validateFileType = require('../utils/validateFileType');
-const Hospital = require('../models/hospital.model');
+const Hospital = require('../models/clinic.model');
 const Appointment = require('../models/appointment.model');
 const Inventory = require('../models/inventory.model');
 const PharmacyOrder = require('../models/pharmacyOrder.model');
@@ -29,7 +29,7 @@ const getModels = (req) => {
     if (req.tenantDb) {
         const m = getTenantModels(req.tenantDb);
         return {
-            Hospital: require('../models/hospital.model'),
+            Hospital: require('../models/clinic.model'),
             Appointment: m.Appointment,
             Inventory: m.Inventory,
             PharmacyOrder: m.PharmacyOrder,
@@ -41,7 +41,7 @@ const getModels = (req) => {
         };
     }
     return {
-        Hospital: require('../models/hospital.model'),
+        Hospital: require('../models/clinic.model'),
         Appointment: require('../models/appointment.model'),
         Inventory: require('../models/inventory.model'),
         PharmacyOrder: require('../models/pharmacyOrder.model'),

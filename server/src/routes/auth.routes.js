@@ -149,7 +149,11 @@ router.post('/signup', signupLimiter, async (req, res) => {
     let subdomain = null;
     if (user.hospitalId) {
       const Hospital = require('../models/hospital.model');
-      const hosp = await Hospital.findById(user.hospitalId).select('tenantKey slug');
+      let hosp = await Hospital.findById(user.hospitalId).select('tenantKey slug');
+      if (!hosp) {
+        const Clinic = require('../models/clinic.model');
+        hosp = await Clinic.findById(user.hospitalId).select('tenantKey slug');
+      }
       if (hosp) {
         tenantKey = hosp.tenantKey;
         subdomain = hosp.slug;
@@ -475,7 +479,11 @@ router.post('/login', loginLimiter, async (req, res) => {
     let subdomain = null;
     if (user.hospitalId) {
       const Hospital = require('../models/hospital.model');
-      const hosp = await Hospital.findById(user.hospitalId).select('tenantKey slug');
+      let hosp = await Hospital.findById(user.hospitalId).select('tenantKey slug');
+      if (!hosp) {
+        const Clinic = require('../models/clinic.model');
+        hosp = await Clinic.findById(user.hospitalId).select('tenantKey slug');
+      }
       if (hosp) {
         tenantKey = hosp.tenantKey;
         subdomain = hosp.slug;

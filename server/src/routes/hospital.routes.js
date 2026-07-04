@@ -108,12 +108,19 @@ router.get('/resolve/:slug', async (req, res) => {
         conditions.push({ tenantKey: identifier });
         conditions.push({ slug: identifier.toLowerCase() });
 
-        const hospital = await Hospital.findOne(
+        let hospital = await Hospital.findOne(
             { $or: conditions, isActive: true },
             'name slug city logo departments departmentFees appointmentFee appointmentMode facilities isActive tenantKey originalSubdomain _id'
         );
         if (!hospital) {
-            return res.status(404).json({ success: false, message: 'Hospital not found. Check the URL and try again.' });
+            const Clinic = require('../models/clinic.model');
+            hospital = await Clinic.findOne(
+                { $or: conditions, isActive: true },
+                'name slug city logo departments departmentFees appointmentFee appointmentMode facilities isActive tenantKey originalSubdomain _id'
+            );
+        }
+        if (!hospital) {
+            return res.status(404).json({ success: false, message: 'Hospital/Clinic not found. Check the URL and try again.' });
         }
         res.json({ success: true, hospital });
     } catch (err) {

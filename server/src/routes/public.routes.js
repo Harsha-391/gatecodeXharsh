@@ -26,7 +26,11 @@ router.get('/services', async (req, res) => {
       }
       conditions.push({ tenantKey: identifier });
       conditions.push({ slug: identifier.toLowerCase() });
-      const hospital = await Hospital.findOne({ $or: conditions }).select('_id').lean();
+      let hospital = await Hospital.findOne({ $or: conditions }).select('_id').lean();
+      if (!hospital) {
+        const Clinic = require('../models/clinic.model');
+        hospital = await Clinic.findOne({ $or: conditions }).select('_id').lean();
+      }
       if (hospital) {
         hospitalId = hospital._id;
       }
@@ -63,7 +67,11 @@ router.get('/services', async (req, res) => {
             query = { $or: conditions };
           }
           
-          const hospital = await Hospital.findOne(query).select('_id').lean();
+          let hospital = await Hospital.findOne(query).select('_id').lean();
+          if (!hospital) {
+            const Clinic = require('../models/clinic.model');
+            hospital = await Clinic.findOne(query).select('_id').lean();
+          }
           if (hospital) {
             hospitalId = hospital._id;
           }
@@ -143,9 +151,16 @@ router.get('/tenant-config', async (req, res) => {
             query = { $or: conditions };
         }
 
-        const hospital = await Hospital.findOne(query)
+        let hospital = await Hospital.findOne(query)
             .select('name slug customDomain branding tenantKey')
             .lean();
+
+        if (!hospital) {
+            const Clinic = require('../models/clinic.model');
+            hospital = await Clinic.findOne(query)
+                .select('name slug customDomain branding tenantKey')
+                .lean();
+        }
 
         if (!hospital) {
             return res.status(404).json({ success: false, message: 'Tenant not found' });

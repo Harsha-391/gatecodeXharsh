@@ -32,7 +32,11 @@ const verifyLocalServer = async (req, res, next) => {
     }
 
     try {
-        const clinic = await Hospital.findById(clinicId).select('clinicApiKey isActive name');
+        let clinic = await Hospital.findById(clinicId).select('clinicApiKey isActive name');
+        if (!clinic) {
+            const Clinic = require('../models/clinic.model');
+            clinic = await Clinic.findById(clinicId).select('clinicApiKey isActive name');
+        }
         if (!clinic || !clinic.isActive) {
             return res.status(403).json({ success: false, message: 'Clinic not found or inactive' });
         }
@@ -54,14 +58,24 @@ const verifyLocalServer = async (req, res, next) => {
 // ─── POST /api/sync/heartbeat ─────────────────────────────────────────────────
 router.post('/heartbeat', verifyLocalServer, async (req, res) => {
     try {
-        // Update last seen on Hospital record
-        await Hospital.findByIdAndUpdate(req.clinicId, {
+        // Update last seen on Hospital/Clinic record
+        let updated = await Hospital.findByIdAndUpdate(req.clinicId, {
             $set: {
                 'localServer.lastSeenAt':     new Date(),
                 'localServer.serverVersion':  req.headers['x-server-version'] || '',
                 'localServer.isOnline':       true,
             },
         });
+        if (!updated) {
+            const Clinic = require('../models/clinic.model');
+            await Clinic.findByIdAndUpdate(req.clinicId, {
+                $set: {
+                    'localServer.lastSeenAt':     new Date(),
+                    'localServer.serverVersion':  req.headers['x-server-version'] || '',
+                    'localServer.isOnline':       true,
+                },
+            });
+        }
         res.json({ success: true, serverTime: new Date().toISOString() });
     } catch (err) {
         res.status(500).json({ success: false, message: 'An internal error occurred' });
