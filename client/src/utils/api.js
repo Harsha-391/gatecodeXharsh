@@ -32,7 +32,7 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
     (response) => response,
     (error) => {
-        if (error.response?.status === 401) {
+        if (error.response?.status === 401 || error.response?.status === 403) {
             // CIRCULAR DEPENDENCY FIX:
             // Instead of dispatching logout action here, we simply clear storage and redirect.
             // The authSlice will pick up the initial state from localStorage on reload.

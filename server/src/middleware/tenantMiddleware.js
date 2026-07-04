@@ -42,6 +42,16 @@ exports.resolveTenant = async (req, res, next) => {
             return next();
         }
 
+        // Check if hospital is deactivated/inactive
+        const Hospital = require('../models/hospital.model');
+        const hospital = await Hospital.findById(hospitalId).select('isActive');
+        if (hospital && hospital.isActive === false) {
+            return res.status(403).json({
+                success: false,
+                message: 'Your hospital access has been deactivated. Please contact the system administrator.'
+            });
+        }
+
         const tenantDb = await getTenantConnection(String(hospitalId));
         req.tenantDb = tenantDb;
         req.hospitalId = hospitalId;
