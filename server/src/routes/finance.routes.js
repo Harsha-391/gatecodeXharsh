@@ -196,6 +196,8 @@ router.get('/kpis', verifyFinanceAccess, async (req, res) => {
         let todayRevenue = 0;
         let monthlyRevenue = 0;
         let outstandingPayments = 0;
+        let todayCollection = 0;
+        let totalCollection = 0;
 
         invoices.forEach(inv => {
             outstandingPayments += (inv.outstandingAmount || 0);
@@ -205,10 +207,12 @@ router.get('/kpis', verifyFinanceAccess, async (req, res) => {
             const payDate = new Date(t.collectionTimestamp || t.createdAt);
             if (payDate >= startOfToday && payDate <= endOfToday) {
                 todayRevenue += t.amount || 0;
+                todayCollection += t.amount || 0;
             }
             if (payDate >= startOfMonth && payDate <= endOfMonth) {
                 monthlyRevenue += t.amount || 0;
             }
+            totalCollection += t.amount || 0;
         });
 
         // Pending Insurance Claims
@@ -251,7 +255,9 @@ router.get('/kpis', verifyFinanceAccess, async (req, res) => {
                 totalExpenses,
                 netProfit,
                 pendingRefundApprovals: pendingRefundsCount,
-                reconciliationStatus
+                reconciliationStatus,
+                todayCollection,
+                totalCollection
             }
         });
     } catch (err) {

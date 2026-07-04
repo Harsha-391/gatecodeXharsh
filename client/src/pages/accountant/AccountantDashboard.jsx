@@ -135,11 +135,11 @@ const AccountantDashboard = () => {
                                     <div className="acc-kpi-label">Pending Refunds</div>
                                     <div className="acc-kpi-sub">Claims awaiting manager approval</div>
                                 </div>
-                                <div className={`acc-kpi-card ${kpis.reconciliationStatus === 'Balanced' ? 'acc-kpi-green' : 'acc-kpi-orange'}`} style={{ background: kpis.reconciliationStatus === 'Balanced' ? 'linear-gradient(135deg, #15803d, #22c55e)' : 'linear-gradient(135deg, #b45309, #f97316)' }}>
-                                    <div className="acc-kpi-icon">📝</div>
-                                    <div className="acc-kpi-value" style={{ fontSize: '1.8rem', paddingTop: '8px' }}>{kpis.reconciliationStatus}</div>
-                                    <div className="acc-kpi-label">Reconciliation Status</div>
-                                    <div className="acc-kpi-sub">Reconciliation logs for today</div>
+                                <div className="acc-kpi-card" style={{ background: 'linear-gradient(135deg, #b45309, #f97316)' }}>
+                                    <div className="acc-kpi-icon">💰</div>
+                                    <div className="acc-kpi-value">{formatCurrency(kpis.todayCollection)}</div>
+                                    <div className="acc-kpi-label">Total Collection</div>
+                                    <div className="acc-kpi-sub">Total payments collected today</div>
                                 </div>
                             </div>
                         </>
