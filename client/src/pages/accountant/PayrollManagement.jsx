@@ -44,7 +44,7 @@ const PayrollManagement = () => {
 
     useEffect(() => {
         fetchData();
-    }, [selectedMonth]);
+    }, [selectedMonth, activeTab]);
 
     const fetchData = async () => {
         try {
@@ -59,13 +59,21 @@ const PayrollManagement = () => {
                 return NON_PAYROLL_ROLES.has(rn);
             };
 
-            // Get payroll records for target month
-            const recsRes = await financeAPI.getPayrollRecords({ month: selectedMonth });
+            // Get payroll records for target month or all history depending on active tab
             let monthRecords = [];
-            if (recsRes.success) {
-                // Safety filter: exclude patients & doctors (backend also enforces this)
-                monthRecords = recsRes.records.filter(r => !isNonPayroll(r));
-                setPayrollRecords(monthRecords);
+            if (activeTab === 'history') {
+                const recsRes = await financeAPI.getPayrollRecords({ status: 'Paid' });
+                if (recsRes.success) {
+                    monthRecords = recsRes.records.filter(r => !isNonPayroll(r));
+                    setPayrollRecords(monthRecords);
+                }
+            } else {
+                const recsRes = await financeAPI.getPayrollRecords({ month: selectedMonth });
+                if (recsRes.success) {
+                    // Safety filter: exclude patients & doctors (backend also enforces this)
+                    monthRecords = recsRes.records.filter(r => !isNonPayroll(r));
+                    setPayrollRecords(monthRecords);
+                }
             }
 
             // Get staff list — backend excludes patients & doctors; frontend mirrors for safety
@@ -138,6 +146,10 @@ const PayrollManagement = () => {
 
     const handleProcessPayment = async () => {
         if (!activeRecord) return;
+        if (paymentMethod !== 'Cash' && !txnRef.trim()) {
+            setError('Transaction Reference / Txn ID is required.');
+            return;
+        }
         try {
             setLoading(true);
             setError('');
@@ -258,6 +270,7 @@ const PayrollManagement = () => {
                 </div>
                 <div className="tab-triggers">
                     <button className={`tab-btn ${activeTab === 'run' ? 'active' : ''}`} onClick={() => setActiveTab('run')}>📊 Run Payroll</button>
+                    <button className={`tab-btn ${activeTab === 'history' ? 'active' : ''}`} onClick={() => setActiveTab('history')}>📜 Payment History</button>
                     <button className={`tab-btn ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => setActiveTab('settings')}>⚙️ Salary Settings</button>
                 </div>
             </header>
@@ -357,12 +370,57 @@ const PayrollManagement = () => {
                                                         <button className="action-btn pay" onClick={() => handleOpenPayModal(rec)}>💳 Pay</button>
                                                     )}
                                                     {rec.status === 'Paid' && (
-                                                        <>
-                                                            <button className="action-btn reverse" onClick={() => handleReversePayment(rec)}>🔄 Reverse</button>
-                                                            <button className="action-btn view" onClick={() => handleOpenSlip(rec)}>📄 Slip</button>
-                                                        </>
+                                                        <button className="action-btn view" onClick={() => handleOpenSlip(rec)}>📄 Slip</button>
                                                     )}
                                                 </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </div>
+            ) : activeTab === 'history' ? (
+                <div className="payroll-history-section card-box">
+                    <h3>Employee Salary Payout History</h3>
+                    {loading ? (
+                        <div className="loading-state">⏳ Fetching payment history...</div>
+                    ) : payrollRecords.length === 0 ? (
+                        <div className="empty-state">
+                            <p>No processed salary payouts found.</p>
+                        </div>
+                    ) : (
+                        <div className="table-responsive">
+                            <table className="payroll-table">
+                                <thead>
+                                    <tr>
+                                        <th>Employee ID</th>
+                                        <th>Employee Name</th>
+                                        <th>Role / Dept</th>
+                                        <th>Month</th>
+                                        <th>Net Paid Salary</th>
+                                        <th>Payment Date</th>
+                                        <th>Payment Method</th>
+                                        <th>Txn Reference</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {payrollRecords.map((rec) => (
+                                        <tr key={rec._id}>
+                                            <td className="bold">#{rec.employeeId?._id ? rec.employeeId._id.substring(rec.employeeId._id.length - 6).toUpperCase() : 'N/A'}</td>
+                                            <td>{rec.employeeId?.name || 'N/A'}</td>
+                                            <td>
+                                                <span className="dept-badge">{formatRole(rec.employeeId?.roleName, rec.employeeId?.designation)}</span>
+                                            </td>
+                                            <td className="bold">{rec.month}</td>
+                                            <td className="bold highlight-blue">{formatCurrency(rec.netSalary)}</td>
+                                            <td>{new Date(rec.paymentDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+                                            <td className="bold">{rec.paymentMethod}</td>
+                                            <td>{rec.transactionReference || '—'}</td>
+                                            <td>
+                                                <button className="action-btn view" onClick={() => handleOpenSlip(rec)}>📄 Slip</button>
                                             </td>
                                         </tr>
                                     ))}
@@ -432,10 +490,12 @@ const PayrollManagement = () => {
                             </select>
                         </div>
                         
-                        <div className="form-group">
-                            <label>Transaction Reference / Txn ID</label>
-                            <input type="text" placeholder="e.g. TXN-108239" value={txnRef} onChange={(e) => setTxnRef(e.target.value)} />
-                        </div>
+                        {paymentMethod !== 'Cash' && (
+                            <div className="form-group">
+                                <label>Transaction Reference / Txn ID <span className="red">*</span></label>
+                                <input type="text" placeholder="e.g. TXN-108239" value={txnRef} onChange={(e) => setTxnRef(e.target.value)} required />
+                            </div>
+                        )}
 
                         <div className="form-group">
                             <label>Notes / Memo</label>
