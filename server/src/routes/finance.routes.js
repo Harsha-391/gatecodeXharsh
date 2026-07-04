@@ -1605,7 +1605,7 @@ router.get('/payroll/staff', verifyFinanceAccess, async (req, res) => {
 router.put('/payroll/staff/:id', verifyFinanceAccess, async (req, res) => {
     try {
         const hospitalId = req.user.hospitalId;
-        const { User } = getModels(req.tenantDb);
+        const { User, PayrollRecord } = getModels(req.tenantDb);
         const { basicSalary, allowances, deductions, designation } = req.body;
         
         const employee = await User.findOneAndUpdate(
@@ -1622,6 +1622,17 @@ router.put('/payroll/staff/:id', verifyFinanceAccess, async (req, res) => {
         if (!employee) {
             return res.status(404).json({ success: false, message: 'Employee not found' });
         }
+
+        // Also update any existing Draft payroll records for this employee so they automatically sync in the "Run Payroll" table
+        await PayrollRecord.updateMany(
+            { employeeId: req.params.id, hospitalId, status: 'Draft' },
+            {
+                basicSalary: Number(basicSalary || 0),
+                allowances: Number(allowances || 0),
+                deductions: Number(deductions || 0),
+                netSalary: Number(basicSalary || 0) + Number(allowances || 0) - Number(deductions || 0)
+            }
+        );
         
         await logFinanceActivity(
             req, 
