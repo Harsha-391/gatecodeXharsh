@@ -54,7 +54,7 @@ const AdminLabs = () => {
     try {
       const response = await labTestAPI.getLabTests();
       if (response.success) {
-        setLabTestsCatalog(response.labTests || []);
+        setLabTestsCatalog(response.data || []);
       }
     } catch (err) {
       console.error('Error fetching lab tests catalog:', err);
