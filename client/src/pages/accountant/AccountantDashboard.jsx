@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { financeAPI, authAPI } from '../../utils/api';
+import { financeAPI, authAPI, billingAPI } from '../../utils/api';
 import './AccountantDashboard.css';
 
 const AccountantDashboard = () => {
@@ -9,6 +9,7 @@ const AccountantDashboard = () => {
 
     const [kpis, setKpis] = useState(null);
     const [analytics, setAnalytics] = useState(null);
+    const [billingStats, setBillingStats] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
@@ -31,9 +32,10 @@ const AccountantDashboard = () => {
             setLoading(true);
             setError('');
             
-            const [kpiRes, analyticsRes] = await Promise.all([
+            const [kpiRes, analyticsRes, billingRes] = await Promise.all([
                 financeAPI.getKPIs(),
-                financeAPI.getRevenueAnalytics()
+                financeAPI.getRevenueAnalytics(),
+                billingAPI.getBillingAnalytics()
             ]);
 
             if (kpiRes.success) {
@@ -41,6 +43,9 @@ const AccountantDashboard = () => {
             }
             if (analyticsRes.success) {
                 setAnalytics(analyticsRes);
+            }
+            if (billingRes.success) {
+                setBillingStats(billingRes.analytics);
             }
         } catch (err) {
             console.error(err);
@@ -137,7 +142,7 @@ const AccountantDashboard = () => {
                                 </div>
                                 <div className="acc-kpi-card" style={{ background: 'linear-gradient(135deg, #b45309, #f97316)' }}>
                                     <div className="acc-kpi-icon">💰</div>
-                                    <div className="acc-kpi-value">{formatCurrency(kpis.totalCollection)}</div>
+                                    <div className="acc-kpi-value">{formatCurrency(billingStats?.totalCollections)}</div>
                                     <div className="acc-kpi-label">Total Collection</div>
                                     <div className="acc-kpi-sub">Total payments collected</div>
                                 </div>
