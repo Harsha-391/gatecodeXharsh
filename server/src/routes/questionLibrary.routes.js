@@ -23,18 +23,6 @@ const getModels = (req) => {
 // Get the latest question library configuration
 router.get('/', verifyToken, resolveTenant, async (req, res) => {
     try {
-        const roleName = String(req.user?.role || '').toLowerCase();
-        const perms = req.user._roleData?.permissions || req.user.permissions || [];
-        const hasAccess = 
-            ['centraladmin', 'superadmin'].includes(roleName) ||
-            perms.includes('question_library_manage') ||
-            perms.includes('*') ||
-            ( (roleName === 'hospitaladmin' || roleName === 'admin') && !(req.user.deniedPermissions || []).includes('question_library_manage') );
-
-        if (!hasAccess) {
-            return res.status(403).json({ success: false, message: 'Forbidden: Question library management privilege required' });
-        }
-
         const { QuestionLibrary, Hospital, Department } = getModels(req);
         const hospitalId = req.user.hospitalId || null;
         let library = null;
