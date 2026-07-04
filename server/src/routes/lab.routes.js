@@ -89,17 +89,32 @@ router.get('/stats', verifyToken, resolveTenant, verifyLab, async (req, res) => 
     try {
         const { LabReport, Lab } = getModels(req);
         const hid = req.user.hospitalId;
+        const userId = req.user.id || req.user.userId;
         const hospitalFilter = hid ? { hospitalId: hid } : {};
+        const permissions = req.user._roleData?.permissions || [];
+        const canViewAll = permissions.includes('VIEW_ALL_LAB_TESTS') || permissions.includes('*');
+        const scope = req.query.scope || 'mine'; // 'mine' or 'all'
 
         const labProfile = await Lab.findOne({
-            $or: [{ email: req.user.email }, { userId: req.user.id }]
+            $or: [{ email: req.user.email }, { userId: userId }]
         });
 
+        // WORKSPACE ISOLATION: Default to only this technician's assigned tests
+        // 'all' requires VIEW_ALL_LAB_TESTS permission.
         let labFilter = { ...hospitalFilter };
-        if (labProfile) {
-            labFilter = { ...hospitalFilter, $or: [{ labId: labProfile._id }, { labId: null }, { labId: { $exists: false } }] };
+        if (scope === 'all' && canViewAll) {
+            // Lab manager view — all tests in hospital
+            labFilter = { ...hospitalFilter };
         } else {
-            labFilter = { ...hospitalFilter, $or: [{ labId: null }, { labId: { $exists: false } }] };
+            // My workspace — assigned to me OR unassigned (claimable) + legacy labId records
+            const orConditions = [
+                { assignedToUserId: userId },
+                { assignedToUserId: null }
+            ];
+            if (labProfile) {
+                orConditions.push({ labId: labProfile._id });
+            }
+            labFilter = { ...hospitalFilter, $or: orConditions };
         }
 
         // Count statuses with fallbacks for legacy data
@@ -175,6 +190,8 @@ router.get('/stats', verifyToken, resolveTenant, verifyLab, async (req, res) => 
 
         res.json({
             success: true,
+            canViewAll,
+            scope,
             stats: {
                 pending, // backward compatibility
                 completed, // backward compatibility
@@ -196,53 +213,81 @@ router.get('/stats', verifyToken, resolveTenant, verifyLab, async (req, res) => 
     }
 });
 
-// 1b. GET MY ASSIGNED REPORTS
+// 1b. GET MY ASSIGNED REPORTS — workspace isolated per lab technician
 router.get('/my-reports', verifyToken, resolveTenant, verifyLabOrReportsView, async (req, res) => {
     try {
         const { LabReport, Lab, Doctor } = getModels(req);
         const hid = req.user.hospitalId;
+        const userId = req.user.id || req.user.userId;
         const hospitalFilter = hid ? { hospitalId: hid } : {};
+        const permissions = req.user._roleData?.permissions || [];
+        const canViewAll = permissions.includes('VIEW_ALL_LAB_TESTS') || permissions.includes('*');
+        const scope = req.query.scope || 'mine';
 
         const labProfile = await Lab.findOne({
-            $or: [{ email: req.user.email }, { userId: req.user.id }]
+            $or: [{ email: req.user.email }, { userId: userId }]
         });
 
         let query = { ...hospitalFilter };
-        if (labProfile) {
-            query.$or = [{ labId: labProfile._id }, { labId: null }, { labId: { $exists: false } }];
+
+        if (scope === 'all' && canViewAll) {
+            // Admin/manager: see all hospital reports
+            query = { ...hospitalFilter };
         } else {
-            query.$or = [{ labId: null }, { labId: { $exists: false } }];
+            // WORKSPACE ISOLATION: Only reports assigned to THIS technician or unassigned
+            const orConditions = [
+                { assignedToUserId: userId },
+                { assignedToUserId: null }
+            ];
+            if (labProfile) {
+                orConditions.push({ labId: labProfile._id });
+            }
+            query = { ...hospitalFilter, $or: orConditions };
         }
 
         const reports = await LabReport.find(query)
             .populate('userId', 'name email phone patientId')
             .populate({ path: 'doctorId', model: Doctor, select: 'name' })
+            .populate('assignedToUserId', 'name')
             .sort({ createdAt: -1 });
 
-        res.json({ success: true, reports });
+        res.json({ success: true, reports, canViewAll, scope });
     } catch (error) {
         console.error("[lab] fetch my-reports error", error);
         res.status(500).json({ success: false, message: 'An internal error occurred' });
     }
 });
 
-// 2. GET ASSIGNED REQUESTS (Pending or All)
+// 2. GET LAB REQUESTS — workspace isolated per lab technician
 router.get('/requests', verifyToken, resolveTenant, verifyLabOrReportsView, async (req, res) => {
     try {
         const { LabReport, User, HospitalPatient, Lab, Doctor } = getModels(req);
         const { status, search } = req.query;
         const hid = req.user.hospitalId;
+        const userId = req.user.id || req.user.userId;
         const hospitalFilter = hid ? { hospitalId: hid } : {};
+        const permissions = req.user._roleData?.permissions || [];
+        const canViewAll = permissions.includes('VIEW_ALL_LAB_TESTS') || permissions.includes('*');
+        const scope = req.query.scope || 'mine';
 
         const labProfile = await Lab.findOne({
-            $or: [{ email: req.user.email }, { userId: req.user.id }]
+            $or: [{ email: req.user.email }, { userId: userId }]
         });
 
         let query = { ...hospitalFilter };
-        if (labProfile) {
-            query.$or = [{ labId: labProfile._id }, { labId: null }, { labId: { $exists: false } }];
+        if (scope === 'all' && canViewAll) {
+            // Admin/manager: see all hospital requests
+            query = { ...hospitalFilter };
         } else {
-            query.$or = [{ labId: null }, { labId: { $exists: false } }];
+            // WORKSPACE ISOLATION: only assigned to me OR unassigned (claimable)
+            const orConditions = [
+                { assignedToUserId: userId },
+                { assignedToUserId: null }
+            ];
+            if (labProfile) {
+                orConditions.push({ labId: labProfile._id });
+            }
+            query = { ...hospitalFilter, $or: orConditions };
         }
 
         // Map status query parameter with legacy fallbacks
@@ -295,6 +340,7 @@ router.get('/requests', verifyToken, resolveTenant, verifyLabOrReportsView, asyn
         const requests = await LabReport.find(query)
             .populate('userId', 'name email phone patientId')
             .populate({ path: 'doctorId', model: Doctor, select: 'name' })
+            .populate('assignedToUserId', 'name')
             .sort({ createdAt: -1 });
 
         // Map legacy report status values dynamically for backward compatibility
@@ -316,7 +362,7 @@ router.get('/requests', verifyToken, resolveTenant, verifyLabOrReportsView, asyn
             return rObj;
         });
 
-        res.json({ success: true, requests: enrichedRequests });
+        res.json({ success: true, requests: enrichedRequests, canViewAll, scope });
     } catch (error) {
         console.error("[lab] fetch requests error", error);
         res.status(500).json({ success: false, message: 'An internal error occurred' });
@@ -639,6 +685,13 @@ router.post('/:id/collect-sample', verifyToken, resolveTenant, verifyLab, auditL
         report.status = 'Sample Collected';
         report.lastUpdatedBy = req.user.id;
 
+        // WORKSPACE ISOLATION: Auto-assign to the technician who collected the sample
+        if (!report.assignedToUserId) {
+            report.assignedToUserId = req.user.id;
+            report.assignedBy = req.user.id;
+            report.assignedAt = new Date();
+        }
+
         // Push to statusHistory
         report.statusHistory.push({
             status: 'Sample Collected',
@@ -733,6 +786,60 @@ router.patch('/:id/status', verifyToken, resolveTenant, verifyLab, auditLog('UPD
         res.json({ success: true, message: `Status updated to ${status} successfully`, report });
     } catch (error) {
         console.error("Update status error:", error);
+        res.status(500).json({ success: false, message: 'An internal error occurred' });
+    }
+});
+// 7. ASSIGN LAB REPORT TO A SPECIFIC TECHNICIAN (Admin / Lab Manager)
+router.post('/:id/assign', verifyToken, resolveTenant, verifyLab, async (req, res) => {
+    try {
+        const { LabReport } = getModels(req);
+        const permissions = req.user._roleData?.permissions || [];
+        const canViewAll = permissions.includes('VIEW_ALL_LAB_TESTS') || permissions.includes('*');
+
+        if (!canViewAll) {
+            return res.status(403).json({ success: false, message: 'Permission denied. VIEW_ALL_LAB_TESTS required to assign tests.' });
+        }
+
+        const report = await LabReport.findById(req.params.id);
+        if (!report) return res.status(404).json({ success: false, message: 'Report not found.' });
+        if (req.user.hospitalId && String(report.hospitalId) !== String(req.user.hospitalId)) {
+            return res.status(403).json({ success: false, message: 'Access denied: Mismatched hospital context.' });
+        }
+
+        const { assignToUserId } = req.body;
+        if (!assignToUserId) return res.status(400).json({ success: false, message: 'assignToUserId is required.' });
+
+        const previousAssignee = report.assignedToUserId;
+        report.assignedToUserId = assignToUserId;
+        report.assignedBy = req.user.id;
+        report.assignedAt = new Date();
+        report.lastUpdatedBy = req.user.id;
+
+        report.statusHistory.push({
+            status: report.status,
+            updatedAt: new Date(),
+            updatedBy: req.user.id,
+            updatedByName: req.user.name,
+            notes: previousAssignee
+                ? `Reassigned from ${previousAssignee} to ${assignToUserId}`
+                : `Assigned to technician ${assignToUserId}`
+        });
+
+        await report.save();
+
+        // Emit real-time to new assignee
+        const io = req.app.get('io');
+        if (io) {
+            io.to(assignToUserId.toString()).emit('lab_test_assigned', {
+                reportId: report._id,
+                message: 'A lab test has been assigned to you.',
+                status: report.status
+            });
+        }
+
+        res.json({ success: true, message: 'Report assigned successfully', report });
+    } catch (error) {
+        console.error('[lab] assign error', error);
         res.status(500).json({ success: false, message: 'An internal error occurred' });
     }
 });

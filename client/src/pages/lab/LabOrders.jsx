@@ -8,6 +8,8 @@ const LabOrders = () => {
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
     const [selectedOrder, setSelectedOrder] = useState(null);
+    const [scope, setScope] = useState('mine');       // 'mine' | 'all'
+    const [canViewAll, setCanViewAll] = useState(false);
 
     useEffect(() => {
         const delayDebounceFn = setTimeout(() => {
@@ -17,18 +19,24 @@ const LabOrders = () => {
         return () => clearTimeout(delayDebounceFn);
     }, [statusFilter, search]);
 
-    const loadOrders = async () => {
+    const loadOrders = async (activeScope = scope) => {
         setLoading(true);
         try {
-            const res = await labAPI.getRequests(statusFilter, search);
+            const res = await labAPI.getRequests(statusFilter, search, activeScope);
             if (res.success) {
                 setOrders(res.requests);
+                if (res.canViewAll !== undefined) setCanViewAll(res.canViewAll);
             }
         } catch (err) {
             console.error("Error loading lab orders:", err);
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleScopeChange = (newScope) => {
+        setScope(newScope);
+        loadOrders(newScope);
     };
 
     const handleSearchSubmit = (e) => {
@@ -62,7 +70,25 @@ const LabOrders = () => {
 
     return (
         <div className="lab-orders-page">
-            <h2>📋 Laboratory Orders Registry</h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '12px' }}>
+                <h2 style={{ margin: 0 }}>📋 Laboratory Orders Registry</h2>
+                {canViewAll && (
+                    <div style={{ display: 'flex', borderRadius: '8px', overflow: 'hidden', border: '1.5px solid #14b8a6' }}>
+                        <button onClick={() => handleScopeChange('mine')}
+                            style={{ padding: '8px 16px', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem',
+                                background: scope === 'mine' ? 'linear-gradient(135deg,#14b8a6,#0a2647)' : '#fff',
+                                color: scope === 'mine' ? '#fff' : '#14b8a6' }}>
+                            👤 My Tests
+                        </button>
+                        <button onClick={() => handleScopeChange('all')}
+                            style={{ padding: '8px 16px', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem',
+                                background: scope === 'all' ? 'linear-gradient(135deg,#14b8a6,#0a2647)' : '#fff',
+                                color: scope === 'all' ? '#fff' : '#14b8a6' }}>
+                            🏥 All Tests
+                        </button>
+                    </div>
+                )}
+            </div>
 
             {/* Controls */}
             <div className="controls-container">

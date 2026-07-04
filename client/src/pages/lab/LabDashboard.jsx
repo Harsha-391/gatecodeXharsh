@@ -9,6 +9,8 @@ const LabDashboard = () => {
     const [stats, setStats] = useState({ pending: 0, completed: 0, revenue: 0, inProgress: 0, total: 0, labName: 'Lab' });
     const [loading, setLoading] = useState(true);
     const [doctorsList, setDoctorsList] = useState([]);
+    const [scope, setScope] = useState('mine');       // 'mine' | 'all'
+    const [canViewAll, setCanViewAll] = useState(false);
 
     // Form Modal states
     const [showAddModal, setShowAddModal] = useState(false);
@@ -46,17 +48,23 @@ const LabDashboard = () => {
         };
     }, []);
 
-    const loadStats = async () => {
+    const loadStats = async (activeScope = scope) => {
         try {
-            const res = await labAPI.getStats();
+            const res = await labAPI.getStats(activeScope);
             if (res.success) {
                 setStats(res.stats);
+                if (res.canViewAll !== undefined) setCanViewAll(res.canViewAll);
             }
         } catch (err) {
             console.error("Error loading stats:", err);
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleScopeChange = (newScope) => {
+        setScope(newScope);
+        loadStats(newScope);
     };
 
     const fetchDoctors = async () => {
@@ -117,13 +125,33 @@ const LabDashboard = () => {
                 <div>
                     <h1>🔬 {stats.labName} Dashboard</h1>
                     <p style={{ color: '#64748b', fontSize: '0.85rem', margin: '2px 0 0' }}>
-                        Manage test requests and upload reports • Auto-refreshes every 30s
+                        {scope === 'mine' ? '👤 My Workspace — showing only your assigned tests' : '🏥 All Tests — hospital-wide view'}
                     </p>
                 </div>
-                <button className="action-btn" onClick={() => setShowAddModal(true)}
-                    style={{ padding: '12px 24px', height: 'auto', width: 'auto', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #14b8a6, #0a2647)', color: '#fff', cursor: 'pointer', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    ➕ Register Walk-in Test
-                </button>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    {canViewAll && (
+                        <div style={{ display: 'flex', borderRadius: '8px', overflow: 'hidden', border: '1.5px solid #14b8a6' }}>
+                            <button
+                                onClick={() => handleScopeChange('mine')}
+                                style={{ padding: '8px 16px', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem',
+                                    background: scope === 'mine' ? 'linear-gradient(135deg,#14b8a6,#0a2647)' : '#fff',
+                                    color: scope === 'mine' ? '#fff' : '#14b8a6' }}>
+                                👤 My Tests
+                            </button>
+                            <button
+                                onClick={() => handleScopeChange('all')}
+                                style={{ padding: '8px 16px', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem',
+                                    background: scope === 'all' ? 'linear-gradient(135deg,#14b8a6,#0a2647)' : '#fff',
+                                    color: scope === 'all' ? '#fff' : '#14b8a6' }}>
+                                🏥 All Tests
+                            </button>
+                        </div>
+                    )}
+                    <button className="action-btn" onClick={() => setShowAddModal(true)}
+                        style={{ padding: '12px 24px', height: 'auto', width: 'auto', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #14b8a6, #0a2647)', color: '#fff', cursor: 'pointer', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        ➕ Register Walk-in Test
+                    </button>
+                </div>
             </div>
 
             {loading ? (

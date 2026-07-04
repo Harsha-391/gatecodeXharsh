@@ -30,6 +30,22 @@ const labReportSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Lab' // Optional: If you want to assign to a specific lab later
   },
+  // Enterprise Workspace Isolation — per-user assignment
+  assignedToUserId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null,
+    index: true
+  },
+  assignedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null
+  },
+  assignedAt: {
+    type: Date,
+    default: null
+  },
   testNames: [{
     type: String,
     required: true

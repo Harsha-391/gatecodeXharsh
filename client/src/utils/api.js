@@ -420,9 +420,9 @@ export const uploadAPI = {
 };
 
 export const labAPI = {
-    getStats: async () => (await apiClient.get('/api/lab/stats')).data,
-    getMyReports: async () => (await apiClient.get('/api/lab/my-reports')).data,
-    getRequests: async (status, search = '') => (await apiClient.get(`/api/lab/requests?status=${status || ''}&search=${encodeURIComponent(search)}`)).data,
+    getStats: async (scope = 'mine') => (await apiClient.get(`/api/lab/stats?scope=${scope}`)).data,
+    getMyReports: async (scope = 'mine') => (await apiClient.get(`/api/lab/my-reports?scope=${scope}`)).data,
+    getRequests: async (status, search = '', scope = 'mine') => (await apiClient.get(`/api/lab/requests?status=${status || ''}&search=${encodeURIComponent(search)}&scope=${scope}`)).data,
     updatePayment: async (id, paymentData) => (await apiClient.patch(`/api/lab/update-payment/${id}`, paymentData)).data,
     uploadReport: async (id, formData) => (await apiClient.post(`/api/lab/upload-report/${id}`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
@@ -432,7 +432,8 @@ export const labAPI = {
     })).data,
     cancelReport: async (id) => (await apiClient.patch(`/api/lab/${id}/cancel`)).data,
     collectSample: async (id, data) => (await apiClient.post(`/api/lab/${id}/collect-sample`, data)).data,
-    updateStatus: async (id, statusData) => (await apiClient.patch(`/api/lab/${id}/status`, statusData)).data
+    updateStatus: async (id, statusData) => (await apiClient.patch(`/api/lab/${id}/status`, statusData)).data,
+    assignReport: async (id, assignToUserId) => (await apiClient.post(`/api/lab/${id}/assign`, { assignToUserId })).data
 };
 
 export const pharmacyAPI = {
