@@ -180,7 +180,7 @@ router.get('/kpis', verifyFinanceAccess, async (req, res) => {
     try {
         const hospitalId = req.user.hospitalId;
         const hFilter = hospitalId ? { hospitalId } : {};
-        const { Invoice, Expense, Refund, InsuranceClaim, Reconciliation, CollectionTransaction } = getModels(req.tenantDb);
+                const { Invoice, Expense, Refund, InsuranceClaim, Reconciliation, CollectionTransaction, Appointment } = getModels(req.tenantDb);
 
         const today = new Date();
         const startOfToday = new Date(today.setHours(0, 0, 0, 0));
@@ -192,6 +192,7 @@ router.get('/kpis', verifyFinanceAccess, async (req, res) => {
         // Fetch all invoices to compute outstanding metrics
         const invoices = await Invoice.find({ ...hFilter, paymentStatus: { $ne: 'Cancelled' } }).lean();
         const transactions = await CollectionTransaction.find(hFilter).lean();
+        const appointments = await Appointment.find({ ...hFilter, paymentStatus: { $in: ['paid', 'Paid', 'PAID'] } }).lean();
 
         let todayRevenue = 0;
         let monthlyRevenue = 0;
@@ -203,6 +204,11 @@ router.get('/kpis', verifyFinanceAccess, async (req, res) => {
             outstandingPayments += (inv.outstandingAmount || 0);
         });
 
+        let cashCollections = 0;
+        let upiCollections = 0;
+        let cardCollections = 0;
+        let bankCollections = 0;
+
         transactions.forEach(t => {
             const payDate = new Date(t.collectionTimestamp || t.createdAt);
             if (payDate >= startOfToday && payDate <= endOfToday) {
@@ -212,8 +218,37 @@ router.get('/kpis', verifyFinanceAccess, async (req, res) => {
             if (payDate >= startOfMonth && payDate <= endOfMonth) {
                 monthlyRevenue += t.amount || 0;
             }
-            totalCollection += t.amount || 0;
+            
+            if (t.paymentMethod === 'Cash') cashCollections += t.amount || 0;
+            else if (t.paymentMethod === 'UPI') upiCollections += t.amount || 0;
+            else if (t.paymentMethod === 'Card') cardCollections += t.amount || 0;
+            else if (t.paymentMethod === 'Bank Transfer') bankCollections += t.amount || 0;
         });
+
+        // Sum up total collections including paid appointments that are missing collection transaction logs
+        const txAppointmentIds = new Set(transactions.filter(t => t.appointmentId).map(t => String(t.appointmentId)));
+        appointments.forEach(a => {
+            const amt = a.amount || 0;
+            const apptDate = new Date(a.createdAt || a.updatedAt || a.appointmentDate);
+            
+            if (!txAppointmentIds.has(String(a._id))) {
+                if (apptDate >= startOfToday && apptDate <= endOfToday) {
+                    todayRevenue += amt;
+                    todayCollection += amt;
+                }
+                if (apptDate >= startOfMonth && apptDate <= endOfMonth) {
+                    monthlyRevenue += amt;
+                }
+
+                const pMethod = a.paymentMethod || 'Cash';
+                if (pMethod === 'Cash') cashCollections += amt;
+                else if (pMethod === 'UPI') upiCollections += amt;
+                else if (pMethod === 'Card') cardCollections += amt;
+                else if (pMethod === 'Bank Transfer') bankCollections += amt;
+            }
+        });
+
+        totalCollection = cashCollections + upiCollections + cardCollections + bankCollections;
 
         // Pending Insurance Claims
         const pendingClaims = await InsuranceClaim.find({

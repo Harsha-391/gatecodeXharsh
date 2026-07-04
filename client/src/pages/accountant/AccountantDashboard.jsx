@@ -137,9 +137,9 @@ const AccountantDashboard = () => {
                                 </div>
                                 <div className="acc-kpi-card" style={{ background: 'linear-gradient(135deg, #b45309, #f97316)' }}>
                                     <div className="acc-kpi-icon">💰</div>
-                                    <div className="acc-kpi-value">{formatCurrency(kpis.todayCollection)}</div>
+                                    <div className="acc-kpi-value">{formatCurrency(kpis.totalCollection)}</div>
                                     <div className="acc-kpi-label">Total Collection</div>
-                                    <div className="acc-kpi-sub">Total payments collected today</div>
+                                    <div className="acc-kpi-sub">Total payments collected</div>
                                 </div>
                             </div>
                         </>
