@@ -781,7 +781,7 @@ const getBaseURL = () => {
         const hn = window.location.hostname;
         if (hn === 'localhost' || hn.endsWith('.localhost')) return '';
     }
-    return 'https://hms-h939.onrender.com';
+    return 'https://gatecodexharsh-1.onrender.com';
 };
 const baseURL = getBaseURL();
 const reportURL = (filename) => `${baseURL}/uploads/patient-reports/${encodeURIComponent(filename)}`;

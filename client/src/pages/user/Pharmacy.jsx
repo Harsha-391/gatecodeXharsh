@@ -60,7 +60,7 @@ const Pharmacy = () => {
             const hn = window.location.hostname;
             if (hn === 'localhost' || hn.endsWith('.localhost')) return '';
         }
-        return 'https://hms-h939.onrender.com';
+        return 'https://gatecodexharsh-1.onrender.com';
       };
       const BASE = getApiBase();
       const response = await fetch(`${BASE}/api/pharmacy/my-orders`, {

@@ -9,7 +9,7 @@ const getBaseURL = () => {
             return ''; // Use relative path to leverage Vite's proxy (extremely fast)
         }
     }
-    return 'https://hms-h939.onrender.com';
+    return 'https://gatecodexharsh-1.onrender.com';
 };
 const baseURL = getBaseURL();
 
