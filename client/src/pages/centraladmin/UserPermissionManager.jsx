@@ -117,9 +117,9 @@ const UserPermissionManager = ({ hospitals = [] }) => {
         const roleName = userObj.roleName || userObj.role;
         if (!roleName) return 'No Role';
         const lowerRole = String(roleName).toLowerCase();
-        if (lowerRole === 'hospitaladmin' || lowerRole === 'admin') {
+        if (lowerRole === 'hospitaladmin' || lowerRole === 'clinicadmin' || lowerRole === 'admin') {
             const hosp = hospitals.find(h => String(h._id) === String(userObj.hospitalId));
-            if (hosp && hosp.clinicType === 'clinic') {
+            if ((hosp && hosp.clinicType === 'clinic') || lowerRole === 'clinicadmin') {
                 return 'Clinic Admin';
             }
             return 'Hospital Admin';
@@ -153,9 +153,9 @@ const UserPermissionManager = ({ hospitals = [] }) => {
                 const staff = (res.users || []).filter(u => {
                     const role = (u.role || '').toLowerCase();
                     if (isCentral) {
-                        return ['hospitaladmin', 'admin'].includes(role);
+                        return ['hospitaladmin', 'clinicadmin', 'admin'].includes(role);
                     } else {
-                        return !['centraladmin', 'superadmin', 'hospitaladmin', 'admin', 'patient'].includes(role);
+                        return !['centraladmin', 'superadmin', 'hospitaladmin', 'clinicadmin', 'admin', 'patient'].includes(role);
                     }
                 });
                 setAllStaff(staff);

@@ -50,21 +50,27 @@ const App = () => {
     }
   }, [isAuthenticated, user]);
 
+  const userId = user?._id || user?.id;
+  const userRole = user?.role;
+  const hospitalId = user?.hospitalId;
+
   // Socket Connection Management
   useEffect(() => {
-    if (isAuthenticated && user) {
-      const roleStr = typeof user.role === 'string'
-        ? user.role.toLowerCase()
-        : user._roleData?.name?.toLowerCase();
+    if (isAuthenticated && userId) {
+      const roleStr = typeof userRole === 'string'
+        ? userRole.toLowerCase()
+        : '';
 
       // ── Room join helper (called on connect and on every reconnect) ──────────
       const joinRooms = () => {
-        const uId = user._id || user.id;
-        if (uId) socket.emit('join', uId);
+        socket.emit('join', userId);
 
         const roomsToJoin = [];
         if (roleStr) {
-          roomsToJoin.push(roleStr);
+          const isAdminRole = ['admin', 'hospitaladmin', 'clinicadmin', 'superadmin', 'centraladmin', 'administrator'].includes(roleStr);
+          if (!isAdminRole) {
+            roomsToJoin.push(roleStr);
+          }
           if (['reception', 'receptionist', 'receptiondeskmanager'].includes(roleStr)) {
             roomsToJoin.push('reception', 'receptionist', 'receptiondeskmanager');
           } else if (['pharmacy', 'pharmacist'].includes(roleStr)) {
@@ -77,9 +83,9 @@ const App = () => {
         const uniqueRooms = [...new Set(roomsToJoin)];
         uniqueRooms.forEach(room => socket.emit('join', room));
 
-        if (user.hospitalId) {
-          socket.emit('join', `hospital_${user.hospitalId}`);
-          uniqueRooms.forEach(room => socket.emit('join', `hospital_${user.hospitalId}_${room}`));
+        if (hospitalId) {
+          socket.emit('join', `hospital_${hospitalId}`);
+          uniqueRooms.forEach(room => socket.emit('join', `hospital_${hospitalId}_${room}`));
         }
       };
 
@@ -126,7 +132,7 @@ const App = () => {
       socket.auth = { token: '' };
       socket.disconnect();
     }
-  }, [isAuthenticated, user, dispatch]);
+  }, [isAuthenticated, userId, userRole, hospitalId, dispatch]);
 
   // Smooth scrolling
   useEffect(() => {

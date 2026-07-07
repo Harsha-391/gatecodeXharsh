@@ -338,9 +338,23 @@ const CentralAdminDashboard = () => {
     const fetchHospitals = async () => {
         try {
             setLoadingHospitals(true);
-            const res = await hospitalAPI.getHospitals();
-            if (res.success) setHospitals(res.hospitals);
-        } catch (err) { console.error(err); } finally { setLoadingHospitals(false); }
+            const [hospRes, clinicRes] = await Promise.all([
+                hospitalAPI.getHospitals(),
+                simpleClinicAPI.getClinics()
+            ]);
+            let combined = [];
+            if (hospRes.success && hospRes.hospitals) {
+                combined = [...hospRes.hospitals];
+            }
+            if (clinicRes.success && clinicRes.clinics) {
+                combined = [...combined, ...clinicRes.clinics];
+            }
+            setHospitals(combined);
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoadingHospitals(false);
+        }
     };
 
     const fetchRoles = async () => {
@@ -358,7 +372,7 @@ const CentralAdminDashboard = () => {
                 // Filter out patients, centraladmin, superadmin, hospitaladmin — only show real staff
                 const staff = res.users.filter(u => {
                     const role = (u.role || '').toLowerCase();
-                    return !['centraladmin', 'superadmin', 'hospitaladmin', 'patient'].includes(role);
+                    return !['centraladmin', 'superadmin', 'hospitaladmin', 'clinicadmin', 'patient'].includes(role);
                 });
                 setAllStaff(staff);
             }
@@ -1521,10 +1535,17 @@ const CentralAdminDashboard = () => {
                                                 {clinic.email && <div>✉️ {clinic.email}</div>}
                                                 <div style={{ marginTop: '6px' }}>💰 Fee: {formatCurrency(clinic.appointmentFee)}</div>
                                                 <div style={{ marginTop: '8px', padding: '6px 10px', background: '#f8fafc', borderRadius: '6px', fontSize: '11px', border: '1px solid #e2e8f0', color: '#475569' }}>
-                                                    <div><strong>Subdomain:</strong> {clinic.slug}</div>
-                                                    <div style={{ marginTop: '2px' }}><strong>TenantKey:</strong> <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{clinic.tenantKey || 'N/A'}</span></div>
-                                                </div>
-                                                {clinic.slug && <div style={{ marginTop: '4px', fontFamily: 'monospace', fontSize: '11px', color: '#94a3b8' }}>🔗 /{clinic.slug}</div>}
+                                                     <div><strong>Subdomain:</strong> {clinic.slug}</div>
+                                                     <div style={{ marginTop: '2px' }}><strong>TenantKey:</strong> <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{clinic.tenantKey || 'N/A'}</span></div>
+                                                 </div>
+                                                 {clinic.slug && (
+                                                     <a href={`${window.location.protocol}//${clinic.slug}.${getBaseHost()}`}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                        style={{ display: 'inline-block', marginTop: '6px', background: 'var(--brand-pink)', color: 'white', padding: '2px 6px', fontSize: '10px', borderRadius: '4px', textDecoration: 'none', marginRight: '6px' }}>
+                                                         🌐 {clinic.slug}.{getBaseHost()}
+                                                     </a>
+                                                 )}
                                                 <div style={{ marginTop: '8px', padding: '6px 10px', borderRadius: '6px', background: clinic.adminUserId ? '#f0fdf4' : '#fff7ed', border: `1px solid ${clinic.adminUserId ? '#bbf7d0' : '#fed7aa'}` }}>
                                                     {clinic.adminUserId
                                                         ? <span style={{ color: '#16a34a', fontSize: '12px', fontWeight: 600 }}>👤 Admin: {clinic.adminUserId.name}</span>
@@ -1560,10 +1581,20 @@ const CentralAdminDashboard = () => {
                                 <div style={{ fontSize: '40px' }}>🏪</div>
                                 <div>
                                     <h2 style={{ margin: 0 }}>{selectedClinic.name}</h2>
-                                    <p style={{ color: '#64748b', margin: '4px 0 0' }}>
-                                        {selectedClinic.city}{selectedClinic.state ? `, ${selectedClinic.state}` : ''}
-                                        {selectedClinic.phone ? ` · 📞 ${selectedClinic.phone}` : ''}
-                                        {selectedClinic.slug ? ` · 🔗 /${selectedClinic.slug}` : ''}
+                                    <p style={{ color: '#64748b', margin: '4px 0 0', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
+                                        <span>{selectedClinic.city}{selectedClinic.state ? `, ${selectedClinic.state}` : ''}</span>
+                                        {selectedClinic.phone && <span> · 📞 {selectedClinic.phone}</span>}
+                                        {selectedClinic.slug && (
+                                            <>
+                                                <span> · 🌐 </span>
+                                                <a href={`${window.location.protocol}//${selectedClinic.slug}.${getBaseHost()}`}
+                                                   target="_blank"
+                                                   rel="noreferrer"
+                                                   style={{ color: 'var(--brand-pink)', textDecoration: 'none', fontWeight: 600 }}>
+                                                    {selectedClinic.slug}.{getBaseHost()}
+                                                </a>
+                                            </>
+                                        )}
                                     </p>
                                 </div>
                                 <span style={{ marginLeft: 'auto', padding: '4px 12px', borderRadius: '6px', fontWeight: 600, fontSize: '13px', background: selectedClinic.isActive ? '#dcfce7' : '#fee2e2', color: selectedClinic.isActive ? '#16a34a' : '#dc2626' }}>

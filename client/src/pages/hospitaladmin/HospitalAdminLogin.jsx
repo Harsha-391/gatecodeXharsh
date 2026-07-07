@@ -20,7 +20,9 @@ const HospitalAdminLogin = () => {
     useEffect(() => {
         if (isAuthenticated && user) {
             const role = user.role?.toLowerCase();
-            if (role === 'hospitaladmin') {
+            if (role === 'clinicadmin') {
+                navigate('/clinicadmin');
+            } else if (role === 'hospitaladmin') {
                 navigate('/hospitaladmin');
             } else if (role === 'centraladmin' || role === 'superadmin') {
                 navigate('/supremeadmin');

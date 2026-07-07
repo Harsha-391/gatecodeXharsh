@@ -117,13 +117,13 @@ router.post('/complete-login', otpLimiter, async (req, res) => {
         }
 
         // TOTP passed — issue the real session JWT
-        const specialRoles = ['superadmin', 'centraladmin', 'hospitaladmin'];
+        const specialRoles = ['superadmin', 'centraladmin', 'hospitaladmin', 'clinicadmin'];
         let roleData = null;
         if (specialRoles.includes(user.role)) {
             const isCentral = user.role === 'centraladmin' || user.role === 'superadmin';
             roleData = {
                 name: user.role,
-                permissions: isCentral ? ['*'] : ['admin_manage_roles', 'admin_view_stats'],
+                permissions: isCentral ? ['*'] : (user.role === 'clinicadmin' ? [] : ['admin_manage_roles', 'admin_view_stats']),
                 dashboardPath: isCentral ? '/supremeadmin' : '/hospitaladmin',
                 navLinks: [],
             };

@@ -79,7 +79,7 @@ const uploadReport = multer({
 const verifyClinicAdmin = async (req, res, next) => {
     try {
         await verifyToken(req, res, async () => {
-            if (req.user.role !== 'hospitaladmin') {
+            if (req.user.role !== 'hospitaladmin' && req.user.role !== 'clinicadmin') {
                 return res.status(403).json({ success: false, message: 'Clinic admin access required' });
             }
             if (!req.user.hospitalId) {

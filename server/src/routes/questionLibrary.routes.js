@@ -29,11 +29,11 @@ router.get('/', verifyToken, resolveTenant, async (req, res) => {
         let allowedDepartments = null; // null means all allowed (super/central admin)
 
         if (hospitalId) {
-            library = await QuestionLibrary.findOne({ hospitalId }).sort({ version: -1 });
-            let hospital = await Hospital.findById(hospitalId);
+            library = await QuestionLibrary.findOne({ hospitalId }).sort({ version: -1 }).lean();
+            let hospital = await Hospital.findById(hospitalId).lean();
             if (!hospital) {
                 const Clinic = require('../models/clinic.model');
-                hospital = await Clinic.findById(hospitalId);
+                hospital = await Clinic.findById(hospitalId).lean();
             }
             if (hospital && hospital.departments) {
                 allowedDepartments = hospital.departments;
@@ -44,7 +44,7 @@ router.get('/', verifyToken, resolveTenant, async (req, res) => {
 
         if (!library) {
             // Fallback to global template
-            library = await QuestionLibrary.findOne({ hospitalId: null }).sort({ version: -1 });
+            library = await QuestionLibrary.findOne({ hospitalId: null }).sort({ version: -1 }).lean();
         }
 
         let libraryDataObj = {};
@@ -55,7 +55,7 @@ router.get('/', verifyToken, resolveTenant, async (req, res) => {
         let mergedData;
         if (allowedDepartments === null) {
             // Super/Central admin: Retrieve all active departments in database to populate
-            const activeDepartments = await Department.find({ isActive: true });
+            const activeDepartments = await Department.find({ isActive: true }).lean();
             const activeDeptNames = activeDepartments.map(d => d.name);
 
             // Start with what is stored in the library data
@@ -87,7 +87,7 @@ router.get('/', verifyToken, resolveTenant, async (req, res) => {
 
         let resultLibrary = null;
         if (library) {
-            resultLibrary = library.toObject();
+            resultLibrary = typeof library.toObject === 'function' ? library.toObject() : { ...library };
             resultLibrary.data = mergedData;
         } else {
             resultLibrary = { data: mergedData };

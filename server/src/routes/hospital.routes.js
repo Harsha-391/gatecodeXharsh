@@ -66,7 +66,7 @@ const verifyHospitalAdmin = async (req, res, next) => {
             // Always check against the resolved _roleData.name for reliability.
             const rawRole = String(req.user.role || '').toLowerCase();
             const resolvedRole = ((req.user._roleData && req.user._roleData.name) || '').toLowerCase();
-            const allowedRoles = ['centraladmin', 'superadmin', 'hospitaladmin', 'admin'];
+            const allowedRoles = ['centraladmin', 'superadmin', 'hospitaladmin', 'clinicadmin', 'admin'];
 
             if (allowedRoles.includes(rawRole) || allowedRoles.includes(resolvedRole)) {
                 return next();
@@ -85,7 +85,7 @@ const verifyHospitalAdmin = async (req, res, next) => {
 // Get all hospitals
 router.get('/', verifyCentralAdmin, async (req, res) => {
     try {
-        const hospitals = await Hospital.find({}).populate('adminUserId', 'name email');
+        const hospitals = await Hospital.find({}).populate('adminUserId', 'name email').lean();
         res.json({ success: true, hospitals });
     } catch (err) {
         res.status(500).json({ success: false, message: 'An internal error occurred' });
@@ -692,11 +692,11 @@ router.post('/admin/login', async (req, res) => {
         // Only allow hospitaladmin role or a proper Administrator Role document
         let roleData = null;
         let roleName = null;
-        if (user.role === 'hospitaladmin') {
-            roleName = 'hospitaladmin';
+        if (user.role === 'hospitaladmin' || user.role === 'clinicadmin') {
+            roleName = user.role;
             roleData = {
-                name: 'hospitaladmin',
-                permissions: ['admin_manage_roles', 'admin_view_stats'],
+                name: user.role,
+                permissions: user.role === 'clinicadmin' ? [] : ['admin_manage_roles', 'admin_view_stats'],
                 dashboardPath: '/hospitaladmin',
                 navLinks: []
             };
@@ -1394,14 +1394,16 @@ router.get('/:id/stats', verifyHospitalAdmin, async (req, res) => {
 // WHITE-LABEL BRANDING (Central Admin)
 // ==========================================
 
-/**
- * GET /api/hospitals/:id/branding — PUBLIC (no auth)
- * Returns the branding config for a hospital (for theming login pages)
- */
+// GET /api/hospitals/:id/branding — PUBLIC (no auth)
+// Returns the branding config for a hospital or clinic (for theming login pages)
 router.get('/:id/branding', async (req, res) => {
     try {
-        const hospital = await Hospital.findById(req.params.id, 'name branding logo slug city').lean();
-        if (!hospital) return res.status(404).json({ success: false, message: 'Hospital not found' });
+        let hospital = await Hospital.findById(req.params.id, 'name branding logo slug city').lean();
+        if (!hospital) {
+            const Clinic = require('../models/clinic.model');
+            hospital = await Clinic.findById(req.params.id, 'name branding logo slug city').lean();
+        }
+        if (!hospital) return res.status(404).json({ success: false, message: 'Hospital or clinic not found' });
         res.json({ success: true, branding: hospital.branding || {}, hospitalName: hospital.name, logo: hospital.logo });
     } catch (err) {
         console.error('Branding fetch error:', err);
@@ -1411,10 +1413,8 @@ router.get('/:id/branding', async (req, res) => {
     }
 });
 
-/**
- * PUT /api/hospitals/:id/branding — Central Admin only
- * Save / update the white-label branding config for a hospital
- */
+// PUT /api/hospitals/:id/branding — Central Admin only
+// Save / update the white-label branding config for a hospital or clinic
 router.put('/:id/branding', verifyCentralAdmin, async (req, res) => {
     try {
         const {
@@ -1426,8 +1426,14 @@ router.put('/:id/branding', verifyCentralAdmin, async (req, res) => {
             footerText
         } = req.body;
 
-        const hospital = await Hospital.findById(req.params.id);
-        if (!hospital) return res.status(404).json({ success: false, message: 'Hospital not found' });
+        let hospital = await Hospital.findById(req.params.id);
+        let isClinic = false;
+        if (!hospital) {
+            const Clinic = require('../models/clinic.model');
+            hospital = await Clinic.findById(req.params.id);
+            if (hospital) isClinic = true;
+        }
+        if (!hospital) return res.status(404).json({ success: false, message: 'Hospital or clinic not found' });
 
         // Merge branding fields (only update what is provided)
         const branding = hospital.branding || {};
@@ -1454,7 +1460,7 @@ router.put('/:id/branding', verifyCentralAdmin, async (req, res) => {
         hospital.markModified('branding');
         await hospital.save();
         const { syncToTenant } = require('../utils/tenantSync');
-        await syncToTenant('Hospital', hospital, 'save', hospital._id);
+        await syncToTenant(isClinic ? 'Clinic' : 'Hospital', hospital, 'save', hospital._id);
 
         // Emit socket event for real-time UI updates
         const io = req.app.get('io');

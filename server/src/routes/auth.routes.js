@@ -22,14 +22,14 @@ async function buildUserResponse(user) {
   let roleData = null;
   let roleName = null;
 
-  const specialRoles = ['superadmin', 'centraladmin', 'hospitaladmin'];
+  const specialRoles = ['superadmin', 'centraladmin', 'hospitaladmin', 'clinicadmin'];
 
   if (specialRoles.includes(user.role)) {
     roleName = user.role;
     const isCentral = user.role === 'centraladmin' || user.role === 'superadmin';
     roleData = {
       name: user.role,
-      permissions: isCentral ? ['*'] : ['admin_manage_roles', 'admin_view_stats'],
+      permissions: isCentral ? ['*'] : (user.role === 'clinicadmin' ? [] : ['admin_manage_roles', 'admin_view_stats']),
       dashboardPath: isCentral ? '/supremeadmin' : '/hospitaladmin',
       navLinks: [],
       isSystemRole: true
@@ -272,13 +272,19 @@ router.post('/login', loginLimiter, async (req, res) => {
       return res.status(403).json({ success: false, message: 'Account is disabled. Contact administrator.' });
     }
 
-    // Deactivated Hospital check
-    if (user.hospitalId && user.role !== 'superadmin' && user.role !== 'centraladmin') {
+    // Deactivated Hospital check / Load Hospital Info
+    let hospitalInfo = null;
+    if (user.hospitalId) {
       const Hospital = require('../models/hospital.model');
-      const hospital = await Hospital.findById(user.hospitalId).select('isActive');
-      if (hospital && hospital.isActive === false) {
-        return res.status(403).json({ success: false, message: 'Your hospital access has been deactivated. Please contact the system administrator.' });
+      const Clinic = require('../models/clinic.model');
+      hospitalInfo = await Hospital.findById(user.hospitalId).select('isActive tenantKey slug clinicType').lean();
+      if (!hospitalInfo) {
+        hospitalInfo = await Clinic.findById(user.hospitalId).select('isActive tenantKey slug clinicType').lean();
       }
+    }
+
+    if (hospitalInfo && hospitalInfo.isActive === false && user.role !== 'superadmin' && user.role !== 'centraladmin') {
+      return res.status(403).json({ success: false, message: 'Your hospital access has been deactivated. Please contact the system administrator.' });
     }
 
 
@@ -315,11 +321,11 @@ router.post('/login', loginLimiter, async (req, res) => {
 
     // Verify the role exists in the DB (handle both ObjectId and legacy string)
     let roleData = null;
-    if (user.role === 'hospitaladmin') {
+    if (user.role === 'hospitaladmin' || user.role === 'clinicadmin') {
       roleData = {
-          name: 'hospitaladmin',
-          permissions: ['admin_manage_roles', 'admin_view_stats'],
-          dashboardPath: '/hospitaladmin',
+          name: user.role,
+          permissions: user.role === 'clinicadmin' ? [] : ['admin_manage_roles', 'admin_view_stats'],
+          dashboardPath: user.role === 'clinicadmin' ? '/clinicadmin' : '/hospitaladmin',
           navLinks: [],
           isSystemRole: true
       };
@@ -454,6 +460,7 @@ router.post('/login', loginLimiter, async (req, res) => {
             // Admin-level users can always log in via /login (no subdomain required).
             // This covers: 'hospitaladmin' string, 'administrator' ObjectId role, 'admin' legacy string.
             const isAdminLevelRole = userRoleStr === 'hospitaladmin' ||
+                userRoleStr === 'clinicadmin' ||
                 userRoleStr.includes('administrator') ||
                 userRoleStr === 'admin';
 
@@ -474,8 +481,7 @@ router.post('/login', loginLimiter, async (req, res) => {
 
     // If MFA is enabled, issue a short-lived pre-auth token instead of a full session token.
     // The client must POST this + a TOTP code to /api/mfa/complete-login to get a real token.
-    const mfaUser = await require('../models/user.model').findById(user._id).select('mfaEnabled');
-    if (mfaUser?.mfaEnabled) {
+    if (user.mfaEnabled) {
       const preAuthToken = jwt.sign(
         { mfa_pending: true, userId: String(user._id) },
         JWT_SECRET,
@@ -484,20 +490,8 @@ router.post('/login', loginLimiter, async (req, res) => {
       return res.json({ success: true, mfaRequired: true, preAuthToken });
     }
 
-    let tenantKey = null;
-    let subdomain = null;
-    if (user.hospitalId) {
-      const Hospital = require('../models/hospital.model');
-      let hosp = await Hospital.findById(user.hospitalId).select('tenantKey slug');
-      if (!hosp) {
-        const Clinic = require('../models/clinic.model');
-        hosp = await Clinic.findById(user.hospitalId).select('tenantKey slug');
-      }
-      if (hosp) {
-        tenantKey = hosp.tenantKey;
-        subdomain = hosp.slug;
-      }
-    }
+    let tenantKey = hospitalInfo?.tenantKey || null;
+    let subdomain = hospitalInfo?.slug || null;
 
     const jti = uuidv4();
     const token = jwt.sign(
@@ -516,17 +510,7 @@ router.post('/login', loginLimiter, async (req, res) => {
     );
 
     // Build user response with role data (roleData is already fetched above)
-    let clinicType = null;
-    if (user.hospitalId) {
-      try {
-        let hosp = await Hospital.findById(user.hospitalId).select('clinicType');
-        if (!hosp) {
-          const Clinic = require('../models/clinic.model');
-          hosp = await Clinic.findById(user.hospitalId).select('clinicType');
-        }
-        clinicType = hosp?.clinicType || 'hospital';
-      } catch (_) {}
-    }
+    let clinicType = hospitalInfo?.clinicType || 'hospital';
 
     const userData = {
       id: user._id,
@@ -622,13 +606,13 @@ router.get('/me', verifyToken, async (req, res) => {
     
     // Fetch full role data for this user
     let roleData = null;
-    const specialRoles = ['superadmin', 'centraladmin', 'hospitaladmin'];
+    const specialRoles = ['superadmin', 'centraladmin', 'hospitaladmin', 'clinicadmin'];
     
     if (specialRoles.includes(user.role)) {
       const isCentral = user.role === 'centraladmin' || user.role === 'superadmin';
       roleData = {
         name: user.role,
-        permissions: isCentral ? ['*'] : ['admin_manage_roles', 'admin_view_stats'],
+        permissions: isCentral ? ['*'] : (user.role === 'clinicadmin' ? [] : ['admin_manage_roles', 'admin_view_stats']),
         dashboardPath: isCentral ? '/supremeadmin' : '/hospitaladmin',
         navLinks: [],
         isSystemRole: true

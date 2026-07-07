@@ -69,6 +69,12 @@ const RoleDashboard = () => {
 
     // Hospital Admin (role='admin') goes directly to the full AdminMainDashboard
     const role = (user.role || '').toLowerCase();
+    if (role === 'clinicadmin') {
+        return <Navigate to="/clinicadmin" replace />;
+    }
+    if (role === 'hospitaladmin' && user.clinicType === 'clinic') {
+        return <Navigate to="/clinicadmin" replace />;
+    }
     if (role === 'admin' || role === 'hospitaladmin') {
         return <Navigate to="/admin" replace />;
     }

@@ -77,4 +77,14 @@ const clinicSchema = new mongoose.Schema({
     },
 }, { timestamps: true });
 
+clinicSchema.pre('save', function (next) {
+    if (!this.originalSubdomain && this.slug) {
+        this.originalSubdomain = this.slug;
+    }
+    if (!this.tenantKey && this.originalSubdomain) {
+        this.tenantKey = `${this.originalSubdomain}-${this._id.toString()}`;
+    }
+    next();
+});
+
 module.exports = mongoose.model('Clinic', clinicSchema, 'clinics');

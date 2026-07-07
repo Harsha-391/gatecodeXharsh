@@ -243,17 +243,25 @@ const MainRoutes = () => {
                             <Route path="admin/report" element={<ProtectedRoute requiredPermissions={['reports_view']}><Reports /></ProtectedRoute>} />
                             
                             {/* Dashboard routes — clinic vs full hospital */}
+                            <Route path="clinicadmin" element={
+                                <ProtectedRoute allowedRoles={['clinicadmin']}>
+                                    <ClinicDashboard />
+                                </ProtectedRoute>
+                            } />
+                            <Route path="clinicadmin/question-library" element={<ProtectedRoute allowedRoles={['clinicadmin']}><HospitalAdminQuestionLibrary /></ProtectedRoute>} />
+                            <Route path="clinicadmin/document-templates" element={<ProtectedRoute allowedRoles={['clinicadmin', 'admin']}><DocumentTemplates /></ProtectedRoute>} />
+
                             <Route path="hospitaladmin" element={
-                                <ProtectedRoute allowedRoles={['hospitaladmin']}>
+                                <ProtectedRoute allowedRoles={['hospitaladmin', 'clinicadmin']}>
                                     {(() => {
                                         const u = JSON.parse(localStorage.getItem('user') || '{}');
                                         return u.clinicType === 'clinic' ? <ClinicDashboard /> : <HospitalAdminDashboard />;
                                     })()}
                                 </ProtectedRoute>
                             } />
-                            <Route path="hospitaladmin/question-library" element={<ProtectedRoute allowedRoles={['hospitaladmin']}><HospitalAdminQuestionLibrary /></ProtectedRoute>} />
-                             <Route path="hospitaladmin/document-templates" element={<ProtectedRoute allowedRoles={['hospitaladmin', 'admin']}><DocumentTemplates /></ProtectedRoute>} />
-                             <Route path="admin/document-templates" element={<ProtectedRoute allowedRoles={['hospitaladmin', 'admin']}><DocumentTemplates /></ProtectedRoute>} />
+                            <Route path="hospitaladmin/question-library" element={<ProtectedRoute allowedRoles={['hospitaladmin', 'clinicadmin']}><HospitalAdminQuestionLibrary /></ProtectedRoute>} />
+                             <Route path="hospitaladmin/document-templates" element={<ProtectedRoute allowedRoles={['hospitaladmin', 'clinicadmin', 'admin']}><DocumentTemplates /></ProtectedRoute>} />
+                             <Route path="admin/document-templates" element={<ProtectedRoute allowedRoles={['hospitaladmin', 'clinicadmin', 'admin']}><DocumentTemplates /></ProtectedRoute>} />
 
                             <Route path="lab/dashboard" element={<ProtectedRoute requiredPermissions={['lab_view', 'lab_manage']}><LabDashboard /></ProtectedRoute>} />
                             <Route path="lab/tests" element={<ProtectedRoute requiredPermissions={['lab_view', 'lab_manage']}><AssignedTests /></ProtectedRoute>} />

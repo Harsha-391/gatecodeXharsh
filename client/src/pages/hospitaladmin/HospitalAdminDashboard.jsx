@@ -71,7 +71,7 @@ const HospitalAdminDashboard = () => {
 
     useEffect(() => {
         const role = currentUser?.role?.toLowerCase();
-        if (role !== 'hospitaladmin') {
+        if (role !== 'hospitaladmin' && role !== 'clinicadmin') {
             navigate('/hospitaladmin/login');
         }
     }, [navigate]);

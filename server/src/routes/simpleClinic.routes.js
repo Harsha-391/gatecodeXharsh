@@ -240,7 +240,7 @@ router.get('/:id/stats', verifyCentralAdmin, async (req, res) => {
         ]);
 
         // Staff (only login accounts, not patients)
-        const staff = await User.find({ hospitalId: clinic._id, role: { $in: ['hospitaladmin', 'doctor', 'receptionist'] } })
+        const staff = await User.find({ hospitalId: clinic._id, role: { $in: ['hospitaladmin', 'clinicadmin', 'doctor', 'receptionist'] } })
             .select('name email phone role createdAt').lean();
 
         // Monthly revenue (last 6 months)
@@ -295,7 +295,7 @@ router.post('/:id/manager', verifyCentralAdmin, async (req, res) => {
 
         const manager = new User({
             name, email, password, phone: phone || '',
-            role: 'hospitaladmin',
+            role: 'clinicadmin',
             hospitalId: clinic._id
         });
         await manager.save();
@@ -306,7 +306,7 @@ router.post('/:id/manager', verifyCentralAdmin, async (req, res) => {
         const token = jwt.sign(
             {
                 userId: manager._id,
-                role: 'hospitaladmin',
+                role: 'clinicadmin',
                 hospitalId: clinic._id,
                 tenantKey: clinic.tenantKey,
                 subdomain: clinic.slug
@@ -333,7 +333,7 @@ router.post('/:id/manager', verifyCentralAdmin, async (req, res) => {
 router.get('/:id/staff', verifyCentralAdmin, async (req, res) => {
     try {
         // Only login staff, not patients
-        const STAFF_ROLES = ['hospitaladmin', 'doctor', 'receptionist'];
+        const STAFF_ROLES = ['hospitaladmin', 'clinicadmin', 'doctor', 'receptionist'];
         const staff = await User.find({ hospitalId: req.params.id, role: { $in: STAFF_ROLES } })
             .select('name email phone role createdAt')
             .lean();

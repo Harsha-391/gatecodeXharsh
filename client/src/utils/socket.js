@@ -11,7 +11,6 @@ const IS_DEV = import.meta.env.DEV;
 //   4. Production hardcode  — Render backend URL
 const getSocketURL = () => {
     if (import.meta.env.VITE_SOCKET_URL) return import.meta.env.VITE_SOCKET_URL;
-    if (import.meta.env.VITE_API_BASE_URL) return import.meta.env.VITE_API_BASE_URL;
 
     if (typeof window !== 'undefined') {
         const { hostname } = window.location;
@@ -25,6 +24,8 @@ const getSocketURL = () => {
         }
     }
 
+    if (import.meta.env.VITE_API_BASE_URL) return import.meta.env.VITE_API_BASE_URL;
+
     // Production: connect directly to the Render backend
     return 'https://gatecodexharsh-1.onrender.com';
 };
@@ -34,7 +35,7 @@ const getSocketURL = () => {
 // All components import the SAME socket object — no duplicate connections.
 const socket = io(getSocketURL(), {
     autoConnect:             false,              // Connect manually after login
-    transports:              ['websocket', 'polling'], // polling fallback for Render cold starts
+    transports:              IS_DEV ? ['polling'] : ['websocket', 'polling'],
     withCredentials:         true,
     auth:                    { token: localStorage.getItem('token') || '' },
 

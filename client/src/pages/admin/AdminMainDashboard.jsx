@@ -26,6 +26,13 @@ const AdminMainDashboard = () => {
     }, []);
 
     useEffect(() => {
+        const role = (user.role || '').toLowerCase();
+        if (role === 'clinicadmin' || (role === 'hospitaladmin' && user.clinicType === 'clinic')) {
+            navigate('/hospitaladmin', { replace: true });
+        }
+    }, [user, navigate]);
+
+    useEffect(() => {
         fetchStats();
 
         socket.on('appointment_created', fetchStats);

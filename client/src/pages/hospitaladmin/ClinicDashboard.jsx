@@ -577,7 +577,8 @@ const ClinicDashboard = () => {
     const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
 
     useEffect(() => {
-        if (currentUser?.role?.toLowerCase() !== 'hospitaladmin') navigate('/login');
+        const role = currentUser?.role?.toLowerCase();
+        if (role !== 'hospitaladmin' && role !== 'clinicadmin') navigate('/login');
     }, []);
 
     const goToReception = (patient) => {

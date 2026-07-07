@@ -19,6 +19,8 @@ const questionLibrarySchema = new mongoose.Schema({
     minimize: false
 });
 
+questionLibrarySchema.index({ hospitalId: 1, version: -1 });
+
 const QuestionLibrary = mongoose.model('QuestionLibrary', questionLibrarySchema);
 
 module.exports = QuestionLibrary;

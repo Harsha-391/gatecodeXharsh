@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { adminAPI, uploadAPI, hospitalAPI, authAPI } from '../../utils/api';
+import { adminAPI, uploadAPI, hospitalAPI, authAPI, simpleClinicAPI } from '../../utils/api';
 import '../administration/SuperAdmin.css';
 
 const Admin = () => {
@@ -57,12 +57,20 @@ const Admin = () => {
 
     const fetchHospitals = async () => {
         try {
-            const res = await hospitalAPI.getHospitals();
-            if (res.success && res.hospitals) {
-                setHospitals(res.hospitals);
+            const [hospRes, clinicRes] = await Promise.all([
+                hospitalAPI.getHospitals(),
+                simpleClinicAPI.getClinics()
+            ]);
+            let combined = [];
+            if (hospRes.success && hospRes.hospitals) {
+                combined = [...hospRes.hospitals];
             }
+            if (clinicRes.success && clinicRes.clinics) {
+                combined = [...combined, ...clinicRes.clinics];
+            }
+            setHospitals(combined);
         } catch (err) {
-            console.error('Error fetching hospitals:', err);
+            console.error('Error fetching hospitals and clinics:', err);
         }
     };
 
@@ -95,7 +103,7 @@ const Admin = () => {
                 const staffUsers = response.users.filter(u => {
                     const role = (u.role || '').toLowerCase();
                     if (isCentral) {
-                        return ['hospitaladmin', 'admin'].includes(role);
+                        return ['hospitaladmin', 'clinicadmin', 'admin'].includes(role);
                     }
                     return !['patient', 'user'].includes(role);
                 });

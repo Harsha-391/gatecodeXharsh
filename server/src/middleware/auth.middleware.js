@@ -62,13 +62,13 @@ exports.verifyToken = async (req, res, next) => {
 
         // Populate the role data
         let roleData = null;
-        const specialRoles = ['superadmin', 'centraladmin', 'hospitaladmin'];
+        const specialRoles = ['superadmin', 'centraladmin', 'hospitaladmin', 'clinicadmin'];
 
         if (specialRoles.includes(user.role)) {
             const isCentral = user.role === 'centraladmin' || user.role === 'superadmin';
             roleData = {
                 name: user.role,
-                permissions: isCentral ? ['*'] : ['admin_manage_roles', 'admin_view_stats'],
+                permissions: isCentral ? ['*'] : (user.role === 'clinicadmin' ? [] : ['admin_manage_roles', 'admin_view_stats']),
                 dashboardPath: isCentral ? '/supremeadmin' : '/hospitaladmin',
                 navLinks: [],
                 isSystemRole: true
@@ -281,7 +281,7 @@ exports.verifyAdminOrSuperAdmin = async (req, res, next) => {
             if (req.user.role === 'superadmin' || req.user.role === 'centraladmin') return next();
 
             // Hospital admin also passes for admin-level routes
-            if (req.user.role === 'hospitaladmin') return next();
+            if (req.user.role === 'hospitaladmin' || req.user.role === 'clinicadmin') return next();
 
             // Check for admin-level permissions
             if (roleData && roleData.permissions &&
