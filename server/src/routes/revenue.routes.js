@@ -7,8 +7,9 @@ const { verifyToken } = require('../middleware/auth.middleware');
 const verifyCentralAdmin = async (req, res, next) => {
     try {
         await verifyToken(req, res, () => {
-            const role = req.user.role;
-            if (role === 'centraladmin' || role === 'superadmin') return next();
+            const role = String(req.user.role || '').toLowerCase();
+            const resolvedRole = ((req.user._roleData && req.user._roleData.name) || '').toLowerCase();
+            if (role === 'centraladmin' || role === 'superadmin' || resolvedRole === 'centraladmin' || resolvedRole === 'superadmin') return next();
             return res.status(403).json({ success: false, message: 'Central Admin access required' });
         });
     } catch (err) {
@@ -47,9 +48,7 @@ router.get('/system', verifyCentralAdmin, async (req, res) => {
         // ── Current month revenue per model ──────────────────────────────────
 
         // Model B — per_patient: sum ClinicSubscription totalAmount
-        const perPatientIds = byModel.per_patient.map(h => h._id);
         const currentSubs = await ClinicSubscription.find({
-            clinicId: { $in: perPatientIds },
             month: currentMonth,
             year: currentYear,
         }).lean();

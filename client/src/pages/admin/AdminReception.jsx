@@ -309,17 +309,7 @@ const AdminReception = () => {
                 />
               </div>
 
-              <div className="form-group">
-                <label htmlFor="services">Services (one per line)</label>
-                <textarea
-                  id="services"
-                  name="services"
-                  value={formData.services.join('\n')}
-                  onChange={handleServiceChange}
-                  rows="3"
-                  placeholder="Appointment Booking&#10;Patient Registration&#10;Information Desk"
-                />
-              </div>
+
 
               <div className="form-group">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
@@ -389,7 +379,7 @@ const AdminReception = () => {
                   <th>Name</th>
                   <th>Email</th>
                   <th>Phone</th>
-                  <th>Services</th>
+
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -399,7 +389,7 @@ const AdminReception = () => {
                     <td>{reception.name}</td>
                     <td>{reception.email}</td>
                     <td>{reception.phone || '-'}</td>
-                    <td>{reception.services?.length || 0} services</td>
+
                     <td>
                       <button onClick={() => handleEdit(reception)} className="btn-edit">Edit</button>
                       <button onClick={() => handleDelete(reception._id)} className="btn-delete">Delete</button>

@@ -230,8 +230,9 @@ exports.requirePermission = (...requiredPermissions) => {
 exports.verifySuperAdmin = async (req, res, next) => {
     try {
         await exports.verifyToken(req, res, async () => {
-            const role = req.user.role;
-            if (role === 'superadmin' || role === 'centraladmin') {
+            const role = String(req.user.role || '').toLowerCase();
+            const resolvedRole = ((req.user._roleData && req.user._roleData.name) || '').toLowerCase();
+            if (role === 'superadmin' || role === 'centraladmin' || resolvedRole === 'superadmin' || resolvedRole === 'centraladmin') {
                 next();
             } else {
                 try {
@@ -278,10 +279,12 @@ exports.verifyAdminOrSuperAdmin = async (req, res, next) => {
             const roleData = req.user._roleData;
 
             // Central admin always passes
-            if (req.user.role === 'superadmin' || req.user.role === 'centraladmin') return next();
+            const role = String(req.user.role || '').toLowerCase();
+            const resolvedRole = ((req.user._roleData && req.user._roleData.name) || '').toLowerCase();
+            if (role === 'superadmin' || role === 'centraladmin' || resolvedRole === 'superadmin' || resolvedRole === 'centraladmin') return next();
 
             // Hospital admin also passes for admin-level routes
-            if (req.user.role === 'hospitaladmin' || req.user.role === 'clinicadmin') return next();
+            if (role === 'hospitaladmin' || role === 'clinicadmin' || resolvedRole === 'hospitaladmin' || resolvedRole === 'clinicadmin') return next();
 
             // Check for admin-level permissions
             if (roleData && roleData.permissions &&

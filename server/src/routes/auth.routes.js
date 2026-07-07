@@ -233,19 +233,19 @@ router.post('/login', loginLimiter, async (req, res) => {
         const ua = req.headers['user-agent'] || '';
         const parsed = parseUserAgent(ua);
         AuditLogModel.create({
-            clinicId: hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
-            userName: normalizedEmail,
-            action: 'FAILED_LOGIN',
-            severity: 'warning',
-            success: false,
-            reason: 'User not found',
-            ip: req.ip || '',
-            userAgent: ua,
-            browser: parsed.browser,
-            os: parsed.os,
-            device: parsed.device
-        }).catch(() => {});
-      } catch (logErr) {}
+          clinicId: hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
+          userName: normalizedEmail,
+          action: 'FAILED_LOGIN',
+          severity: 'warning',
+          success: false,
+          reason: 'User not found',
+          ip: req.ip || '',
+          userAgent: ua,
+          browser: parsed.browser,
+          os: parsed.os,
+          device: parsed.device
+        }).catch(() => { });
+      } catch (logErr) { }
       return res.status(401).json({ success: false, message: 'Invalid email or password' });
     }
 
@@ -255,20 +255,20 @@ router.post('/login', loginLimiter, async (req, res) => {
         const ua = req.headers['user-agent'] || '';
         const parsed = parseUserAgent(ua);
         AuditLogModel.create({
-            clinicId: user.hospitalId || hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
-            userId: user._id,
-            userName: user.name || normalizedEmail,
-            action: 'FAILED_LOGIN',
-            severity: 'warning',
-            success: false,
-            reason: 'Account is disabled',
-            ip: req.ip || '',
-            userAgent: ua,
-            browser: parsed.browser,
-            os: parsed.os,
-            device: parsed.device
-        }).catch(() => {});
-      } catch (logErr) {}
+          clinicId: user.hospitalId || hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
+          userId: user._id,
+          userName: user.name || normalizedEmail,
+          action: 'FAILED_LOGIN',
+          severity: 'warning',
+          success: false,
+          reason: 'Account is disabled',
+          ip: req.ip || '',
+          userAgent: ua,
+          browser: parsed.browser,
+          os: parsed.os,
+          device: parsed.device
+        }).catch(() => { });
+      } catch (logErr) { }
       return res.status(403).json({ success: false, message: 'Account is disabled. Contact administrator.' });
     }
 
@@ -295,21 +295,21 @@ router.post('/login', loginLimiter, async (req, res) => {
         const ua = req.headers['user-agent'] || '';
         const parsed = parseUserAgent(ua);
         AuditLogModel.create({
-            clinicId: user.hospitalId || hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
-            userId: user._id,
-            userName: user.name || normalizedEmail,
-            role: String(user.role),
-            action: 'FAILED_LOGIN',
-            severity: 'warning',
-            success: false,
-            reason: 'Bypassed Central Admin login portal',
-            ip: req.ip || '',
-            userAgent: ua,
-            browser: parsed.browser,
-            os: parsed.os,
-            device: parsed.device
-        }).catch(() => {});
-      } catch (logErr) {}
+          clinicId: user.hospitalId || hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
+          userId: user._id,
+          userName: user.name || normalizedEmail,
+          role: String(user.role),
+          action: 'FAILED_LOGIN',
+          severity: 'warning',
+          success: false,
+          reason: 'Bypassed Central Admin login portal',
+          ip: req.ip || '',
+          userAgent: ua,
+          browser: parsed.browser,
+          os: parsed.os,
+          device: parsed.device
+        }).catch(() => { });
+      } catch (logErr) { }
       return res.status(401).json({ success: false, message: 'Invalid email or password' });
     }
 
@@ -323,11 +323,11 @@ router.post('/login', loginLimiter, async (req, res) => {
     let roleData = null;
     if (user.role === 'hospitaladmin' || user.role === 'clinicadmin') {
       roleData = {
-          name: user.role,
-          permissions: user.role === 'clinicadmin' ? [] : ['admin_manage_roles', 'admin_view_stats'],
-          dashboardPath: user.role === 'clinicadmin' ? '/clinicadmin' : '/hospitaladmin',
-          navLinks: [],
-          isSystemRole: true
+        name: user.role,
+        permissions: user.role === 'clinicadmin' ? [] : ['admin_manage_roles', 'admin_view_stats'],
+        dashboardPath: user.role === 'clinicadmin' ? '/clinicadmin' : '/hospitaladmin',
+        navLinks: [],
+        isSystemRole: true
       };
     } else if (user.role) {
       if (mongoose.Types.ObjectId.isValid(user.role)) {
@@ -393,40 +393,40 @@ router.post('/login', loginLimiter, async (req, res) => {
         const ua = req.headers['user-agent'] || '';
         const parsed = parseUserAgent(ua);
         AuditLogModel.create({
+          clinicId: user.hospitalId || hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
+          userId: user._id,
+          userName: user.name,
+          role: roleData?.name || '',
+          action: 'FAILED_LOGIN',
+          severity: 'warning',
+          success: false,
+          reason: locked ? 'Incorrect password (account locked)' : 'Incorrect password',
+          ip: req.ip || '',
+          userAgent: ua,
+          browser: parsed.browser,
+          os: parsed.os,
+          device: parsed.device
+        }).catch(() => { });
+        if (locked) {
+          AuditLogModel.create({
             clinicId: user.hospitalId || hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
             userId: user._id,
             userName: user.name,
             role: roleData?.name || '',
-            action: 'FAILED_LOGIN',
-            severity: 'warning',
-            success: false,
-            reason: locked ? 'Incorrect password (account locked)' : 'Incorrect password',
+            action: 'ACCOUNT_LOCKED',
+            severity: 'critical',
+            success: true,
+            reason: 'Account locked due to 5 consecutive failed login attempts',
             ip: req.ip || '',
             userAgent: ua,
             browser: parsed.browser,
             os: parsed.os,
             device: parsed.device
-        }).catch(() => {});
-        if (locked) {
-          AuditLogModel.create({
-              clinicId: user.hospitalId || hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
-              userId: user._id,
-              userName: user.name,
-              role: roleData?.name || '',
-              action: 'ACCOUNT_LOCKED',
-              severity: 'critical',
-              success: true,
-              reason: 'Account locked due to 5 consecutive failed login attempts',
-              ip: req.ip || '',
-              userAgent: ua,
-              browser: parsed.browser,
-              os: parsed.os,
-              device: parsed.device
-          }).catch(() => {});
+          }).catch(() => { });
         }
-      } catch (logErr) {}
-      
-      const errMsg = locked 
+      } catch (logErr) { }
+
+      const errMsg = locked
         ? 'Too many failed login attempts. Your account has been temporarily locked. Try again in 15 minutes.'
         : 'Invalid email or password';
       return res.status(401).json({ success: false, message: errMsg });
@@ -438,45 +438,44 @@ router.post('/login', loginLimiter, async (req, res) => {
       await user.save();
     }
 
-    // STRICT HOSPITAL ROW-LEVEL SECURITY CHECK
+    // STRICT TENANT ISOLATION — enforced in ALL environments (dev, test, production).
+    // A user may ONLY log in on the portal that belongs to their own organization.
+    // This prevents cross-hospital and hospital→clinic (and vice versa) credential reuse.
     const globalAdminRoles = ['superadmin', 'centraladmin'];
     const userRoleStr = roleData.name ? roleData.name.toLowerCase() : '';
     const isGlobalAdmin = globalAdminRoles.includes(userRoleStr);
 
     if (!isGlobalAdmin) {
-        if (hospitalId) {
-            // Staff/HospitalAdmin attempting to log in via a specific slug portal
-            if (!user.hospitalId || String(user.hospitalId) !== String(hospitalId)) {
-                if (process.env.NODE_ENV === 'production') {
-                    return res.status(403).json({ success: false, message: 'Access denied: You are not authorized for this clinic. Check the URL.' });
-                } else {
-                    console.warn(`[DEV WARNING] Hospital ID mismatch: user.hospitalId=${user.hospitalId}, passed=${hospitalId}. Allowing login in development.`);
-                    // Self-heal: align the user's hospitalId in the database if it differs or is missing
-                    user.hospitalId = hospitalId;
-                    await user.save();
-                }
-            }
-        } else {
-            // Admin-level users can always log in via /login (no subdomain required).
-            // This covers: 'hospitaladmin' string, 'administrator' ObjectId role, 'admin' legacy string.
-            const isAdminLevelRole = userRoleStr === 'hospitaladmin' ||
-                userRoleStr === 'clinicadmin' ||
-                userRoleStr.includes('administrator') ||
-                userRoleStr === 'admin';
+      if (hospitalId) {
+        // Subdomain portal login: the hospitalId embedded by the frontend MUST exactly
+        // match the hospitalId stored on the user's account.
+        if (!user.hospitalId || String(user.hospitalId) !== String(hospitalId)) {
+          return res.status(403).json({
+            success: false,
+            message: 'Access denied: You are not authorized for this portal. Please use your organization\'s URL.'
+          });
+        }
+      } else {
+        // Generic /login (no subdomain): only hospitaladmin / clinicadmin are allowed here
+        // because they manage the portal itself and have no dedicated subdomain requirement.
+        // All other staff must log in through their organization's subdomain URL.
+        const isAdminLevelRole = userRoleStr === 'hospitaladmin' ||
+          userRoleStr === 'clinicadmin' ||
+          userRoleStr.includes('administrator') ||
+          userRoleStr === 'admin';
 
-            if (user.hospitalId && !isAdminLevelRole) {
-                if (process.env.NODE_ENV === 'production') {
-                    return res.status(403).json({ success: false, message: 'Access denied: Please log in using your specific clinic portal URL.' });
-                } else {
-                    console.warn(`[DEV WARNING] Non-admin staff logging in without subdomain portal. Allowing in development.`);
-                }
-            }
+        if (user.hospitalId && !isAdminLevelRole) {
+          return res.status(403).json({
+            success: false,
+            message: 'Access denied: Please log in using your organization\'s specific portal URL.'
+          });
         }
+      }
     } else {
-        // Global Admins should not be logging in via a specific hospital portal URL (they don't have one)
-        if (hospitalId) {
-            return res.status(403).json({ success: false, message: 'Global Admins must use the Central Admin login, not a clinic portal.' });
-        }
+      // Global Admins must use the Central Admin login — not any subdomain portal.
+      if (hospitalId) {
+        return res.status(403).json({ success: false, message: 'Global Admins must use the Central Admin login, not a clinic portal.' });
+      }
     }
 
     // If MFA is enabled, issue a short-lived pre-auth token instead of a full session token.
@@ -538,20 +537,20 @@ router.post('/login', loginLimiter, async (req, res) => {
       const ua = req.headers['user-agent'] || '';
       const parsed = parseUserAgent(ua);
       AuditLogModel.create({
-          clinicId: user.hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
-          userId: user._id,
-          userName: user.name,
-          role: roleData.name,
-          action: user.patientId ? 'PATIENT_LOGIN' : 'STAFF_LOGIN',
-          success: true,
-          sessionId: jti,
-          ip: req.ip || '',
-          userAgent: ua,
-          browser: parsed.browser,
-          os: parsed.os,
-          device: parsed.device
-      }).catch(() => {});
-    } catch (logErr) {}
+        clinicId: user.hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
+        userId: user._id,
+        userName: user.name,
+        role: roleData.name,
+        action: user.patientId ? 'PATIENT_LOGIN' : 'STAFF_LOGIN',
+        success: true,
+        sessionId: jti,
+        ip: req.ip || '',
+        userAgent: ua,
+        browser: parsed.browser,
+        os: parsed.os,
+        device: parsed.device
+      }).catch(() => { });
+    } catch (logErr) { }
 
     res.json({
       success: true,
@@ -567,35 +566,35 @@ router.post('/login', loginLimiter, async (req, res) => {
 
 // POST /api/auth/revoke-all-sessions — bump tokenVersion to invalidate every outstanding token for this user
 router.post('/revoke-all-sessions', verifyToken, async (req, res) => {
-    try {
-        await require('../models/user.model').findByIdAndUpdate(
-            req.user._id,
-            { $inc: { tokenVersion: 1 } }
-        );
-        res.json({ success: true, message: 'All sessions revoked. Please log in again on all devices.' });
-    } catch {
-        res.status(500).json({ success: false, message: 'An internal error occurred' });
-    }
+  try {
+    await require('../models/user.model').findByIdAndUpdate(
+      req.user._id,
+      { $inc: { tokenVersion: 1 } }
+    );
+    res.json({ success: true, message: 'All sessions revoked. Please log in again on all devices.' });
+  } catch {
+    res.status(500).json({ success: false, message: 'An internal error occurred' });
+  }
 });
 
 // POST /api/auth/logout — blacklist the current token so it can never be reused
 router.post('/logout', verifyToken, auditLog('STAFF_LOGOUT', null, { severity: 'info', dataCategory: 'System' }), async (req, res) => {
-    try {
-        const authHeader = req.headers.authorization;
-        const token = authHeader.split(' ')[1];
-        const decoded = require('jsonwebtoken').decode(token);
+  try {
+    const authHeader = req.headers.authorization;
+    const token = authHeader.split(' ')[1];
+    const decoded = require('jsonwebtoken').decode(token);
 
-        if (decoded?.jti && decoded?.exp) {
-            await TokenBlacklist.create({
-                jti: decoded.jti,
-                expireAt: new Date(decoded.exp * 1000),
-            });
-        }
-
-        res.json({ success: true, message: 'Logged out successfully' });
-    } catch (error) {
-        res.status(500).json({ success: false, message: 'An internal error occurred' });
+    if (decoded?.jti && decoded?.exp) {
+      await TokenBlacklist.create({
+        jti: decoded.jti,
+        expireAt: new Date(decoded.exp * 1000),
+      });
     }
+
+    res.json({ success: true, message: 'Logged out successfully' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'An internal error occurred' });
+  }
 });
 
 // GET /api/auth/me — get current staff/admin profile and updated permissions
@@ -603,11 +602,11 @@ router.get('/me', verifyToken, async (req, res) => {
   try {
     const user = await User.findById(req.user._id);
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
-    
+
     // Fetch full role data for this user
     let roleData = null;
     const specialRoles = ['superadmin', 'centraladmin', 'hospitaladmin', 'clinicadmin'];
-    
+
     if (specialRoles.includes(user.role)) {
       const isCentral = user.role === 'centraladmin' || user.role === 'superadmin';
       roleData = {
@@ -622,7 +621,7 @@ router.get('/me', verifyToken, async (req, res) => {
         roleData = await Role.findById(user.role);
       }
     }
-    
+
     let clinicType = null;
     let tenantKey = null;
     let subdomain = null;
@@ -636,9 +635,9 @@ router.get('/me', verifyToken, async (req, res) => {
         clinicType = hosp?.clinicType || 'hospital';
         tenantKey = hosp?.tenantKey || null;
         subdomain = hosp?.slug || null;
-      } catch (_) {}
+      } catch (_) { }
     }
-    
+
     const userData = {
       id: user._id,
       name: user.name,
@@ -660,7 +659,7 @@ router.get('/me', verifyToken, async (req, res) => {
       navLinks: roleData ? roleData.navLinks : [],
       avatar: user.avatar || null
     };
-    
+
     res.json({
       success: true,
       user: userData
@@ -675,7 +674,7 @@ router.put('/profile', verifyToken, async (req, res) => {
   try {
     const { name, email, phone, avatar } = req.body;
     const updateFields = {};
-    if (name  !== undefined) updateFields.name  = name.trim();
+    if (name !== undefined) updateFields.name = name.trim();
     if (email !== undefined) updateFields.email = email.trim().toLowerCase();
     if (phone !== undefined) updateFields.phone = phone.trim();
     if (avatar !== undefined) updateFields.avatar = avatar;

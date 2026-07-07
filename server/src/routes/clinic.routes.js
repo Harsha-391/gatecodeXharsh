@@ -37,7 +37,9 @@ const getModels = (req) => {
             ClinicSubscription: ClinicSubscription,
             TreatmentPlan: m.TreatmentPlan,
             Notification: m.Notification,
-            User: m.User
+            User: m.User,
+            Doctor: m.Doctor,
+            Reception: m.Reception
         };
     }
     return {
@@ -49,7 +51,9 @@ const getModels = (req) => {
         ClinicSubscription: ClinicSubscription,
         TreatmentPlan: require('../models/treatmentPlan.model'),
         Notification: require('../models/notification.model'),
-        User: require('../models/user.model')
+        User: require('../models/user.model'),
+        Doctor: require('../models/doctor.model'),
+        Reception: require('../models/reception.model')
     };
 };
 
@@ -1156,7 +1160,7 @@ router.get('/doctors', verifyClinicAdmin, async (req, res) => {
 // CLINIC STAFF — GET /api/clinic/staff
 router.get('/staff', verifyClinicAdmin, async (req, res) => {
     try {
-        const { Hospital, Appointment, Inventory, PharmacyOrder, ClinicPatient, ClinicSubscription, TreatmentPlan, Notification, User } = req.models;
+        const { Hospital, Appointment, Inventory, PharmacyOrder, ClinicPatient, ClinicSubscription, TreatmentPlan, Notification, User, Doctor } = req.models;
         const STAFF_ROLES_LEGACY = ['doctor', 'receptionist'];
         const Role = require('../models/role.model');
         const roleIds = await Role.find({
@@ -1171,16 +1175,34 @@ router.get('/staff', verifyClinicAdmin, async (req, res) => {
                 { role: { $in: STAFF_ROLES_LEGACY } },
                 { role: { $in: roleIdSet } },
             ],
-        }).select('name email phone role createdAt').lean();
+        }).select('name email phone role createdAt gender designation').lean();
 
         const roleMap = Object.fromEntries(roleIds.map(r => [String(r._id), r.name]));
-        const enriched = staff.map(s => ({
-            ...s,
-            roleName: roleMap[String(s.role)] || String(s.role),
+        const enriched = await Promise.all(staff.map(async (s) => {
+            const roleName = roleMap[String(s.role)] || String(s.role);
+            let details = {};
+            if (roleName.toLowerCase() === 'doctor') {
+                const doc = await Doctor.findOne({ userId: s._id }).select('specialty experience education consultationFee gender').lean();
+                if (doc) {
+                    details = {
+                        specialty: doc.specialty,
+                        experience: doc.experience,
+                        education: doc.education,
+                        consultationFee: doc.consultationFee,
+                        gender: doc.gender || s.gender
+                    };
+                }
+            }
+            return {
+                ...s,
+                roleName,
+                ...details
+            };
         }));
 
         res.json({ success: true, staff: enriched });
     } catch (err) {
+        console.error('[Get Staff Error]', err);
         res.status(500).json({ success: false, message: 'An internal error occurred' });
     }
 });
@@ -1188,13 +1210,9 @@ router.get('/staff', verifyClinicAdmin, async (req, res) => {
 // POST /api/clinic/staff
 router.post('/staff', verifyClinicAdmin, async (req, res) => {
     try {
-        const { name, email, password, phone, role } = req.body;
-        if (!name || !email || !password) return res.status(400).json({ success: false, message: 'Name, email and password are required' });
+        const { name, phone, role, specialty, experience, education, gender, designation } = req.body;
+        if (!name || !role) return res.status(400).json({ success: false, message: 'Name and role are required' });
         
-        const validatePassword = require('../utils/validatePassword');
-        const pwErr = validatePassword(password);
-        if (pwErr) return res.status(400).json({ success: false, message: pwErr });
-
         const staffRole = role === 'receptionist' ? 'receptionist' : 'doctor';
         const clinicId = hid(req);
 
@@ -1216,18 +1234,25 @@ router.post('/staff', verifyClinicAdmin, async (req, res) => {
             });
         }
 
-        const existing = await User.findOne({ email });
-        if (existing) return res.status(400).json({ success: false, message: 'Email already in use' });
+        // Generate dummy/placeholder email and password since clinic staff don't login
+        const { nanoid } = require('nanoid');
+        const dummyEmail = `staff_${nanoid(10)}@clinic.local`;
+        const dummyPassword = `StaffPassword_${nanoid(10)}`;
 
         const staffMember = new User({
-            name, email, password, phone: phone || '',
+            name,
+            email: dummyEmail,
+            password: dummyPassword,
+            phone: phone || '',
             role: staffRole,
             hospitalId: clinicId,
+            gender: gender || 'Male',
+            designation: staffRole === 'receptionist' ? (designation || 'Receptionist') : 'Doctor',
         });
         await staffMember.save();
 
+        let savedFee = 0;
         if (staffRole === 'doctor') {
-            const { nanoid } = require('nanoid');
             let doctorId = nanoid(10);
             while (await Doctor.findOne({ doctorId })) doctorId = nanoid(10);
             const defaultAvailability = {
@@ -1239,6 +1264,7 @@ router.post('/staff', verifyClinicAdmin, async (req, res) => {
                 saturday: { available: true, startTime: '09:00', endTime: '17:00' },
                 sunday: { available: false, startTime: '09:00', endTime: '17:00' }
             };
+            savedFee = clinic.appointmentFee || 0;
             await Doctor.create({
                 doctorId,
                 userId: staffMember._id,
@@ -1247,8 +1273,11 @@ router.post('/staff', verifyClinicAdmin, async (req, res) => {
                 phone: staffMember.phone,
                 hospitalId: clinicId,
                 availability: defaultAvailability,
-                specialty: 'General',
-                consultationFee: 0,
+                specialty: specialty || 'General',
+                experience: experience || '',
+                education: education || '',
+                consultationFee: savedFee,
+                gender: gender || 'Male',
                 departments: [],
                 services: []
             });
@@ -1261,8 +1290,19 @@ router.post('/staff', verifyClinicAdmin, async (req, res) => {
 
         res.status(201).json({
             success: true,
-            staff: { _id: staffMember._id, name, email, phone, role: staffRole },
-            message: `${staffRole === 'doctor' ? 'Doctor' : 'Receptionist'} account created successfully`,
+            staff: { 
+                _id: staffMember._id, 
+                name, 
+                phone, 
+                role: staffRole,
+                specialty: specialty || '',
+                experience: experience || '',
+                education: education || '',
+                consultationFee: savedFee,
+                gender: gender || 'Male',
+                designation: designation || ''
+            },
+            message: `${staffRole === 'doctor' ? 'Doctor' : 'Receptionist'} created successfully`,
         });
     } catch (err) {
         console.error('[Add Staff Error]', err);
@@ -1274,7 +1314,7 @@ router.post('/staff', verifyClinicAdmin, async (req, res) => {
 router.delete('/staff/:id', verifyClinicAdmin, async (req, res) => {
     try {
         const clinicId = hid(req);
-        const { User, Doctor, Reception } = req.models;
+        const { User, Doctor, Reception, Hospital } = req.models;
         const user = await User.findOneAndDelete({ _id: req.params.id, hospitalId: clinicId });
         if (!user) return res.status(404).json({ success: false, message: 'Staff member not found' });
 
@@ -1289,6 +1329,7 @@ router.delete('/staff/:id', verifyClinicAdmin, async (req, res) => {
 
         res.json({ success: true, message: 'Staff member removed' });
     } catch (err) {
+        console.error('[Delete Staff Error]', err);
         res.status(500).json({ success: false, message: 'An internal error occurred' });
     }
 });

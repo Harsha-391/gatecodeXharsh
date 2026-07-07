@@ -432,6 +432,11 @@ const CentralAdminDashboard = () => {
     };
 
     const openHospitalDetail = (h) => {
+        if (h.clinicType === 'clinic') {
+            setActiveTab('simple-clinics');
+            openClinicDetail(h);
+            return;
+        }
         setSelectedHospital(h);
         setApptMode(h.appointmentMode || 'slot');
         setDatePreset('all');
@@ -1210,11 +1215,11 @@ const CentralAdminDashboard = () => {
                             {/* Hospital Cards */}
                             {loadingHospitals ? (
                                 <div className="loading-message">Loading hospitals...</div>
-                            ) : hospitals.length === 0 ? (
+                            ) : hospitals.filter(h => h.clinicType !== 'clinic').length === 0 ? (
                                 <div className="ca-empty"><p>🏥 No hospitals registered yet. Add your first hospital above.</p></div>
                             ) : (
                                 <div className="hospitals-grid">
-                                    {hospitals.map(h => (
+                                    {hospitals.filter(h => h.clinicType !== 'clinic').map(h => (
                                         <div key={h._id} className={`hospital-card clickable-card ${!h.isActive ? 'hospital-inactive' : ''}`} onClick={() => openHospitalDetail(h)}>
                                             <div className="hospital-card-header">
                                                 <div className="hospital-icon">

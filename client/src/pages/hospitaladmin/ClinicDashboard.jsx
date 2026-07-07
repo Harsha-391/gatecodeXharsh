@@ -558,7 +558,7 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 const MODES = [
     { id: 'overview', icon: '📊', label: 'Overview', color: '#6366f1', bg: '#eef2ff' },
     { id: 'patients', icon: '👤', label: 'Patients', color: '#0ea5e9', bg: '#f0f9ff' },
-    { id: 'doctor', icon: '🩺', label: 'Doctor', color: '#8b5cf6', bg: '#f5f3ff' },
+    { id: 'doctor', icon: '👥', label: 'Staff', color: '#8b5cf6', bg: '#f5f3ff' },
     { id: 'reception', icon: '📋', label: 'Reception', color: '#10b981', bg: '#f0fdf4' },
     { id: 'pharmacy', icon: '💊', label: 'Pharmacy', color: '#f97316', bg: '#fff7ed' },
     { id: 'billing', icon: '💰', label: 'Billing', color: '#f59e0b', bg: '#fffbeb' },
@@ -605,10 +605,6 @@ const ClinicDashboard = () => {
                         <span>{m.icon}</span> {m.label}
                     </button>
                 ))}
-                <div className="switcher-user">
-                    <div className="switcher-avatar">{currentUser?.name?.charAt(0)?.toUpperCase()}</div>
-                    <span>{currentUser?.name}</span>
-                </div>
             </div>
 
             <div className="clinic-mode-content">
@@ -2030,7 +2026,16 @@ const DoctorMode = () => {
 
     // Dynamic Staff Add/Delete States
     const [showStaffForm, setShowStaffForm] = useState(false);
-    const [staffForm, setStaffForm] = useState({ name: '', email: '', password: '', phone: '', role: 'doctor' });
+    const [staffForm, setStaffForm] = useState({
+        name: '',
+        phone: '',
+        role: 'doctor',
+        specialty: '',
+        experience: '',
+        education: '',
+        gender: 'Male',
+        designation: ''
+    });
     const [savingStaff, setSavingStaff] = useState(false);
 
     const flash = (type, text) => { setMsg({ type, text }); setTimeout(() => setMsg({ type: '', text: '' }), 4000); };
@@ -2059,7 +2064,16 @@ const DoctorMode = () => {
             if (res.success) {
                 flash('success', res.message || 'Staff member added successfully!');
                 setShowStaffForm(false);
-                setStaffForm({ name: '', email: '', password: '', phone: '', role: 'doctor' });
+                setStaffForm({
+                    name: '',
+                    phone: '',
+                    role: 'doctor',
+                    specialty: '',
+                    experience: '',
+                    education: '',
+                    gender: 'Male',
+                    designation: ''
+                });
                 loadStaff();
             } else {
                 flash('error', res.message || 'Failed to add staff');
@@ -2389,7 +2403,9 @@ const DoctorMode = () => {
 
                     {showStaffForm && (
                         <form onSubmit={handleCreateStaff} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '16px', marginBottom: '16px' }}>
-                            <h4 style={{ margin: '0 0 12px', color: '#1e293b' }}>Add Staff Login Account</h4>
+                            <h4 style={{ margin: '0 0 12px', color: '#1e293b' }}>Add Staff Profile</h4>
+                            
+                            {/* Row 1: Common Fields */}
                             <div className="clinic-form-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '12px' }}>
                                 <div className="clinic-form-group">
                                     <label style={{ fontSize: '12px', fontWeight: 600, color: '#475569', marginBottom: '4px', display: 'block' }}>Full Name *</label>
@@ -2397,23 +2413,11 @@ const DoctorMode = () => {
                                         onChange={e => setStaffForm({ ...staffForm, name: e.target.value })} required />
                                 </div>
                                 <div className="clinic-form-group">
-                                    <label style={{ fontSize: '12px', fontWeight: 600, color: '#475569', marginBottom: '4px', display: 'block' }}>Email *</label>
-                                    <input type="email" className="clinic-input" placeholder="staff@clinic.com" value={staffForm.email}
-                                        onChange={e => setStaffForm({ ...staffForm, email: e.target.value })} required />
-                                </div>
-                                <div className="clinic-form-group">
-                                    <label style={{ fontSize: '12px', fontWeight: 600, color: '#475569', marginBottom: '4px', display: 'block' }}>Password *</label>
-                                    <input type="password" className="clinic-input" placeholder="Password" value={staffForm.password}
-                                        onChange={e => setStaffForm({ ...staffForm, password: e.target.value })} required />
-                                </div>
-                                <div className="clinic-form-group">
                                     <label style={{ fontSize: '12px', fontWeight: 600, color: '#475569', marginBottom: '4px', display: 'block' }}>Phone</label>
                                     <input type="text" className="clinic-input" placeholder="10-digit Phone" maxLength={10} value={staffForm.phone}
                                         onChange={e => setStaffForm({ ...staffForm, phone: e.target.value.replace(/\D/g, '').slice(0, 10) })} />
                                 </div>
-                            </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <div className="clinic-form-group" style={{ margin: 0, minWidth: '150px' }}>
+                                <div className="clinic-form-group">
                                     <label style={{ fontSize: '12px', fontWeight: 600, color: '#475569', marginBottom: '4px', display: 'block' }}>Role *</label>
                                     <select className="clinic-input" value={staffForm.role}
                                         onChange={e => setStaffForm({ ...staffForm, role: e.target.value })}>
@@ -2421,7 +2425,49 @@ const DoctorMode = () => {
                                         <option value="receptionist">📋 Receptionist</option>
                                     </select>
                                 </div>
-                                <button type="submit" className="clinic-btn-primary" disabled={savingStaff} style={{ padding: '8px 20px', alignSelf: 'flex-end' }}>
+                                <div className="clinic-form-group">
+                                    <label style={{ fontSize: '12px', fontWeight: 600, color: '#475569', marginBottom: '4px', display: 'block' }}>Gender</label>
+                                    <select className="clinic-input" value={staffForm.gender}
+                                        onChange={e => setStaffForm({ ...staffForm, gender: e.target.value })}>
+                                        <option value="Male">Male</option>
+                                        <option value="Female">Female</option>
+                                        <option value="Other">Other</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            {/* Row 2: Role-Specific Fields */}
+                            {staffForm.role === 'doctor' ? (
+                                <div className="clinic-form-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '16px' }}>
+                                    <div className="clinic-form-group">
+                                        <label style={{ fontSize: '12px', fontWeight: 600, color: '#475569', marginBottom: '4px', display: 'block' }}>Specialty *</label>
+                                        <input type="text" className="clinic-input" placeholder="e.g. General Physician" value={staffForm.specialty}
+                                            onChange={e => setStaffForm({ ...staffForm, specialty: e.target.value })} required />
+                                    </div>
+                                    <div className="clinic-form-group">
+                                        <label style={{ fontSize: '12px', fontWeight: 600, color: '#475569', marginBottom: '4px', display: 'block' }}>Education / Qualification</label>
+                                        <input type="text" className="clinic-input" placeholder="e.g. MBBS, MD" value={staffForm.education}
+                                            onChange={e => setStaffForm({ ...staffForm, education: e.target.value })} />
+                                    </div>
+                                    <div className="clinic-form-group">
+                                        <label style={{ fontSize: '12px', fontWeight: 600, color: '#475569', marginBottom: '4px', display: 'block' }}>Experience (Years)</label>
+                                        <input type="text" className="clinic-input" placeholder="e.g. 5" value={staffForm.experience}
+                                            onChange={e => setStaffForm({ ...staffForm, experience: e.target.value })} />
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="clinic-form-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '16px' }}>
+                                    <div className="clinic-form-group">
+                                        <label style={{ fontSize: '12px', fontWeight: 600, color: '#475569', marginBottom: '4px', display: 'block' }}>Designation / Job Title</label>
+                                        <input type="text" className="clinic-input" placeholder="e.g. Front Desk Lead" value={staffForm.designation}
+                                            onChange={e => setStaffForm({ ...staffForm, designation: e.target.value })} />
+                                    </div>
+                                </div>
+                            )}
+
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                                <button type="button" className="clinic-btn-secondary" style={{ padding: '8px 20px' }} onClick={() => setShowStaffForm(false)}>Cancel</button>
+                                <button type="submit" className="clinic-btn-primary" disabled={savingStaff} style={{ padding: '8px 20px' }}>
                                     {savingStaff ? 'Saving...' : '✅ Save Staff'}
                                 </button>
                             </div>
@@ -2432,20 +2478,44 @@ const DoctorMode = () => {
                         <Empty text="No staff members found for this clinic." />
                     ) : (
                         <table className="clinic-table">
-                            <thead><tr><th>Name</th><th>Role</th><th>Email</th><th>Phone</th><th>Joined</th><th style={{ width: '80px', textAlign: 'center' }}>Action</th></tr></thead>
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Role</th>
+                                    <th>Specialty / Designation</th>
+                                    <th>Phone</th>
+                                    <th>Gender</th>
+                                    <th>Joined</th>
+                                    <th style={{ width: '80px', textAlign: 'center' }}>Action</th>
+                                </tr>
+                            </thead>
                             <tbody>
-                                {staff.map(s => (
-                                    <tr key={s._id}>
-                                        <td><strong>{s.name}</strong></td>
-                                        <td><span style={{ background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', borderRadius: '4px', padding: '2px 8px', fontSize: '12px', textTransform: 'capitalize' }}>{s.roleName}</span></td>
-                                        <td style={{ fontSize: '13px', color: '#64748b' }}>{s.email || '—'}</td>
-                                        <td style={{ fontSize: '13px', color: '#64748b' }}>{s.phone || '—'}</td>
-                                        <td style={{ fontSize: '12px', color: '#94a3b8' }}>{s.createdAt ? new Date(s.createdAt).toLocaleDateString('en-IN') : '—'}</td>
-                                        <td style={{ textAlign: 'center' }}>
-                                            <button onClick={() => handleDeleteStaff(s._id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}>Remove</button>
-                                        </td>
-                                    </tr>
-                                ))}
+                                {staff.map(s => {
+                                    const isDoc = s.roleName?.toLowerCase() === 'doctor';
+                                    return (
+                                        <tr key={s._id}>
+                                            <td><strong>{s.name}</strong></td>
+                                            <td>
+                                                <span style={{ background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', borderRadius: '4px', padding: '2px 8px', fontSize: '12px', textTransform: 'capitalize' }}>
+                                                    {s.roleName}
+                                                </span>
+                                            </td>
+                                            <td style={{ fontSize: '13px', color: '#1e293b' }}>
+                                                {isDoc ? (
+                                                    <span>{s.specialty || 'General'}{s.education ? ` (${s.education})` : ''}</span>
+                                                ) : (
+                                                    <span>{s.designation || 'Receptionist'}</span>
+                                                )}
+                                            </td>
+                                            <td style={{ fontSize: '13px', color: '#64748b' }}>{s.phone || '—'}</td>
+                                            <td style={{ fontSize: '13px', color: '#64748b' }}>{s.gender || 'Male'}</td>
+                                            <td style={{ fontSize: '12px', color: '#94a3b8' }}>{s.createdAt ? new Date(s.createdAt).toLocaleDateString('en-IN') : '—'}</td>
+                                            <td style={{ textAlign: 'center' }}>
+                                                <button onClick={() => handleDeleteStaff(s._id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}>Remove</button>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         </table>
                     )}

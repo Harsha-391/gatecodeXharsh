@@ -29,8 +29,9 @@ const generateClinicCode = async (name) => {
 const verifyCentralAdmin = async (req, res, next) => {
     try {
         await verifyToken(req, res, () => {
-            const role = req.user.role;
-            if (role === 'centraladmin' || role === 'superadmin') return next();
+            const role = String(req.user.role || '').toLowerCase();
+            const resolvedRole = ((req.user._roleData && req.user._roleData.name) || '').toLowerCase();
+            if (role === 'centraladmin' || role === 'superadmin' || resolvedRole === 'centraladmin' || resolvedRole === 'superadmin') return next();
             return res.status(403).json({ success: false, message: 'Central Admin access required' });
         });
     } catch (err) {

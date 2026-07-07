@@ -25,9 +25,10 @@ const { getTenantConnection } = require('../db/tenantDb');
 exports.resolveTenant = async (req, res, next) => {
     try {
         // Central admins and supreme admins operate on master DB — skip tenant resolution
-        const role = req.user?.role;
+        const role = String(req.user?.role || '').toLowerCase();
+        const resolvedRole = ((req.user?._roleData && req.user?._roleData.name) || '').toLowerCase();
         const specialRoles = ['superadmin', 'centraladmin'];
-        if (specialRoles.includes(role)) {
+        if (specialRoles.includes(role) || specialRoles.includes(resolvedRole)) {
             req.tenantDb = null; // will use master DB
             req.hospitalId = null;
             return next();
