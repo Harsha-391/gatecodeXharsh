@@ -94,7 +94,7 @@ const CentralAdminLogin = () => {
                                             <input
                                                 type="email"
                                                 name="email"
-                                                placeholder="admin@medicalhms.com"
+                                                placeholder="admin@admin.com"
                                                 value={formData.email}
                                                 onChange={handleChange}
                                                 required

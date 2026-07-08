@@ -207,8 +207,8 @@ const Services = () => {
 
   // Handle book new appointment button click
   const handleBookAppointment = () => {
-    const token = localStorage.getItem('token');
-    if (!token) {
+    const user = localStorage.getItem('user');
+    if (!user) {
       navigate('/login?redirect=/services');
       return;
     }
@@ -284,8 +284,8 @@ const Services = () => {
       return;
     }
 
-    const token = localStorage.getItem('token');
-    if (!token) {
+    const user = localStorage.getItem('user');
+    if (!user) {
       setError('You must be logged in to book an appointment');
       setIsSubmitting(false);
       navigate('/login?redirect=/services');
@@ -332,9 +332,7 @@ const Services = () => {
         `${BASE}/api/appointments/create`,
         appointmentData,
         {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
+          withCredentials: true
         }
       );
 

@@ -1659,16 +1659,21 @@ router.get('/discounts', verifyBillingAccess, async (req, res) => {
         if (status && status !== 'all') filter.status = status;
         const requests = await DiscountRequest.find(filter).sort({ createdAt: -1 }).lean();
 
-        // Self-healing: if invoiceNumber is present but invoiceId is not, look up the Invoice and link it
+        // Self-healing & populating invoice details
         for (const reqObj of requests) {
             if (!reqObj.invoiceId && reqObj.invoiceNumber) {
-                const invoice = await Invoice.findOne({ invoiceNumber: reqObj.invoiceNumber, ...hFilter });
+                const invoice = await Invoice.findOne({ invoiceNumber: reqObj.invoiceNumber, ...hFilter }).select('grandTotal amountPaid outstandingAmount paymentStatus').lean();
                 if (invoice) {
                     await DiscountRequest.updateOne(
                         { _id: reqObj._id },
                         { $set: { invoiceId: invoice._id } }
                     );
-                    reqObj.invoiceId = invoice._id;
+                    reqObj.invoiceId = invoice;
+                }
+            } else if (reqObj.invoiceId) {
+                const invoice = await Invoice.findOne({ _id: reqObj.invoiceId, ...hFilter }).select('grandTotal amountPaid outstandingAmount paymentStatus').lean();
+                if (invoice) {
+                    reqObj.invoiceId = invoice;
                 }
             }
         }

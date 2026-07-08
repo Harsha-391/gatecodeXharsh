@@ -20,9 +20,31 @@ const { getTenantConnection, getTenantDbName, getActiveConnections, removeTenant
 const { resolveTenant } = require('../middleware/tenantMiddleware');
 const { getTenantModels } = require('../db/tenantModels');
 
-const { JWT_SECRET } = require('../config/jwt');
+const RefreshToken = require('../models/refreshToken.model');
+const { parseUserAgent } = require('../utils/userAgentParser');
+
+const { JWT_SECRET, JWT_EXPIRES_IN, REFRESH_TOKEN_EXPIRES_MS } = require('../config/jwt');
 const auditLog = require('../middleware/audit.middleware');
 const validatePassword = require('../utils/validatePassword');
+
+function setCookies(res, accessToken, rawRefreshToken) {
+    res.cookie('accessToken', accessToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 30 * 60 * 1000, // 30 minutes
+        path: '/',
+    });
+
+    res.cookie('refreshToken', rawRefreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: REFRESH_TOKEN_EXPIRES_MS,
+        path: '/api/auth/refresh',
+    });
+}
+
 const { hospitalCreationLimiter } = require('../middleware/rateLimiter');
 
 const getModels = (req) => {
@@ -815,8 +837,28 @@ router.post('/admin/login', async (req, res) => {
                 subdomain
             },
             JWT_SECRET,
-            { expiresIn: '7d' }
+            { expiresIn: JWT_EXPIRES_IN }
         );
+
+        const rawRefreshToken = uuidv4();
+        const sessionId = uuidv4();
+        const uaInfo = req.headers['user-agent'] || '';
+        const parsedInfo = parseUserAgent(uaInfo);
+
+        await RefreshToken.createForUser({
+            userId: user._id,
+            hospitalId: user.hospitalId,
+            rawToken: rawRefreshToken,
+            sessionId,
+            jti,
+            ip: req.ip || '',
+            browser: parsedInfo.browser,
+            os: parsedInfo.os,
+            device: parsedInfo.device,
+            userAgent: uaInfo,
+        });
+
+        setCookies(res, token, rawRefreshToken);
 
         // Audit successful hospital admin login — write to tenant DB
         await writeAuditLog(user.hospitalId, {

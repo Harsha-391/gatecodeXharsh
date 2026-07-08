@@ -8,7 +8,6 @@ export const loginUser = createAsyncThunk(
     try {
       const response = await authAPI.login(email, password, hospitalId);
       if (response.success) {
-        localStorage.setItem('token', response.token);
         localStorage.setItem('user', JSON.stringify(response.user));
         return response;
       }
@@ -25,7 +24,6 @@ export const signupUser = createAsyncThunk(
     try {
       const response = await authAPI.signup(name, email, password, phone);
       if (response.success) {
-        localStorage.setItem('token', response.token);
         localStorage.setItem('user', JSON.stringify(response.user));
         return response;
       }
@@ -42,7 +40,6 @@ export const loginAdmin = createAsyncThunk(
     try {
       const response = await adminAPI.login(email, password);
       if (response.success) {
-        localStorage.setItem('token', response.token);
         localStorage.setItem('user', JSON.stringify(response.user));
         return response;
       }
@@ -59,7 +56,6 @@ export const loginHospitalAdmin = createAsyncThunk(
     try {
       const response = await hospitalAdminAPI.login(email, password);
       if (response.success) {
-        localStorage.setItem('token', response.token);
         localStorage.setItem('user', JSON.stringify(response.user));
         return response;
       }
@@ -76,7 +72,6 @@ export const signupAdmin = createAsyncThunk(
     try {
       const response = await adminAPI.signup(name, email, password, phone);
       if (response.success) {
-        localStorage.setItem('token', response.token);
         localStorage.setItem('user', JSON.stringify(response.user));
         return response;
       }
@@ -102,24 +97,28 @@ export const logoutUser = createAsyncThunk(
 // Load initial state from localStorage
 const loadInitialState = () => {
   try {
-    const token = localStorage.getItem('token');
     const userStr = localStorage.getItem('user');
     const user = userStr ? JSON.parse(userStr) : null;
 
     return {
       user,
-      token,
-      isAuthenticated: !!(token && user),
+      isAuthenticated: !!user,
       loading: false,
       error: null,
+      // Session management
+      idleWarningActive: false,
+      idleCountdown: 120,
+      maxSessionReached: false,
     };
   } catch {
     return {
       user: null,
-      token: null,
       isAuthenticated: false,
       loading: false,
       error: null,
+      idleWarningActive: false,
+      idleCountdown: 120,
+      maxSessionReached: false,
     };
   }
 };
@@ -130,10 +129,10 @@ const authSlice = createSlice({
   reducers: {
     logout: (state) => {
       state.user = null;
-      state.token = null;
       state.isAuthenticated = false;
       state.error = null;
-      localStorage.removeItem('token');
+      state.idleWarningActive = false;
+      state.maxSessionReached = false;
       localStorage.removeItem('user');
     },
     clearError: (state) => {
@@ -142,7 +141,18 @@ const authSlice = createSlice({
     updateUser: (state, action) => {
       state.user = { ...state.user, ...action.payload };
       localStorage.setItem('user', JSON.stringify(state.user));
-    }
+    },
+    // ── Session management ────────────────────────────────────────────────
+    showIdleWarning: (state, action) => {
+      state.idleWarningActive = true;
+      state.idleCountdown = action.payload?.countdown ?? 120;
+    },
+    hideIdleWarning: (state) => {
+      state.idleWarningActive = false;
+    },
+    setMaxSession: (state, action) => {
+      state.maxSessionReached = !!action.payload;
+    },
   },
   extraReducers: (builder) => {
     // Login User
@@ -150,7 +160,6 @@ const authSlice = createSlice({
     builder.addCase(loginUser.fulfilled, (state, action) => {
       state.loading = false;
       state.user = action.payload.user;
-      state.token = action.payload.token;
       state.isAuthenticated = true;
     });
     builder.addCase(loginUser.rejected, (state, action) => { state.loading = false; state.error = action.payload; });
@@ -160,7 +169,6 @@ const authSlice = createSlice({
     builder.addCase(signupUser.fulfilled, (state, action) => {
       state.loading = false;
       state.user = action.payload.user;
-      state.token = action.payload.token;
       state.isAuthenticated = true;
     });
     builder.addCase(signupUser.rejected, (state, action) => { state.loading = false; state.error = action.payload; });
@@ -170,7 +178,6 @@ const authSlice = createSlice({
     builder.addCase(loginAdmin.fulfilled, (state, action) => {
       state.loading = false;
       state.user = action.payload.user;
-      state.token = action.payload.token;
       state.isAuthenticated = true;
     });
     builder.addCase(loginAdmin.rejected, (state, action) => { state.loading = false; state.error = action.payload; });
@@ -180,7 +187,6 @@ const authSlice = createSlice({
     builder.addCase(signupAdmin.fulfilled, (state, action) => {
       state.loading = false;
       state.user = action.payload.user;
-      state.token = action.payload.token;
       state.isAuthenticated = true;
     });
     builder.addCase(signupAdmin.rejected, (state, action) => { state.loading = false; state.error = action.payload; });
@@ -190,12 +196,11 @@ const authSlice = createSlice({
     builder.addCase(loginHospitalAdmin.fulfilled, (state, action) => {
       state.loading = false;
       state.user = action.payload.user;
-      state.token = action.payload.token;
       state.isAuthenticated = true;
     });
     builder.addCase(loginHospitalAdmin.rejected, (state, action) => { state.loading = false; state.error = action.payload; });
   },
 });
 
-export const { logout, clearError, updateUser } = authSlice.actions;
+export const { logout, clearError, updateUser, showIdleWarning, hideIdleWarning, setMaxSession } = authSlice.actions;
 export default authSlice.reducer;

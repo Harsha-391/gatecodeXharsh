@@ -209,32 +209,110 @@ router.post('/diagnose/:visitId', verifyToken, resolveTenant, async (req, res) =
         }
 
         // B. CREATE LAB REQUEST — wrapped so it never blocks consultation completion
+        // B. CREATE LAB REQUEST — wrapped so it never blocks consultation completion
         if (labTests && labTests.length > 0) {
             try {
-                const labReport = new LabReport({
-                    appointmentId: visit.appointmentId || visit._id,
-                    patientId: visit.patientId.toString(),
-                    userId: visit.patientId,
-                    doctorId: req.user.id,
-                    hospitalId: req.user.hospitalId,    // RLS: set hospitalId
-                    testNames: labTests,
-                    testStatus: 'PENDING',
-                    reportStatus: 'PENDING',
-                    paymentStatus: 'PENDING'
-                });
-                await labReport.save();
+                const { LabReport, Notification } = getModels(req);
+                let LabModel, LabTestModel;
+                if (req.tenantDb) {
+                    const m = getTenantModels(req.tenantDb);
+                    LabModel = m.Lab;
+                    LabTestModel = m.LabTest;
+                } else {
+                    LabModel = require('../models/lab.model');
+                    LabTestModel = require('../models/labTest.model');
+                }
 
-                const notif = new Notification({
-                    senderId: req.user.id,
-                    recipientRole: 'lab',
-                    hospitalId: req.user.hospitalId,
-                    message: 'New lab test requested.',
-                    referenceType: 'LabReport',
-                    referenceId: labReport._id,
-                    patientId: visit.patientId.toString()
+                const hospitalLabs = await LabModel.find({ hospitalId: req.user.hospitalId }).lean();
+                const allTests = await LabTestModel.find().lean();
+                const isTenant = !!req.tenantDb;
+                const hidStr = req.user.hospitalId ? req.user.hospitalId.toString() : '';
+
+                // Group tests by matching lab
+                const groups = {};
+
+                for (const testName of labTests) {
+                    const normalizedTest = testName.trim().toLowerCase();
+                    let matchedLabId = null;
+
+                    // Find a lab with an exact match in services (either raw service or split by comma)
+                    let matchingLab = hospitalLabs.find(l => 
+                        Array.isArray(l.services) && l.services.some(s => {
+                            if (typeof s !== 'string') return false;
+                            return s.split(',').some(sub => sub.trim().toLowerCase() === normalizedTest);
+                        })
+                    );
+
+                    if (matchingLab) {
+                        matchedLabId = matchingLab._id;
+                    }
+
+                    // Calculate price for this test
+                    const testObj = allTests.find(t => t.name.trim().toLowerCase() === normalizedTest);
+                    let testPrice = 0;
+                    if (testObj) {
+                        if (isTenant) {
+                            testPrice = testObj.price || 0;
+                        } else {
+                            if (hidStr && testObj.hospitalPrices && testObj.hospitalPrices.has && testObj.hospitalPrices.has(hidStr)) {
+                                testPrice = testObj.hospitalPrices.get(hidStr) || 0;
+                            } else if (hidStr && testObj.hospitalPrices && typeof testObj.hospitalPrices === 'object' && testObj.hospitalPrices[hidStr]) {
+                                testPrice = testObj.hospitalPrices[hidStr];
+                            } else {
+                                testPrice = testObj.price || 0;
+                            }
+                        }
+                    }
+
+                    const groupKey = matchedLabId ? matchedLabId.toString() : 'unassigned';
+                    if (!groups[groupKey]) {
+                        groups[groupKey] = {
+                            labId: matchedLabId,
+                            testNames: [],
+                            amount: 0
+                        };
+                    }
+                    groups[groupKey].testNames.push(testName);
+                    groups[groupKey].amount += testPrice;
+                }
+
+                // Delete any pending uncollected reports for this appointment/visit so we can recreate them
+                const targetAppointmentId = visit.appointmentId || visit._id;
+                await LabReport.deleteMany({
+                    appointmentId: targetAppointmentId,
+                    sampleCollected: { $ne: true },
+                    testStatus: 'PENDING'
                 });
-                await notif.save();
-                if (io) io.to('lab').emit('new_notification', notif);
+
+                for (const groupKey of Object.keys(groups)) {
+                    const group = groups[groupKey];
+                    const labReport = new LabReport({
+                        appointmentId: targetAppointmentId,
+                        patientId: visit.patientId.toString(),
+                        userId: visit.patientId,
+                        doctorId: req.user.id,
+                        hospitalId: req.user.hospitalId,
+                        labId: group.labId,
+                        testNames: group.testNames,
+                        testStatus: 'PENDING',
+                        reportStatus: 'PENDING',
+                        paymentStatus: 'PENDING',
+                        amount: group.amount
+                    });
+                    await labReport.save();
+
+                    const notif = new Notification({
+                        senderId: req.user.id,
+                        recipientRole: 'lab',
+                        hospitalId: req.user.hospitalId,
+                        message: 'New lab test requested.',
+                        referenceType: 'LabReport',
+                        referenceId: labReport._id,
+                        patientId: visit.patientId.toString()
+                    });
+                    await notif.save();
+                    if (io) io.to('lab').emit('new_notification', notif);
+                }
             } catch (labErr) {
                 console.error('Lab report creation failed (non-blocking):', labErr.message);
             }

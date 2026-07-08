@@ -139,6 +139,11 @@ const SmartLogin = () => {
     }
 
     if (subdomain && !RESERVED_SUBDOMAINS.includes(subdomain)) return <HospitalLogin />;
+    // On localhost (no subdomain), show HospitalLogin so hospital staff can log in during dev.
+    // In production (no subdomain), CentralAdminLogin is correct.
+    if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+        return <HospitalLogin />;
+    }
     return <CentralAdminLogin />;
 };
 

@@ -5,6 +5,7 @@ const path = require('path');
 const helmet = require('helmet');
 const mongoSanitize = require('express-mongo-sanitize');
 const hpp = require('hpp');
+const cookieParser = require('cookie-parser');
 const { v4: uuidv4 } = require('uuid');
 const { recordApiMetric, getPrometheusMetrics } = require('./utils/telemetry');
 
@@ -44,6 +45,7 @@ const patientLocalRoutes = require('./routes/patientLocal.routes');
 const revenueRoutes     = require('./routes/revenue.routes');
 const mfaRoutes         = require('./routes/mfa.routes');
 const documentTemplateRoutes = require('./routes/documentTemplate.routes');
+const sessionsRoutes    = require('./routes/sessions.routes');
 
 const app = express();
 
@@ -247,6 +249,9 @@ app.use(mongoSanitize());
 // ── HTTP parameter pollution protection ──────────────────────────────────────
 app.use(hpp());
 
+// ── Cookie parsing (for httpOnly refresh token) ──────────────────────────────
+app.use(cookieParser());
+
 // ── Global rate limit (200 req / 15 min per IP) ───────────────────────────────
 app.use('/api/', generalLimiter);
 
@@ -290,6 +295,7 @@ app.use('/api/sync', syncRoutes);
 app.use('/api/patient-app', patientAppRoutes);
 app.use('/api/patient-local', patientLocalRoutes);
 app.use('/api/mfa', mfaRoutes);
+app.use('/api/sessions', sessionsRoutes);
 
 // ── Health Check Endpoint ───────────────────────────────────────────────────
 app.get('/health', async (req, res) => {
@@ -344,6 +350,11 @@ app.get('/', (req, res) => {
 // ── Global error handler — never leak internal error details to client ────────
 app.use((err, req, res, next) => {
     console.error(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl} —`, err.stack || err.message);
+    try {
+        const fs = require('fs');
+        const path = require('path');
+        fs.appendFileSync(path.join(__dirname, '../../error.log'), `[${new Date().toISOString()}] ${req.method} ${req.originalUrl}\n${err.stack || err.message}\n\n`);
+    } catch (_) {}
     const status = err.status || err.statusCode || 500;
     
     let clientMessage = err.message || 'Request failed';

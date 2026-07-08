@@ -108,7 +108,7 @@ const AccountantDashboard = () => {
                                     <div className="acc-kpi-icon">📅</div>
                                     <div className="acc-kpi-value">{formatCurrency(kpis.monthlyRevenue)}</div>
                                     <div className="acc-kpi-label">Monthly Revenue</div>
-                                    <div className="acc-kpi-sub">Accumulated month-to-date collection</div>
+                                    <div className="acc-kpi-sub">Accumulated last 30 days collection</div>
                                 </div>
                                 <div className="acc-kpi-card acc-kpi-orange">
                                     <div className="acc-kpi-icon">🛑</div>
@@ -126,13 +126,13 @@ const AccountantDashboard = () => {
                                     <div className="acc-kpi-icon">💸</div>
                                     <div className="acc-kpi-value">{formatCurrency(kpis.totalExpenses)}</div>
                                     <div className="acc-kpi-label">Total Expenses</div>
-                                    <div className="acc-kpi-sub">Total expenditure logged this month</div>
+                                    <div className="acc-kpi-sub">Total expenditure logged in last 30 days</div>
                                 </div>
                                 <div className="acc-kpi-card acc-kpi-teal">
                                     <div className="acc-kpi-icon">📈</div>
                                     <div className="acc-kpi-value">{formatCurrency(kpis.netProfit)}</div>
                                     <div className="acc-kpi-label">Net Profit</div>
-                                    <div className="acc-kpi-sub">Monthly Revenue minus Expenses</div>
+                                    <div className="acc-kpi-sub">Last 30 days revenue minus expenses</div>
                                 </div>
                                 <div className="acc-kpi-card acc-kpi-magenta" style={{ background: 'linear-gradient(135deg, #be185d, #ec4899)' }}>
                                     <div className="acc-kpi-icon">🔄</div>

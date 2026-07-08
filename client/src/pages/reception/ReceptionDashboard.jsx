@@ -165,7 +165,9 @@ const ReceptionDashboard = () => {
             (!r.ward && r.name.toLowerCase() === wardName)
         );
         const facilityPrice = resourceMatch ? resourceMatch.pricePerDay : (adm.dailyWardCharge || 0);
-        const days = Math.max(1, Math.ceil(Math.abs(new Date().setHours(0,0,0,0) - new Date(adm.admissionDate).setHours(0,0,0,0)) / (1000 * 60 * 60 * 24)) + 1);
+        // For discharged patients, use dischargeDate as the end date instead of today
+        const endDate = adm.dischargeDate ? new Date(adm.dischargeDate) : new Date();
+        const days = Math.max(1, Math.ceil(Math.abs(endDate.setHours(0,0,0,0) - new Date(adm.admissionDate).setHours(0,0,0,0)) / (1000 * 60 * 60 * 24)) + 1);
         const bedAmt = Number(facilityPrice) * days;
         const facilitiesAmt = Number(adm.totalAmount || 0);
         return bedAmt + facilitiesAmt;
@@ -812,33 +814,60 @@ const ReceptionDashboard = () => {
         const doc = new jsPDF();
         const hName = hospitalContext?.name || 'HOSPITAL';
         const hAddr = [hospitalContext?.address, hospitalContext?.city, hospitalContext?.state].filter(Boolean).join(', ');
+        const hPhone = hospitalContext?.phone || '';
+        const hEmail = hospitalContext?.email || '';
+        const issuedBy = currentUser?.name || 'Reception Staff';
         let y = 18;
+
         doc.setFontSize(18); doc.setFont('helvetica', 'bold'); doc.setTextColor(0);
         doc.text(hName, 105, y, { align: 'center' }); y += 7;
-        if (hAddr) { doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(100); doc.text(hAddr, 105, y, { align: 'center' }); y += 5; }
-        doc.setFontSize(13); doc.setFont('helvetica', 'bold'); doc.setTextColor(13, 148, 136);
+        if (hAddr) {
+            doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(100);
+            doc.text(hAddr, 105, y, { align: 'center' }); y += 5;
+        }
+        if (hPhone || hEmail) {
+            const contact = [hPhone && `Ph: ${hPhone}`, hEmail && `Email: ${hEmail}`].filter(Boolean).join('  |  ');
+            doc.setFontSize(9); doc.setTextColor(100);
+            doc.text(contact, 105, y, { align: 'center' }); y += 5;
+        }
+
+        doc.setFontSize(12); doc.setFont('helvetica', 'bold'); doc.setTextColor(41, 128, 185);
         doc.text('ADMISSION SLIP', 105, y, { align: 'center' }); y += 5;
-        doc.setDrawColor(13, 148, 136); doc.setLineWidth(0.5); doc.line(14, y, 196, y); y += 8;
+        doc.setDrawColor(41, 128, 185); doc.setLineWidth(0.5);
+        doc.line(14, y, 196, y); y += 8;
         doc.setTextColor(0); doc.setFont('helvetica', 'normal');
+
         const admDate = new Date(adm.admissionDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+        
+        const bodyRows = [
+            ['Patient Name', adm.patientId?.name || 'N/A'],
+            ['Patient ID', adm.patientId?.patientId || 'N/A'],
+            ['Phone', adm.patientId?.phone || '-'],
+            ['Ward / Room', adm.ward || '-'],
+            ['Bed Number', adm.bedNumber || '-'],
+            ['Admission Date', admDate],
+        ];
+
+        if (adm.dischargeDate) {
+            const disDate = new Date(adm.dischargeDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+            bodyRows.push(['Discharge Date', disDate]);
+        }
+
+        bodyRows.push(
+            ['Total Amount', `Rs. ${Number(getAdmissionTotal(adm)).toLocaleString('en-IN')}`],
+            ['Payment Status', adm.paymentStatus || 'Pending'],
+            ['Notes', adm.notes || '-']
+        );
+
         autoTable(doc, {
             startY: y,
-            body: [
-                ['Patient Name', adm.patientId?.name || 'N/A'],
-                ['Patient ID', adm.patientId?.patientId || 'N/A'],
-                ['Phone', adm.patientId?.phone || '-'],
-                ['Ward / Room', adm.ward || '-'],
-                ['Bed Number', adm.bedNumber || '-'],
-                ['Admission Date', admDate],
-                ['Total Amount', `Rs. ${Number(adm.totalAmount || 0).toLocaleString('en-IN')}`],
-                ['Payment Status', adm.paymentStatus || 'Pending'],
-                ['Notes', adm.notes || '-'],
-            ],
+            body: bodyRows,
             theme: 'grid',
             columnStyles: { 0: { fontStyle: 'bold', cellWidth: 52 } },
             bodyStyles: { fontSize: 10 },
-            alternateRowStyles: { fillColor: [240, 253, 250] },
+            alternateRowStyles: { fillColor: [245, 249, 255] },
         });
+
         if (adm.selectedFacilities?.length > 0) {
             y = doc.lastAutoTable.finalY + 6;
             doc.setFontSize(11); doc.setFont('helvetica', 'bold');
@@ -848,13 +877,19 @@ const ReceptionDashboard = () => {
                 head: [['Facility', 'Per Day', 'Days', 'Total']],
                 body: adm.selectedFacilities.map(f => [f.facilityName, `Rs.${f.pricePerDay}`, f.days, `Rs.${f.totalAmount}`]),
                 theme: 'striped',
-                headStyles: { fillColor: [13, 148, 136] },
+                headStyles: { fillColor: [41, 128, 185] },
                 bodyStyles: { fontSize: 9 },
             });
         }
-        y = doc.lastAutoTable.finalY + 8;
+
+        y = doc.lastAutoTable.finalY + 10;
+        doc.setDrawColor(200); doc.line(14, y, 196, y); y += 6;
         doc.setFontSize(8); doc.setTextColor(120);
-        doc.text(`Issued: ${new Date().toLocaleString('en-IN')}`, 14, y);
+        doc.text(`Issued by: ${issuedBy}`, 14, y);
+        doc.text(`Generated: ${new Date().toLocaleString('en-IN')}`, 196, y, { align: 'right' });
+        y += 5;
+        doc.text(`Thank you for choosing ${hName}`, 105, y, { align: 'center' });
+
         doc.save(`AdmissionSlip_${adm.patientId?.patientId || adm._id}.pdf`);
     };
 
@@ -2116,7 +2151,9 @@ const ReceptionDashboard = () => {
                             .map(adm => {
                                 const admDate = new Date(adm.admissionDate);
                                 const today = new Date();
-                                const daysAdmitted = Math.max(1, Math.ceil(Math.abs(new Date().setHours(0,0,0,0) - new Date(adm.admissionDate).setHours(0,0,0,0)) / (1000 * 60 * 60 * 24)) + 1);
+                                // For discharged patients, count days up to discharge date — not today
+                                const endDateForDays = adm.dischargeDate ? new Date(adm.dischargeDate) : new Date();
+                                const daysAdmitted = Math.max(1, Math.ceil(Math.abs(endDateForDays.setHours(0,0,0,0) - new Date(adm.admissionDate).setHours(0,0,0,0)) / (1000 * 60 * 60 * 24)) + 1);
                                 const isActive = adm.status === 'Admitted';
                                 const isPendingAllocation = adm.status === 'Pending Allocation';
                                 const isManageable = isActive || isPendingAllocation;

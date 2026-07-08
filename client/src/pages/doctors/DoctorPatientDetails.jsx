@@ -628,10 +628,8 @@ const DoctorPatientDetails = () => {
         let bgBase64 = null;
         
         try {
-            // Using absolute URL path for axios request
-            const token = localStorage.getItem('token');
             const res = await axios.get('/api/document-templates/active/doctor_prescription', {
-                headers: { Authorization: `Bearer ${token}` }
+                withCredentials: true
             });
             if (res.data?.success && res.data.template) {
                 template = res.data.template;

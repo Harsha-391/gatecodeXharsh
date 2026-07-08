@@ -1,23 +1,13 @@
-require('dotenv').config({ path: 'c:/Users/omris/OneDrive/Desktop/hms-neew/gatecodeXharsh/server/.env' });
 const mongoose = require('mongoose');
-const User = require('c:/Users/omris/OneDrive/Desktop/hms-neew/gatecodeXharsh/server/src/models/user.model');
+require('dotenv').config();
 
 async function run() {
-    try {
-        console.log("Connecting to database...");
-        await mongoose.connect(process.env.MONGODB_URL);
-        console.log("Connected successfully!");
-
-        const users = await User.find({});
-        console.log(`\nFound ${users.length} users:`);
-        users.forEach(u => {
-            console.log(`- Name: "${u.name}", Email: "${u.email}", Role: "${JSON.stringify(u.role)}", HospitalId: "${u.hospitalId}"`);
-        });
-
-        await mongoose.disconnect();
-    } catch (err) {
-        console.error("Error:", err);
-    }
+  await mongoose.connect(process.env.MONGODB_URL);
+  console.log('Connected to DB:', mongoose.connection.name);
+  const User = mongoose.model('User', new mongoose.Schema({}, { strict: false }));
+  const users = await User.find({}, 'name email role isActive').lean();
+  console.log('All Users in DB:');
+  console.log(users);
+  await mongoose.disconnect();
 }
-
 run();

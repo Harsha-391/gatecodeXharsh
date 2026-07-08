@@ -6,14 +6,41 @@ const Role = require('../models/role.model');
 const Hospital = require('../models/hospital.model');
 const jwt = require('jsonwebtoken');
 
-const { JWT_SECRET, JWT_EXPIRES_IN } = require('../config/jwt');
+const { JWT_SECRET, JWT_EXPIRES_IN, REFRESH_TOKEN_EXPIRES_IN, REFRESH_TOKEN_EXPIRES_MS, MAX_SESSION_MS } = require('../config/jwt');
 const { loginLimiter, signupLimiter } = require('../middleware/rateLimiter');
 const validatePassword = require('../utils/validatePassword');
 const { verifyToken } = require('../middleware/auth.middleware');
 const TokenBlacklist = require('../models/tokenBlacklist.model');
+const RefreshToken = require('../models/refreshToken.model');
 const auditLog = require('../middleware/audit.middleware');
 const { v4: uuidv4 } = require('uuid');
 const { parseUserAgent } = require('../utils/userAgentParser');
+
+// ── Helpers: set and clear cookies for both tokens ───────────────────────────
+function setCookies(res, accessToken, rawRefreshToken) {
+    // Access token cookie
+    res.cookie('accessToken', accessToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 30 * 60 * 1000, // 30 minutes
+        path: '/',
+    });
+
+    // Refresh token cookie
+    res.cookie('refreshToken', rawRefreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: REFRESH_TOKEN_EXPIRES_MS,
+        path: '/api/auth/refresh',
+    });
+}
+
+function clearCookies(res) {
+    res.clearCookie('accessToken', { httpOnly: true, path: '/' });
+    res.clearCookie('refreshToken', { httpOnly: true, path: '/api/auth/refresh' });
+}
 
 /**
  * Helper: Build user response with full role data
@@ -160,9 +187,10 @@ router.post('/signup', signupLimiter, async (req, res) => {
       }
     }
 
+    const jti = uuidv4();
     const token = jwt.sign(
       {
-        jti: uuidv4(),
+        jti,
         userId: user._id,
         email: user.email,
         roleId: String(defaultRole._id),
@@ -170,18 +198,38 @@ router.post('/signup', signupLimiter, async (req, res) => {
         tenantKey,
         subdomain,
         tv: user.tokenVersion ?? 0,
+        sid: jti,
       },
       JWT_SECRET,
       { expiresIn: JWT_EXPIRES_IN }
     );
 
+    const rawRefreshToken = uuidv4();
+    const sessionId = uuidv4();
+    const uaSignup = req.headers['user-agent'] || '';
+    const parsedSignup = parseUserAgent(uaSignup);
+    await RefreshToken.createForUser({
+      userId: user._id,
+      hospitalId: user.hospitalId || null,
+      rawToken: rawRefreshToken,
+      sessionId,
+      jti,
+      ip: req.ip || '',
+      browser: parsedSignup.browser,
+      os: parsedSignup.os,
+      device: parsedSignup.device,
+      userAgent: uaSignup,
+    });
+
+    setCookies(res, token, rawRefreshToken);
+
     const userData = await buildUserResponse(user);
+    userData.sessionStart = new Date().toISOString();
 
     res.status(201).json({
       success: true,
       message: 'User created successfully',
-      user: userData,
-      token
+      user: userData
     });
   } catch (error) {
     console.error('Signup error:', error);
@@ -383,7 +431,7 @@ router.post('/login', loginLimiter, async (req, res) => {
       user.loginAttempts = (user.loginAttempts || 0) + 1;
       let locked = false;
       if (user.loginAttempts >= 5) {
-        user.lockUntil = new Date(Date.now() + 15 * 60 * 1000); // 15 mins lock
+        user.lockUntil = new Date(Date.now() + 5 * 60 * 1000); // 5 mins lock
         locked = true;
       }
       await user.save();
@@ -427,7 +475,7 @@ router.post('/login', loginLimiter, async (req, res) => {
       } catch (logErr) { }
 
       const errMsg = locked
-        ? 'Too many failed login attempts. Your account has been temporarily locked. Try again in 15 minutes.'
+        ? 'Too many failed login attempts. Your account has been temporarily locked. Try again in 5 minutes.'
         : 'Invalid email or password';
       return res.status(401).json({ success: false, message: errMsg });
     }
@@ -438,12 +486,17 @@ router.post('/login', loginLimiter, async (req, res) => {
       await user.save();
     }
 
-    // STRICT TENANT ISOLATION — enforced in ALL environments (dev, test, production).
+    // TENANT ISOLATION — enforced in production via subdomain.
     // A user may ONLY log in on the portal that belongs to their own organization.
-    // This prevents cross-hospital and hospital→clinic (and vice versa) credential reuse.
+    // In development (localhost), staff may log in directly without a subdomain.
     const globalAdminRoles = ['superadmin', 'centraladmin'];
     const userRoleStr = roleData.name ? roleData.name.toLowerCase() : '';
     const isGlobalAdmin = globalAdminRoles.includes(userRoleStr);
+
+    // Detect if request is coming from localhost (dev environment)
+    const origin = req.headers.origin || req.headers.referer || '';
+    const isLocalhost = origin.includes('localhost') || origin.includes('127.0.0.1') ||
+      req.hostname === 'localhost' || req.hostname === '127.0.0.1';
 
     if (!isGlobalAdmin) {
       if (hospitalId) {
@@ -455,9 +508,8 @@ router.post('/login', loginLimiter, async (req, res) => {
             message: 'Access denied: You are not authorized for this portal. Please use your organization\'s URL.'
           });
         }
-      } else {
-        // Generic /login (no subdomain): only hospitaladmin / clinicadmin are allowed here
-        // because they manage the portal itself and have no dedicated subdomain requirement.
+      } else if (!isLocalhost) {
+        // Generic /login (no subdomain) in PRODUCTION: only hospitaladmin / clinicadmin are allowed here.
         // All other staff must log in through their organization's subdomain URL.
         const isAdminLevelRole = userRoleStr === 'hospitaladmin' ||
           userRoleStr === 'clinicadmin' ||
@@ -471,6 +523,7 @@ router.post('/login', loginLimiter, async (req, res) => {
           });
         }
       }
+      // else: localhost dev mode — allow staff to log in directly without subdomain
     } else {
       // Global Admins must use the Central Admin login — not any subdomain portal.
       if (hospitalId) {
@@ -503,10 +556,30 @@ router.post('/login', loginLimiter, async (req, res) => {
         tenantKey,
         subdomain,
         tv: user.tokenVersion ?? 0,
+        sid: jti, // session identifier embedded in access token
       },
       JWT_SECRET,
       { expiresIn: JWT_EXPIRES_IN }
     );
+
+    // Issue refresh token (raw UUID → hashed in DB, sent as httpOnly cookie)
+    const rawRefreshToken = uuidv4();
+    const sessionId = uuidv4();
+    const ua2 = req.headers['user-agent'] || '';
+    const parsed2 = parseUserAgent(ua2);
+    await RefreshToken.createForUser({
+      userId: user._id,
+      hospitalId: user.hospitalId || null,
+      rawToken: rawRefreshToken,
+      sessionId,
+      jti,
+      ip: req.ip || '',
+      browser: parsed2.browser,
+      os: parsed2.os,
+      device: parsed2.device,
+      userAgent: ua2,
+    });
+    setCookies(res, token, rawRefreshToken);
 
     // Build user response with role data (roleData is already fetched above)
     let clinicType = hospitalInfo?.clinicType || 'hospital';
@@ -524,11 +597,11 @@ router.post('/login', loginLimiter, async (req, res) => {
       permissions: roleData.permissions || [],
       customPermissions: user.customPermissions || [],
       deniedPermissions: user.deniedPermissions || [],
-      // effectivePermissions = (role permissions + custom permissions) - denied permissions (de-duped)
       effectivePermissions: Array.from(new Set([...(roleData.permissions || []), ...(user.customPermissions || [])].filter(p => !(user.deniedPermissions || []).includes(p)))),
       dashboardPath: roleData.dashboardPath || '/',
       navLinks: roleData.navLinks || [],
-      avatar: user.avatar || null
+      avatar: user.avatar || null,
+      sessionStart: new Date().toISOString(), // For max-session countdown on client
     };
 
     // Log successful login
@@ -555,8 +628,7 @@ router.post('/login', loginLimiter, async (req, res) => {
     res.json({
       success: true,
       message: 'Login successful',
-      user: userData,
-      token
+      user: userData
     });
   } catch (error) {
     console.error('Login error:', error);
@@ -580,19 +652,182 @@ router.post('/revoke-all-sessions', verifyToken, async (req, res) => {
 // POST /api/auth/logout — blacklist the current token so it can never be reused
 router.post('/logout', verifyToken, auditLog('STAFF_LOGOUT', null, { severity: 'info', dataCategory: 'System' }), async (req, res) => {
   try {
-    const authHeader = req.headers.authorization;
-    const token = authHeader.split(' ')[1];
-    const decoded = require('jsonwebtoken').decode(token);
-
-    if (decoded?.jti && decoded?.exp) {
-      await TokenBlacklist.create({
-        jti: decoded.jti,
-        expireAt: new Date(decoded.exp * 1000),
-      });
+    let token = req.cookies?.accessToken;
+    if (!token) {
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        token = authHeader.split(' ')[1];
+      }
     }
 
+    if (token) {
+      const decoded = require('jsonwebtoken').decode(token);
+      if (decoded?.jti && decoded?.exp) {
+        // Blacklist the access token JTI
+        await TokenBlacklist.create({
+          jti: decoded.jti,
+          expireAt: new Date(decoded.exp * 1000),
+        }).catch(() => {});
+
+        // Revoke the refresh token for this session
+        await RefreshToken.updateMany(
+          { jti: decoded.jti, userId: req.user._id, isRevoked: false },
+          { $set: { isRevoked: true, revokedAt: new Date(), revokedBy: 'user' } }
+        ).catch(() => {});
+      }
+    }
+
+    clearCookies(res);
     res.json({ success: true, message: 'Logged out successfully' });
   } catch (error) {
+    res.status(500).json({ success: false, message: 'An internal error occurred' });
+  }
+});
+
+// POST /api/auth/refresh — silently refresh the access token using the httpOnly cookie
+router.post('/refresh', async (req, res) => {
+  try {
+    const rawRefreshToken = req.cookies?.refreshToken;
+    if (!rawRefreshToken) {
+      return res.status(401).json({ success: false, message: 'No refresh token', code: 'NO_REFRESH_TOKEN' });
+    }
+
+    // Find a matching non-revoked, non-expired record
+    const stored = await RefreshToken.find({
+      isRevoked: false,
+      expiresAt: { $gt: new Date() },
+    }).lean();
+
+    let matchedRecord = null;
+    for (const record of stored) {
+      const ok = await RefreshToken.verifyToken(rawRefreshToken, record.tokenHash);
+      if (ok) { matchedRecord = record; break; }
+    }
+
+    if (!matchedRecord) {
+      clearCookies(res);
+      return res.status(401).json({ success: false, message: 'Invalid or expired refresh token', code: 'INVALID_REFRESH' });
+    }
+
+    // Check max session limit (8 hours from sessionStart)
+    const sessionAge = Date.now() - new Date(matchedRecord.sessionStart).getTime();
+    if (sessionAge > MAX_SESSION_MS) {
+      await RefreshToken.updateOne(
+        { _id: matchedRecord._id },
+        { $set: { isRevoked: true, revokedAt: new Date(), revokedBy: 'max_session' } }
+      );
+      clearCookies(res);
+      return res.status(401).json({ success: false, message: 'Maximum session duration reached. Please log in again.', code: 'MAX_SESSION' });
+    }
+
+    const user = await User.findById(matchedRecord.userId);
+    if (!user || user.isActive === false) {
+      clearCookies(res);
+      return res.status(401).json({ success: false, message: 'User not found or disabled', code: 'USER_DISABLED' });
+    }
+
+    // Issue new access token + rotate refresh token
+    const newJti = uuidv4();
+    const newRawRefresh = uuidv4();
+
+    const Hospital2 = require('../models/hospital.model');
+    const hospitalInfo2 = user.hospitalId ? await Hospital2.findById(user.hospitalId).select('tenantKey slug').lean() : null;
+
+    const newAccessToken = jwt.sign({
+      jti: newJti,
+      userId: user._id,
+      email: user.email,
+      roleId: String(user.role),
+      hospitalId: user.hospitalId ? String(user.hospitalId) : null,
+      tenantKey: hospitalInfo2?.tenantKey || null,
+      subdomain: hospitalInfo2?.slug || null,
+      tv: user.tokenVersion ?? 0,
+      sid: matchedRecord.sessionId,
+    }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+
+    // Revoke old refresh token and create new one (token rotation)
+    await RefreshToken.updateOne(
+      { _id: matchedRecord._id },
+      { $set: { isRevoked: true, revokedAt: new Date(), revokedBy: 'rotated' } }
+    );
+
+    const ua3 = req.headers['user-agent'] || '';
+    const parsed3 = parseUserAgent(ua3);
+    await RefreshToken.createForUser({
+      userId: user._id,
+      hospitalId: user.hospitalId || null,
+      rawToken: newRawRefresh,
+      sessionId: matchedRecord.sessionId, // same session
+      jti: newJti,
+      ip: req.ip || '',
+      browser: parsed3.browser,
+      os: parsed3.os,
+      device: parsed3.device,
+      userAgent: ua3,
+    });
+
+    // Update lastUsedAt on old record (soft update before rotation)
+    await RefreshToken.updateMany(
+      { sessionId: matchedRecord.sessionId, isRevoked: false },
+      { $set: { lastUsedAt: new Date() } }
+    ).catch(() => {});
+
+    setCookies(res, newAccessToken, newRawRefresh);
+
+    // Audit log: TOKEN_REFRESH
+    try {
+      const AuditLog2 = require('../models/auditLog.model');
+      AuditLog2.create({
+        clinicId: user.hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
+        userId: user._id,
+        userName: user.name,
+        action: 'TOKEN_REFRESH',
+        sessionId: matchedRecord.sessionId,
+        ip: req.ip || '',
+        browser: parsed3.browser,
+        os: parsed3.os,
+        device: parsed3.device,
+        success: true,
+      }).catch(() => {});
+    } catch (_) {}
+
+    res.json({
+      success: true,
+      sessionStart: matchedRecord.sessionStart,
+    });
+  } catch (error) {
+    console.error('Refresh error:', error);
+    res.status(500).json({ success: false, message: 'An internal error occurred' });
+  }
+});
+
+// POST /api/auth/log-session-event — client reports idle logout, max session, etc.
+router.post('/log-session-event', verifyToken, async (req, res) => {
+  try {
+    const { action, reason } = req.body;
+    const allowedActions = ['SESSION_EXTENDED', 'SESSION_WARNING', 'AUTO_LOGOUT_IDLE', 'FORCED_LOGOUT', 'SESSION_TERMINATED_BY_ADMIN'];
+    if (!allowedActions.includes(action)) {
+      return res.status(400).json({ success: false, message: 'Invalid action' });
+    }
+    const AuditLog3 = require('../models/auditLog.model');
+    const ua = req.headers['user-agent'] || '';
+    const parsed = parseUserAgent(ua);
+    await AuditLog3.create({
+      clinicId: req.user.hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
+      userId: req.user._id,
+      userName: req.user.name,
+      role: req.user._roleData?.name || String(req.user.role || ''),
+      action,
+      reason: reason || '',
+      ip: req.ip || '',
+      userAgent: ua,
+      browser: parsed.browser,
+      os: parsed.os,
+      device: parsed.device,
+      success: true,
+    }).catch(() => {});
+    res.json({ success: true });
+  } catch (_) {
     res.status(500).json({ success: false, message: 'An internal error occurred' });
   }
 });
@@ -731,7 +966,12 @@ router.put('/change-password', verifyToken, auditLog('PASSWORD_CHANGED', null, {
     }
 
     user.password = newPassword;
+    user.loginAttempts = 0;
+    user.lockUntil = undefined;
     await user.save();
+
+    const { syncToTenant } = require('../utils/tenantSync');
+    await syncToTenant('User', user, 'save', user.hospitalId);
 
     res.json({ success: true, message: 'Password changed successfully' });
   } catch (error) {

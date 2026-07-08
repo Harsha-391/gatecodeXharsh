@@ -47,6 +47,7 @@ const DiscountApprovals = () => {
     const [modalReq, setModalReq] = useState(null);
     const [notes, setNotes] = useState('');
     const [submitting, setSubmitting] = useState(false);
+    const [detailsModalReq, setDetailsModalReq] = useState(null);
 
     // ── fetch ──────────────────────────────────────────────
     const fetchRequests = async () => {
@@ -291,8 +292,8 @@ const DiscountApprovals = () => {
                                     return (
                                         <tr key={req._id}>
                                             {/* Patient */}
-                                            <td>
-                                                <span className="da-cell-main">
+                                            <td onClick={() => setDetailsModalReq(req)} style={{ cursor: 'pointer' }} title="Click to view details">
+                                                <span className="da-cell-main da-clickable-name">
                                                     {req.patientName || '—'}
                                                 </span>
                                                 <span className="da-cell-sub">
@@ -370,7 +371,7 @@ const DiscountApprovals = () => {
                                             {/* Actions */}
                                             <td>
                                                 {req.status === 'Pending' ? (
-                                                    <div className="da-actions-wrap">
+                                                    <div className="da-actions-wrap" style={{ flexWrap: 'nowrap' }}>
                                                         <button
                                                             className="da-approve-btn"
                                                             onClick={() => openModal(req, 'approve')}
@@ -383,13 +384,29 @@ const DiscountApprovals = () => {
                                                         >
                                                             ✗ Reject
                                                         </button>
+                                                        <button
+                                                            className="da-view-btn"
+                                                            onClick={() => setDetailsModalReq(req)}
+                                                            title="View Details"
+                                                        >
+                                                            👁️ View
+                                                        </button>
                                                     </div>
                                                 ) : (
-                                                    <span className="da-settled-text">
-                                                        {req.status === 'Approved' && '✅ Approved'}
-                                                        {req.status === 'Rejected' && '❌ Rejected'}
-                                                        {req.status === 'Applied' && '🔵 Applied'}
-                                                    </span>
+                                                    <div className="da-actions-wrap" style={{ flexWrap: 'nowrap' }}>
+                                                        <span className="da-settled-text">
+                                                            {req.status === 'Approved' && '✅ Approved'}
+                                                            {req.status === 'Rejected' && '❌ Rejected'}
+                                                            {req.status === 'Applied' && '🔵 Applied'}
+                                                        </span>
+                                                        <button
+                                                            className="da-view-btn"
+                                                            onClick={() => setDetailsModalReq(req)}
+                                                            title="View Details"
+                                                        >
+                                                            👁️ Details
+                                                        </button>
+                                                    </div>
                                                 )}
                                             </td>
                                         </tr>
@@ -502,6 +519,184 @@ const DiscountApprovals = () => {
                                 >
                                     {submitting ? 'Rejecting…' : '✗ Confirm Rejection'}
                                 </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── View Details Modal ───────────────────────── */}
+            {detailsModalReq && (
+                <div className="da-modal-backdrop" onClick={(e) => e.target === e.currentTarget && setDetailsModalReq(null)}>
+                    <div className="da-modal" style={{ width: '520px' }}>
+                        <div className="da-modal-header" style={{ background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span style={{ fontSize: '1.4rem' }}>📋</span>
+                                <div>
+                                    <h2 style={{ fontSize: '1.1rem', fontWeight: 800 }}>Discount Details</h2>
+                                    <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>
+                                        ID: {detailsModalReq._id}
+                                    </span>
+                                </div>
+                            </div>
+                            <button className="da-modal-close" onClick={() => setDetailsModalReq(null)}>
+                                ×
+                            </button>
+                        </div>
+
+                        <div className="da-modal-body" style={{ padding: '24px' }}>
+                            {/* Patient Badge Card */}
+                            <div style={{
+                                background: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)',
+                                border: '1px solid #bfdbfe',
+                                borderRadius: '14px',
+                                padding: '16px 18px',
+                                marginBottom: '20px',
+                                boxShadow: '0 2px 8px rgba(59,130,246,0.06)'
+                            }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                    <div>
+                                        <div style={{ fontSize: '0.72rem', color: '#1d4ed8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>
+                                            Patient Information
+                                        </div>
+                                        <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#1e3a8a' }}>
+                                            {detailsModalReq.patientName}
+                                        </div>
+                                        <div style={{ fontSize: '0.8rem', color: '#475569', marginTop: '2px', fontWeight: 600 }}>
+                                            ID/MRN: {detailsModalReq.patientId}
+                                        </div>
+                                    </div>
+                                    <span className={`da-status-badge ${(detailsModalReq.status || '').toLowerCase()}`}>
+                                        <span className="da-status-dot" />
+                                        {detailsModalReq.status}
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* Detailed Info List */}
+                            <div className="da-request-info-card" style={{ marginBottom: '0' }}>
+                                <div className="da-info-row" style={{ padding: '6px 0', borderBottom: '1px solid #f1f5f9' }}>
+                                    <span className="da-info-label">Invoice Number</span>
+                                    <span className="da-info-value">{detailsModalReq.invoiceNumber || '—'}</span>
+                                </div>
+                                <div className="da-info-row" style={{ padding: '6px 0', borderBottom: '1px solid #f1f5f9' }}>
+                                    <span className="da-info-label">Request Type</span>
+                                    <span className={`da-type-badge ${(detailsModalReq.requestType || detailsModalReq.discountType || 'Discount').toLowerCase()}`}>
+                                        {detailsModalReq.requestType || detailsModalReq.discountType || 'Discount'}
+                                    </span>
+                                </div>
+                                <div className="da-info-row" style={{ padding: '6px 0', borderBottom: '1px solid #f1f5f9' }}>
+                                    <span className="da-info-label">Discount Value</span>
+                                    <span className="da-info-value amount" style={{ fontSize: '1.1rem', fontWeight: 800, color: '#6366f1' }}>
+                                        {detailsModalReq.amount > 0
+                                            ? fmtCurrency(detailsModalReq.amount)
+                                            : detailsModalReq.percentage > 0
+                                            ? `${detailsModalReq.percentage}% off`
+                                            : '—'}
+                                    </span>
+                                </div>
+                                {detailsModalReq.invoiceId && typeof detailsModalReq.invoiceId === 'object' && (
+                                    <>
+                                        <div className="da-info-row" style={{ padding: '6px 0', borderBottom: '1px solid #f1f5f9' }}>
+                                            <span className="da-info-label">Invoice Total</span>
+                                            <span className="da-info-value" style={{ color: '#0f172a', fontWeight: 700 }}>
+                                                {fmtCurrency(detailsModalReq.invoiceId.grandTotal)}
+                                            </span>
+                                        </div>
+                                        <div className="da-info-row" style={{ padding: '6px 0', borderBottom: '1px solid #f1f5f9' }}>
+                                            <span className="da-info-label">Amount Paid</span>
+                                            <span className="da-info-value" style={{ color: '#16a34a', fontWeight: 700 }}>
+                                                {fmtCurrency(detailsModalReq.invoiceId.amountPaid)}
+                                            </span>
+                                        </div>
+                                        <div className="da-info-row" style={{ padding: '6px 0', borderBottom: '1px solid #f1f5f9' }}>
+                                            <span className="da-info-label">Outstanding Dues</span>
+                                            <span className="da-info-value" style={{ color: '#dc2626', fontWeight: 700 }}>
+                                                {fmtCurrency(detailsModalReq.invoiceId.outstandingAmount)}
+                                            </span>
+                                        </div>
+                                        <div className="da-info-row" style={{ padding: '6px 0', borderBottom: '1px solid #f1f5f9' }}>
+                                            <span className="da-info-label">Calculated Discount</span>
+                                            <span className="da-info-value amount" style={{ fontWeight: 800, color: '#4f46e5' }}>
+                                                {detailsModalReq.amount > 0 
+                                                    ? fmtCurrency(detailsModalReq.amount)
+                                                    : detailsModalReq.percentage > 0
+                                                    ? fmtCurrency((detailsModalReq.invoiceId.grandTotal * detailsModalReq.percentage) / 100)
+                                                    : '—'}
+                                            </span>
+                                        </div>
+                                    </>
+                                )}
+                                <div className="da-info-row" style={{ padding: '6px 0', borderBottom: '1px solid #f1f5f9' }}>
+                                    <span className="da-info-label">Reason for Request</span>
+                                    <span className="da-info-value" style={{ fontWeight: 600, color: '#475569', maxWidth: '60%', wordBreak: 'break-word' }}>
+                                        {detailsModalReq.reason || '—'}
+                                    </span>
+                                </div>
+                                <div className="da-info-row" style={{ padding: '6px 0', borderBottom: '1px solid #f1f5f9' }}>
+                                    <span className="da-info-label">Requested By</span>
+                                    <span className="da-info-value">{detailsModalReq.requestedByName || 'Billing Staff'}</span>
+                                </div>
+                                <div className="da-info-row" style={{ padding: '6px 0', borderBottom: '1px solid #f1f5f9' }}>
+                                    <span className="da-info-label">Requested On</span>
+                                    <span className="da-info-value">{fmtDate(detailsModalReq.createdAt)}</span>
+                                </div>
+
+                                {/* Approver Details if not pending */}
+                                {detailsModalReq.status !== 'Pending' && (
+                                    <>
+                                        <div className="da-info-row" style={{ padding: '6px 0', borderBottom: '1px solid #f1f5f9' }}>
+                                            <span className="da-info-label">Action By</span>
+                                            <span className="da-info-value">{detailsModalReq.approvedByName || 'Accountant'}</span>
+                                        </div>
+                                        <div className="da-info-row" style={{ padding: '6px 0', borderBottom: '1px solid #f1f5f9' }}>
+                                            <span className="da-info-label">Action Date</span>
+                                            <span className="da-info-value">{fmtDate(detailsModalReq.actionDate)}</span>
+                                        </div>
+                                        {detailsModalReq.approvalNotes && (
+                                            <div style={{ marginTop: '12px', padding: '10px 12px', background: '#f8fafc', borderRadius: '8px', borderLeft: '3px solid #6366f1' }}>
+                                                <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', marginBottom: '4px' }}>
+                                                    Remarks
+                                                </div>
+                                                <div style={{ fontSize: '0.85rem', color: '#334155', fontWeight: 600 }}>
+                                                    {detailsModalReq.approvalNotes}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="da-modal-footer" style={{ background: '#f8fafc', padding: '14px 24px 16px' }}>
+                            <button className="da-cancel-btn" onClick={() => setDetailsModalReq(null)} style={{ padding: '8px 18px' }}>
+                                Close
+                            </button>
+                            {detailsModalReq.status === 'Pending' && (
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                    <button
+                                        className="da-submit-reject-btn"
+                                        onClick={() => {
+                                            const req = detailsModalReq;
+                                            setDetailsModalReq(null);
+                                            openModal(req, 'reject');
+                                        }}
+                                        style={{ padding: '8px 18px' }}
+                                    >
+                                        ✗ Reject
+                                    </button>
+                                    <button
+                                        className="da-submit-approve-btn"
+                                        onClick={() => {
+                                            const req = detailsModalReq;
+                                            setDetailsModalReq(null);
+                                            openModal(req, 'approve');
+                                        }}
+                                        style={{ padding: '8px 18px' }}
+                                    >
+                                        ✓ Approve
+                                    </button>
+                                </div>
                             )}
                         </div>
                     </div>

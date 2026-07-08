@@ -3,15 +3,15 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '../store/hooks';
 
 const ProtectedRoute = ({ children, requiredPermissions = [], allowedRoles = [] }) => {
-  const { user, isAuthenticated, token } = useAuth();
+  const { user, isAuthenticated } = useAuth();
 
-  // If no token and permissions are required, redirect to login
-  if (!token && (requiredPermissions.length > 0 || allowedRoles.length > 0)) {
+  // If not authenticated and route has restrictions, redirect to login
+  if (!isAuthenticated && (requiredPermissions.length > 0 || allowedRoles.length > 0)) {
     return <Navigate to="/login" replace />;
   }
 
   // If user is authenticated, check permissions
-  if (token && user) {
+  if (isAuthenticated && user) {
     // Use effectivePermissions (role + customPermissions merged) for the most accurate check
     const userPermissions = user.effectivePermissions || user.permissions || [];
     let userRole = (user.role || '').toLowerCase();

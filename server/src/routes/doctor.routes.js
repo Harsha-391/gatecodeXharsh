@@ -96,10 +96,17 @@ router.get('/', async (req, res) => {
 
         let hospitalIdFilter = req.query.hospitalId || null;
 
+        // Resolve token from Bearer header or cookies
+        let token = null;
+        if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
+            token = req.headers.authorization.split(' ')[1];
+        } else if (req.cookies && req.cookies.accessToken) {
+            token = req.cookies.accessToken;
+        }
+
         // If no explicit query param, check if they sent a valid token (e.g. Receptionist fetching doctors)
-        if (!hospitalIdFilter && req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
+        if (!hospitalIdFilter && token) {
             try {
-                const token = req.headers.authorization.split(' ')[1];
                 const jwt = require('jsonwebtoken');
                 const { JWT_SECRET: _jwtSecret } = require('../config/jwt');
                 const decoded = jwt.verify(token, _jwtSecret);
@@ -108,6 +115,40 @@ router.get('/', async (req, res) => {
                 }
             } catch (err) {
                 // Ignore gracefully for public guests
+            }
+        }
+
+        // Fallback: Resolve hospitalId from subdomain slug in Referer header if still not resolved
+        if (!hospitalIdFilter && req.headers.referer) {
+            try {
+                const url = new URL(req.headers.referer);
+                const hostname = url.hostname;
+                let slug = '';
+                const parts = hostname.split('.');
+                if (parts.length > 1) {
+                    if (parts[parts.length - 1] === 'localhost') {
+                        if (parts.length > 1) {
+                            slug = parts[0];
+                        }
+                    } else {
+                        if (parts.length > 2) {
+                            slug = parts[0];
+                        }
+                    }
+                }
+                if (slug && slug !== 'www' && slug !== 'app') {
+                    const Hospital = require('../models/hospital.model');
+                    const Clinic = require('../models/clinic.model');
+                    let hosp = await Hospital.findOne({ slug: slug.toLowerCase() }).select('_id').lean();
+                    if (!hosp) {
+                        hosp = await Clinic.findOne({ slug: slug.toLowerCase() }).select('_id').lean();
+                    }
+                    if (hosp) {
+                        hospitalIdFilter = hosp._id;
+                    }
+                }
+            } catch (err) {
+                // Ignore gracefully
             }
         }
 
@@ -695,74 +736,122 @@ router.patch('/appointments/:id/prescription', verifyToken, resolveTenant, uploa
             }
         }
         if (appointment.labTests && appointment.labTests.length > 0) {
-            const existingReport = await LabReport.findOne({ appointmentId: appointment._id });
-            let reportId;
-
-            // Dynamically calculate total amount for these lab tests
-            const { LabTest } = getModels(req);
+            const { LabTest, Lab } = getModels(req);
+            const targetHospitalId = req.user.hospitalId || appointment.hospitalId;
+            const hospitalLabs = await Lab.find({ hospitalId: targetHospitalId }).lean();
+            const allTests = await LabTest.find().lean();
             const isTenant = !!req.tenantDb;
-            const allTests = await LabTest.find();
-            let totalAmount = 0;
-            const hidStr = (req.user.hospitalId || appointment.hospitalId || '').toString();
-            (appointment.labTests || []).forEach(testName => {
-                const testObj = allTests.find(t => t.name.trim().toLowerCase() === testName.trim().toLowerCase());
+            const hidStr = targetHospitalId ? targetHospitalId.toString() : '';
+
+            // Group tests by matching lab
+            const groups = {};
+
+            for (const testName of appointment.labTests) {
+                const normalizedTest = testName.trim().toLowerCase();
+                let matchedLabId = null;
+
+                // Find a lab with an exact match in services (either raw service or split by comma)
+                let matchingLab = hospitalLabs.find(l => 
+                    Array.isArray(l.services) && l.services.some(s => {
+                        if (typeof s !== 'string') return false;
+                        return s.split(',').some(sub => sub.trim().toLowerCase() === normalizedTest);
+                    })
+                );
+
+                if (matchingLab) {
+                    matchedLabId = matchingLab._id;
+                }
+
+                // Calculate price for this test
+                const testObj = allTests.find(t => t.name.trim().toLowerCase() === normalizedTest);
+                let testPrice = 0;
                 if (testObj) {
                     if (isTenant) {
-                        totalAmount += testObj.price || 0;
+                        testPrice = testObj.price || 0;
                     } else {
                         if (hidStr && testObj.hospitalPrices && testObj.hospitalPrices.has && testObj.hospitalPrices.has(hidStr)) {
-                            totalAmount += testObj.hospitalPrices.get(hidStr) || 0;
+                            testPrice = testObj.hospitalPrices.get(hidStr) || 0;
                         } else if (hidStr && testObj.hospitalPrices && typeof testObj.hospitalPrices === 'object' && testObj.hospitalPrices[hidStr]) {
-                            totalAmount += testObj.hospitalPrices[hidStr];
+                            testPrice = testObj.hospitalPrices[hidStr];
                         } else {
-                            totalAmount += testObj.price || 0;
+                            testPrice = testObj.price || 0;
                         }
                     }
                 }
+
+                const groupKey = matchedLabId ? matchedLabId.toString() : 'unassigned';
+                if (!groups[groupKey]) {
+                    groups[groupKey] = {
+                        labId: matchedLabId,
+                        testNames: [],
+                        amount: 0
+                    };
+                }
+                groups[groupKey].testNames.push(testName);
+                groups[groupKey].amount += testPrice;
+            }
+
+            // Find existing reports for this appointment
+            const existingReports = await LabReport.find({ appointmentId: appointment._id });
+
+            // If a report is already collected/completed, we preserve it and skip re-creation.
+            // Otherwise, we delete pending reports and create new ones.
+            const collectedOrDone = existingReports.filter(r => r.sampleCollected || r.testStatus !== 'PENDING' || r.reportStatus !== 'PENDING');
+
+            // Remove any pending uncollected reports so we can recreate them
+            await LabReport.deleteMany({
+                appointmentId: appointment._id,
+                _id: { $nin: collectedOrDone.map(r => r._id) },
+                sampleCollected: { $ne: true },
+                testStatus: 'PENDING'
             });
 
-            if (!existingReport) {
+            // Create new lab reports for each group
+            const { Notification: NotificationModel } = getModels(req);
+            const io = req.app.get('io');
+
+            for (const groupKey of Object.keys(groups)) {
+                const group = groups[groupKey];
+                
+                // If there is already a collected/done report containing any of these tests, skip recreating it
+                const alreadyCovered = collectedOrDone.some(r => 
+                    r.testNames.some(t => group.testNames.includes(t)) &&
+                    String(r.labId) === String(group.labId)
+                );
+                if (alreadyCovered) continue;
+
                 const newReport = await LabReport.create({
                     appointmentId: appointment._id,
                     patientId: pId || 'N/A',
                     userId: appointment.userId,
                     doctorId: req.user.id,
-                    hospitalId: req.user.hospitalId || appointment.hospitalId,
-                    labId: appointment.labId || null,
-                    testNames: appointment.labTests,
+                    hospitalId: targetHospitalId,
+                    labId: group.labId,
+                    testNames: group.testNames,
                     testStatus: 'PENDING',
                     reportStatus: 'PENDING',
                     paymentStatus: 'PENDING',
-                    amount: totalAmount
+                    amount: group.amount
                 });
-                reportId = newReport._id;
-            } else {
-                existingReport.testNames = appointment.labTests;
-                existingReport.labId = appointment.labId || existingReport.labId;
-                existingReport.amount = totalAmount; // Update price in case tests were added/removed
-                await existingReport.save();
-                reportId = existingReport._id;
-            }
 
-            // --- Dispatch Lab Notification ---
-            const { Notification: NotificationModel } = getModels(req);
-            await NotificationModel.create({
-                senderId: req.user.id,
-                recipientRole: 'lab',
-                message: `New lab tests prescribed for ${pName} (${pId || 'N/A'})`,
-                referenceType: 'LabReport',
-                referenceId: reportId,
-                patientId: pId || 'N/A'
-            });
+                // Dispatch notification
+                await NotificationModel.create({
+                    senderId: req.user.id,
+                    recipientRole: 'lab',
+                    message: `New lab tests prescribed for ${pName} (${pId || 'N/A'})`,
+                    referenceType: 'LabReport',
+                    referenceId: newReport._id,
+                    patientId: pId || 'N/A'
+                });
 
-            const io = req.app.get('io');
-            if (io) {
-                io.to('lab').emit('newNotification', { message: `New lab tests prescribed for ${pName}` });
+                if (io) {
+                    io.to('lab').emit('newNotification', { message: `New lab tests prescribed for ${pName}` });
+                }
             }
 
         } else {
             // Remove pending reports if no tests prescribed anymore
-            await LabReport.deleteOne({ appointmentId: appointment._id, testStatus: 'PENDING' });
+            await LabReport.deleteMany({ appointmentId: appointment._id, testStatus: 'PENDING', sampleCollected: { $ne: true } });
         }
 
         // --- NEW: Create Pharmacy Order ---

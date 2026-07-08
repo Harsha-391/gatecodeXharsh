@@ -16,8 +16,30 @@ const Lab = require('../models/lab.model');
 const Pharmacy = require('../models/pharmacy.model');
 const Reception = require('../models/reception.model');
 
-const { JWT_SECRET } = require('../config/jwt');
+const RefreshToken = require('../models/refreshToken.model');
+const { parseUserAgent } = require('../utils/userAgentParser');
+
+const { JWT_SECRET, JWT_EXPIRES_IN, REFRESH_TOKEN_EXPIRES_MS } = require('../config/jwt');
 const validatePassword = require('../utils/validatePassword');
+
+function setCookies(res, accessToken, rawRefreshToken) {
+    res.cookie('accessToken', accessToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 30 * 60 * 1000, // 30 minutes
+        path: '/',
+    });
+
+    res.cookie('refreshToken', rawRefreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: REFRESH_TOKEN_EXPIRES_MS,
+        path: '/api/auth/refresh',
+    });
+}
+
 
 // ==========================================
 // HELPERS
@@ -397,8 +419,28 @@ router.post('/login', async (req, res) => {
         const token = jwt.sign(
             { jti, userId: user._id, email: user.email, roleId: String(user.role), tenantKey: null, subdomain: null },
             JWT_SECRET,
-            { expiresIn: '7d' }
+            { expiresIn: JWT_EXPIRES_IN }
         );
+
+        const rawRefreshToken = uuidv4();
+        const sessionId = uuidv4();
+        const ua = req.headers['user-agent'] || '';
+        const parsed = parseUserAgent(ua);
+
+        await RefreshToken.createForUser({
+            userId: user._id,
+            hospitalId: null,
+            rawToken: rawRefreshToken,
+            sessionId,
+            jti,
+            ip: req.ip || '',
+            browser: parsed.browser,
+            os: parsed.os,
+            device: parsed.device,
+            userAgent: ua,
+        });
+
+        setCookies(res, token, rawRefreshToken);
 
         // Audit successful central admin login
         try {
@@ -943,7 +985,12 @@ router.put('/users/:userId/reset-password', verifyAdminOrSuperAdmin, auditLog('P
         }
 
         user.password = password;
+        user.loginAttempts = 0;
+        user.lockUntil = undefined;
         await user.save();
+
+        const { syncToTenant } = require('../utils/tenantSync');
+        await syncToTenant('User', user, 'save', user.hospitalId);
 
         res.json({ success: true, message: 'User password reset successfully' });
     } catch (error) {

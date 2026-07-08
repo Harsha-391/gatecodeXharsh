@@ -83,6 +83,17 @@ io.use(async (socket, next) => {
             token = socket.handshake.query?.token;
         }
 
+        // Parse cookie fallback if not provided via handshake auth/headers
+        if (!token && socket.handshake.headers?.cookie) {
+            const pairStr = socket.handshake.headers.cookie;
+            const cookies = pairStr.split(';').reduce((acc, pair) => {
+                const parts = pair.split('=');
+                acc[parts[0].trim()] = parts[1] ? decodeURIComponent(parts[1].trim()) : '';
+                return acc;
+            }, {});
+            token = cookies.accessToken;
+        }
+
         if (!token) {
             return next(new Error('Authentication error: No token provided'));
         }
@@ -119,6 +130,7 @@ io.on('connection', (socket) => {
         const uId = socket.user.userId || socket.user.patientId;
         const hId = socket.user.hospitalId || socket.user.clinicId;
         const userRole = String(socket.user.roleName || socket.user.roleId || socket.user.sub || '').toLowerCase();
+        const cleanUserRole = userRole.replace(/\s+/g, '');
         
         let authorized = false;
 
@@ -127,39 +139,43 @@ io.on('connection', (socket) => {
             authorized = true;
         }
         // 2. Platform / Central Admin override
-        else if (['centraladmin', 'superadmin'].includes(userRole)) {
+        else if (['centraladmin', 'superadmin'].includes(cleanUserRole)) {
             authorized = true;
         }
         // 3. Hospital scope room (hospital_hospitalId)
         else if (room === `hospital_${hId}`) {
             authorized = true;
         }
-        // 4. Role room (reception, pharmacist, lab, patient)
-        else if (['reception', 'receptionist', 'receptiondeskmanager', 'pharmacy', 'pharmacist', 'lab', 'laboratory', 'labtechnician', 'doctor', 'patient'].includes(room)) {
-            const matchReception = ['reception', 'receptionist', 'receptiondeskmanager'].includes(room) &&
-                ['reception', 'receptionist', 'receptiondeskmanager'].includes(userRole);
-            const matchPharmacy = ['pharmacy', 'pharmacist'].includes(room) &&
-                ['pharmacy', 'pharmacist'].includes(userRole);
-            const matchLab = ['lab', 'laboratory', 'labtechnician'].includes(room) &&
-                ['lab', 'laboratory', 'labtechnician'].includes(userRole);
-            const matchDocOrPatient = (room === 'doctor' && userRole.includes('doctor')) || (room === 'patient' && userRole === 'patient');
+        // 4. Role room (reception, pharmacist, lab, patient, or own role)
+        else if (['reception', 'receptionist', 'receptiondeskmanager', 'pharmacy', 'pharmacist', 'lab', 'laboratory', 'labtechnician', 'doctor', 'patient', cleanUserRole].includes(room.replace(/\s+/g, '').toLowerCase())) {
+            const cleanRoom = room.replace(/\s+/g, '').toLowerCase();
+            const matchOwnRole = cleanRoom === cleanUserRole;
+            const matchReception = ['reception', 'receptionist', 'receptiondeskmanager'].includes(cleanRoom) &&
+                ['reception', 'receptionist', 'receptiondeskmanager'].includes(cleanUserRole);
+            const matchPharmacy = ['pharmacy', 'pharmacist'].includes(cleanRoom) &&
+                ['pharmacy', 'pharmacist'].includes(cleanUserRole);
+            const matchLab = ['lab', 'laboratory', 'labtechnician'].includes(cleanRoom) &&
+                ['lab', 'laboratory', 'labtechnician'].includes(cleanUserRole);
+            const matchDocOrPatient = (cleanRoom === 'doctor' && cleanUserRole.includes('doctor')) || (cleanRoom === 'patient' && cleanUserRole === 'patient');
 
-            if (matchReception || matchPharmacy || matchLab || matchDocOrPatient) {
+            if (matchOwnRole || matchReception || matchPharmacy || matchLab || matchDocOrPatient) {
                 authorized = true;
             }
         }
         // 5. Tenant-scoped Role room (hospital_hospitalId_role)
         else if (room.startsWith(`hospital_${hId}_`)) {
             const requestedRole = room.replace(`hospital_${hId}_`, '').toLowerCase();
-            const matchReception = ['reception', 'receptionist', 'receptiondeskmanager'].includes(requestedRole) &&
-                ['reception', 'receptionist', 'receptiondeskmanager'].includes(userRole);
-            const matchPharmacy = ['pharmacy', 'pharmacist'].includes(requestedRole) &&
-                ['pharmacy', 'pharmacist'].includes(userRole);
-            const matchLab = ['lab', 'laboratory', 'labtechnician'].includes(requestedRole) &&
-                ['lab', 'laboratory', 'labtechnician'].includes(userRole);
-            const matchDocOrPatient = (requestedRole === 'doctor' && userRole.includes('doctor')) || (requestedRole === 'patient' && userRole === 'patient');
+            const cleanRequestedRole = requestedRole.replace(/\s+/g, '');
+            const matchOwnRole = cleanRequestedRole === cleanUserRole;
+            const matchReception = ['reception', 'receptionist', 'receptiondeskmanager'].includes(cleanRequestedRole) &&
+                ['reception', 'receptionist', 'receptiondeskmanager'].includes(cleanUserRole);
+            const matchPharmacy = ['pharmacy', 'pharmacist'].includes(cleanRequestedRole) &&
+                ['pharmacy', 'pharmacist'].includes(cleanUserRole);
+            const matchLab = ['lab', 'laboratory', 'labtechnician'].includes(cleanRequestedRole) &&
+                ['lab', 'laboratory', 'labtechnician'].includes(cleanUserRole);
+            const matchDocOrPatient = (cleanRequestedRole === 'doctor' && cleanUserRole.includes('doctor')) || (cleanRequestedRole === 'patient' && cleanUserRole === 'patient');
 
-            if (matchReception || matchPharmacy || matchLab || matchDocOrPatient) {
+            if (matchOwnRole || matchReception || matchPharmacy || matchLab || matchDocOrPatient) {
                 authorized = true;
             }
         }

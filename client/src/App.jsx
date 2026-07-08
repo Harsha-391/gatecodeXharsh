@@ -7,16 +7,21 @@ import { useAuth, useAppDispatch } from './store/hooks'
 import { useBranding } from './context/BrandingContext'
 import { updateUser, logout } from './store/slices/authSlice'
 import { authAPI } from './utils/api'
+import { startSessionMonitoring, stopSessionMonitoring } from './utils/sessionManager'
+import IdleWarningModal from './components/IdleWarningModal'
+import MaxSessionModal from './components/MaxSessionModal'
+import { useStore } from 'react-redux'
 
 const App = () => {
   const { user, isAuthenticated } = useAuth();
   const dispatch = useAppDispatch();
+  const store = useStore();
   const { loadBranding, resetBranding } = useBranding();
 
   // Refresh user profile/permissions on mount/load if authenticated
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (token) {
+    const cachedUser = localStorage.getItem('user');
+    if (cachedUser) {
       const fetchProfile = async () => {
         try {
           const res = await authAPI.getProfile();
@@ -53,6 +58,16 @@ const App = () => {
   const userId = user?._id || user?.id;
   const userRole = user?.role;
   const hospitalId = user?.hospitalId;
+
+  // Session monitoring — start on login, stop on logout
+  useEffect(() => {
+    if (isAuthenticated && userId) {
+      const sessionStart = user?.sessionStart || null;
+      startSessionMonitoring(store, sessionStart);
+    } else {
+      stopSessionMonitoring();
+    }
+  }, [isAuthenticated, userId]);
 
   // Socket Connection Management
   useEffect(() => {
@@ -103,10 +118,7 @@ const App = () => {
         }
       };
 
-      // ── Always refresh the JWT before connecting ──────────────────────────────
-      // This ensures a fresh token is sent in the handshake after every login,
-      // not the stale token captured at module-load time.
-      socket.auth = { token: localStorage.getItem('token') || '' };
+      // Socket auth token is handled automatically via cookie headers
 
       // Register listeners (each is a stable named reference so off() is precise)
       socket.on('connect', joinRooms);
@@ -128,8 +140,7 @@ const App = () => {
         socket.disconnect();
       };
     } else {
-      // Logged out — refresh auth token to empty and disconnect
-      socket.auth = { token: '' };
+      // Logged out — disconnect socket
       socket.disconnect();
     }
   }, [isAuthenticated, userId, userRole, hospitalId, dispatch]);
@@ -188,6 +199,8 @@ const App = () => {
   return (
     <div style={{ width: '100%', maxWidth: '100vw', overflowX: 'hidden' }}>
       <MainRoutes />
+      <IdleWarningModal />
+      <MaxSessionModal />
     </div>
   )
 }

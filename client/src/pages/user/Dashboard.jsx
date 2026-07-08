@@ -139,13 +139,12 @@ const Dashboard = () => {
     const [selectedAppointment, setSelectedAppointment] = useState(null);
 
     useEffect(() => {
-        const token = localStorage.getItem('token');
         const userData = localStorage.getItem('user');
 
-        if (token && userData) {
+        if (userData) {
             setIsAuthenticated(true);
             setUser(JSON.parse(userData));
-            fetchDashboardData(token);
+            fetchDashboardData();
         } else {
             navigate('/login?redirect=/dashboard');
         }
@@ -164,7 +163,7 @@ const Dashboard = () => {
         return () => elements.forEach((el) => observer.unobserve(el));
     }, [isLoading]);
 
-    const fetchDashboardData = async (token) => {
+    const fetchDashboardData = async () => {
         setIsLoading(true);
         const getApiBase = () => {
             if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
@@ -177,19 +176,19 @@ const Dashboard = () => {
         const API_BASE = getApiBase();
         try {
             const appointmentsResponse = await fetch(`${API_BASE}/api/appointments/my-appointments`, {
-                headers: { 'Authorization': `Bearer ${token}` }
+                credentials: 'include'
             });
             const appointmentsData = await appointmentsResponse.json();
             if (appointmentsData.success) setAppointments(appointmentsData.appointments || []);
 
             const labResponse = await fetch(`${API_BASE}/api/lab/my-reports`, {
-                headers: { 'Authorization': `Bearer ${token}` }
+                credentials: 'include'
             });
             const labData = await labResponse.json();
             if (labData.success) setLabReports(labData.reports || []);
 
             const pharmacyResponse = await fetch(`${API_BASE}/api/pharmacy/orders/my-orders`, {
-                headers: { 'Authorization': `Bearer ${token}` }
+                credentials: 'include'
             });
             const pharmacyData = await pharmacyResponse.json();
             if (pharmacyData.success) setPharmacyOrders(pharmacyData.orders || []);

@@ -183,11 +183,16 @@ router.get('/kpis', verifyFinanceAccess, async (req, res) => {
                 const { Invoice, Expense, Refund, InsuranceClaim, Reconciliation, CollectionTransaction, Appointment } = getModels(req.tenantDb);
 
         const today = new Date();
-        const startOfToday = new Date(today.setHours(0, 0, 0, 0));
-        const endOfToday = new Date(today.setHours(23, 59, 59, 999));
+        const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0);
+        const endOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
 
-        const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-        const endOfMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0, 23, 59, 59, 999);
+        // Rolling 30-day range for monthly metrics to match Profit & Loss monthly statements
+        const startOfMonth = new Date(today);
+        startOfMonth.setDate(startOfMonth.getDate() - 30);
+        startOfMonth.setHours(0, 0, 0, 0);
+        
+        const endOfMonth = new Date(today);
+        endOfMonth.setHours(23, 59, 59, 999);
 
         // Fetch all invoices to compute outstanding metrics
         const invoices = await Invoice.find({ ...hFilter, paymentStatus: { $ne: 'Cancelled' } }).lean();
@@ -644,7 +649,7 @@ router.get('/profit-loss', verifyFinanceAccess, async (req, res) => {
         const { timeframe } = req.query; // 'weekly', 'monthly', 'half-year', 'yearly'
         const activeTimeframe = timeframe || 'half-year';
 
-        const { CollectionTransaction, Expense } = getModels(req.tenantDb);
+        const { CollectionTransaction, Expense, Appointment } = getModels(req.tenantDb);
 
         // Calculate startDate based on timeframe
         const now = new Date();
@@ -660,9 +665,12 @@ router.get('/profit-loss', verifyFinanceAccess, async (req, res) => {
         }
         startD.setHours(0, 0, 0, 0);
 
-        // Fetch all collection transactions and expenses scoped to this hospital
+        // Fetch all collection transactions, expenses, and paid appointments scoped to this hospital
         const transactions = await CollectionTransaction.find(hFilter).lean();
         const expenses = await Expense.find(hFilter).lean();
+        const appointments = await Appointment.find({ paymentStatus: { $in: ['paid', 'Paid', 'PAID'] }, ...hFilter }).lean();
+
+        const txAppointmentIds = new Set(transactions.filter(t => t.appointmentId).map(t => String(t.appointmentId)));
 
         // Calculate Totals within the range
         let totalRevenue = 0;
@@ -670,6 +678,15 @@ router.get('/profit-loss', verifyFinanceAccess, async (req, res) => {
             const pDate = new Date(t.collectionTimestamp || t.createdAt);
             if (pDate >= startD && pDate <= now) {
                 totalRevenue += (t.amount || 0);
+            }
+        });
+
+        appointments.forEach(a => {
+            if (!txAppointmentIds.has(String(a._id))) {
+                const apptDate = new Date(a.createdAt || a.updatedAt || a.appointmentDate);
+                if (apptDate >= startD && apptDate <= now) {
+                    totalRevenue += (a.amount || 0);
+                }
             }
         });
 
@@ -707,6 +724,15 @@ router.get('/profit-loss', verifyFinanceAccess, async (req, res) => {
 
                 if (type && departmentProfitability[type]) {
                     departmentProfitability[type].revenue += (t.amount || 0);
+                }
+            }
+        });
+
+        appointments.forEach(a => {
+            if (!txAppointmentIds.has(String(a._id))) {
+                const apptDate = new Date(a.createdAt || a.updatedAt || a.appointmentDate);
+                if (apptDate >= startD && apptDate <= now) {
+                    departmentProfitability.Consultation.revenue += (a.amount || 0);
                 }
             }
         });
@@ -750,6 +776,15 @@ router.get('/profit-loss', verifyFinanceAccess, async (req, res) => {
                 if (match) match.revenue += (t.amount || 0);
             });
 
+            appointments.forEach(a => {
+                if (!txAppointmentIds.has(String(a._id))) {
+                    const apptDate = new Date(a.createdAt || a.updatedAt || a.appointmentDate);
+                    const k = apptDate.toISOString().split('T')[0];
+                    const match = monthlyTrend.find(x => x.key === k);
+                    if (match) match.revenue += (a.amount || 0);
+                }
+            });
+
             expenses.forEach(exp => {
                 const eDate = new Date(exp.date);
                 const k = eDate.toISOString().split('T')[0];
@@ -775,6 +810,14 @@ router.get('/profit-loss', verifyFinanceAccess, async (req, res) => {
                 if (match) match.revenue += (t.amount || 0);
             });
 
+            appointments.forEach(a => {
+                if (!txAppointmentIds.has(String(a._id))) {
+                    const apptDate = new Date(a.createdAt || a.updatedAt || a.appointmentDate);
+                    const match = monthlyTrend.find(x => apptDate >= x.start && apptDate <= x.end);
+                    if (match) match.revenue += (a.amount || 0);
+                }
+            });
+
             expenses.forEach(exp => {
                 const eDate = new Date(exp.date);
                 const match = monthlyTrend.find(x => eDate >= x.start && eDate <= x.end);
@@ -795,6 +838,15 @@ router.get('/profit-loss', verifyFinanceAccess, async (req, res) => {
                 const k = `${pDate.getFullYear()}-${String(pDate.getMonth() + 1).padStart(2, '0')}`;
                 const match = monthlyTrend.find(x => x.key === k);
                 if (match) match.revenue += (t.amount || 0);
+            });
+
+            appointments.forEach(a => {
+                if (!txAppointmentIds.has(String(a._id))) {
+                    const apptDate = new Date(a.createdAt || a.updatedAt || a.appointmentDate);
+                    const k = `${apptDate.getFullYear()}-${String(apptDate.getMonth() + 1).padStart(2, '0')}`;
+                    const match = monthlyTrend.find(x => x.key === k);
+                    if (match) match.revenue += (a.amount || 0);
+                }
             });
 
             expenses.forEach(exp => {
@@ -818,6 +870,15 @@ router.get('/profit-loss', verifyFinanceAccess, async (req, res) => {
                 const k = `${pDate.getFullYear()}-${String(pDate.getMonth() + 1).padStart(2, '0')}`;
                 const match = monthlyTrend.find(x => x.key === k);
                 if (match) match.revenue += (t.amount || 0);
+            });
+
+            appointments.forEach(a => {
+                if (!txAppointmentIds.has(String(a._id))) {
+                    const apptDate = new Date(a.createdAt || a.updatedAt || a.appointmentDate);
+                    const k = `${apptDate.getFullYear()}-${String(apptDate.getMonth() + 1).padStart(2, '0')}`;
+                    const match = monthlyTrend.find(x => x.key === k);
+                    if (match) match.revenue += (a.amount || 0);
+                }
             });
 
             expenses.forEach(exp => {

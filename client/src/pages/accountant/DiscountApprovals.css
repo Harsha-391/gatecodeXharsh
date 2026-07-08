@@ -756,3 +756,18 @@
     .da-filter-tabs { flex-wrap: wrap; }
     .da-stats-grid { grid-template-columns: repeat(2, 1fr); }
 }
+
+.da-clickable-name {
+    color: #6366f1;
+    cursor: pointer;
+    transition: color 0.15s ease;
+}
+
+.da-clickable-name:hover {
+    color: #4f46e5;
+    text-decoration: underline;
+}
+
+.da-settled-text {
+    white-space: nowrap;
+}

@@ -381,17 +381,7 @@ const AdminLabs = () => {
                 />
               </div>
 
-              <div className="form-group">
-                <label htmlFor="facilities">Facilities (one per line)</label>
-                <textarea
-                  id="facilities"
-                  name="facilities"
-                  value={formData.facilities.join('\n')}
-                  onChange={handleFacilityChange}
-                  rows="3"
-                  placeholder="Modern Equipment&#10;Certified Technicians&#10;Fast Results"
-                />
-              </div>
+
 
               <div className="form-group">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>

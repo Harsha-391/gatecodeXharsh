@@ -37,7 +37,6 @@ const socket = io(getSocketURL(), {
     autoConnect:             false,              // Connect manually after login
     transports:              IS_DEV ? ['polling'] : ['websocket', 'polling'],
     withCredentials:         true,
-    auth:                    { token: localStorage.getItem('token') || '' },
 
     // Production-grade reconnection with exponential back-off
     reconnection:            true,

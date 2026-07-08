@@ -7,11 +7,11 @@ import axios from 'axios';
  */
 export const loadActiveTemplate = async (type) => {
     try {
-        const token = localStorage.getItem('token');
-        if (!token) return { template: null, bgBase64: null };
+        const user = localStorage.getItem('user');
+        if (!user) return { template: null, bgBase64: null };
         
         const res = await axios.get(`/api/document-templates/active/${type}`, {
-            headers: { Authorization: `Bearer ${token}` }
+            withCredentials: true
         });
         
         if (res.data?.success && res.data.template) {

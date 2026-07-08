@@ -58,9 +58,8 @@ const DocumentTemplates = () => {
 
     const fetchTemplates = async () => {
         try {
-            const token = localStorage.getItem('token');
             const res = await axios.get('/api/document-templates', {
-                headers: { Authorization: `Bearer ${token}` }
+                withCredentials: true
             });
             if (res.data.success) {
                 setTemplates(res.data.templates);
@@ -72,9 +71,8 @@ const DocumentTemplates = () => {
 
     const fetchLogs = async () => {
         try {
-            const token = localStorage.getItem('token');
             const res = await axios.get('/api/document-templates/logs', {
-                headers: { Authorization: `Bearer ${token}` }
+                withCredentials: true
             });
             if (res.data.success) {
                 setLogs(res.data.logs);
@@ -106,7 +104,6 @@ const DocumentTemplates = () => {
         setUploading(true);
 
         try {
-            const token = localStorage.getItem('token');
             const formData = new FormData();
             formData.append('template', file);
             formData.append('templateType', selectedType);
@@ -117,9 +114,9 @@ const DocumentTemplates = () => {
 
             const res = await axios.post('/api/document-templates/upload', formData, {
                 headers: { 
-                    Authorization: `Bearer ${token}`,
                     'Content-Type': 'multipart/form-data'
-                }
+                },
+                withCredentials: true
             });
 
             if (res.data.success) {
@@ -141,9 +138,8 @@ const DocumentTemplates = () => {
         setSavingSettings(true);
 
         try {
-            const token = localStorage.getItem('token');
             const res = await axios.put(`/api/document-templates/${activeTemplate._id}`, margins, {
-                headers: { Authorization: `Bearer ${token}` }
+                withCredentials: true
             });
 
             if (res.data.success) {
@@ -166,9 +162,8 @@ const DocumentTemplates = () => {
         setSuccess('');
 
         try {
-            const token = localStorage.getItem('token');
             const res = await axios.put(`/api/document-templates/${activeTemplate._id}`, { isActive: status }, {
-                headers: { Authorization: `Bearer ${token}` }
+                withCredentials: true
             });
 
             if (res.data.success) {
@@ -189,9 +184,8 @@ const DocumentTemplates = () => {
         setSuccess('');
 
         try {
-            const token = localStorage.getItem('token');
             const res = await axios.post(`/api/document-templates/${activeTemplate._id}/rollback`, { version }, {
-                headers: { Authorization: `Bearer ${token}` }
+                withCredentials: true
             });
 
             if (res.data.success) {
@@ -212,9 +206,8 @@ const DocumentTemplates = () => {
         setSuccess('');
 
         try {
-            const token = localStorage.getItem('token');
             const res = await axios.delete(`/api/document-templates/${activeTemplate._id}`, {
-                headers: { Authorization: `Bearer ${token}` }
+                withCredentials: true
             });
 
             if (res.data.success) {

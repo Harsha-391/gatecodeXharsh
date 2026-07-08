@@ -141,7 +141,12 @@ router.post('/', verifyAdmissionAccess, auditLog('ADMISSION_CREATED', (req, body
 router.get('/active', verifyAdmissionAccess, async (req, res) => {
     try {
         const Admission = getAdmission(req);
-        const User = require('../models/user.model'); // Master DB User model
+        let PatientModel;
+        if (req.tenantDb) {
+            PatientModel = getTenantModels(req.tenantDb).HospitalPatient;
+        } else {
+            PatientModel = require('../models/hospitalPatient.model');
+        }
 
         const admissions = await Admission.find({
             hospitalId: req.hospitalId || req.user.hospitalId,
@@ -149,22 +154,22 @@ router.get('/active', verifyAdmissionAccess, async (req, res) => {
             .sort({ admissionDate: -1 })
             .lean();
 
-        // Populate patientId manually from Master DB User model
+        // Populate patientId manually from HospitalPatient model
         const patientIds = admissions.map(a => a.patientId).filter(Boolean);
-        const users = await User.find({ _id: { $in: patientIds } })
+        const patients = await PatientModel.find({ _id: { $in: patientIds } })
             .select('name phone patientId mrn firstName lastName')
             .lean();
 
-        const userMap = {};
-        users.forEach(u => {
-            userMap[u._id.toString()] = u;
+        const patientMap = {};
+        patients.forEach(p => {
+            patientMap[p._id.toString()] = p;
         });
 
         const populatedAdmissions = admissions.map(adm => {
             const pIdStr = adm.patientId ? adm.patientId.toString() : '';
             return {
                 ...adm,
-                patientId: userMap[pIdStr] || null
+                patientId: patientMap[pIdStr] || null
             };
         });
 
@@ -310,7 +315,14 @@ router.put('/:id/discharge', verifyAdmissionAccess, auditLog('DISCHARGE_COMPLETE
             User: require('../models/user.model')
         };
 
-        const patientObj = await models.User.findById(patientId).select('patientId mrn name phone');
+        let PatientModel;
+        if (req.tenantDb) {
+            PatientModel = getTenantModels(req.tenantDb).HospitalPatient;
+        } else {
+            PatientModel = require('../models/hospitalPatient.model');
+        }
+
+        const patientObj = await PatientModel.findById(patientId).select('patientId mrn name phone');
         const patientIdStr = patientObj ? (patientObj.patientId || patientObj.mrn) : '';
 
         const [appointments, labReports, pharmacyOrders, facilityCharges, invoices] = await Promise.all([
@@ -378,7 +390,7 @@ router.put('/:id/discharge', verifyAdmissionAccess, auditLog('DISCHARGE_COMPLETE
         }
 
         if (hasDues && overrideDues) {
-            const patientObj = await models.User.findById(patientId).select('name');
+            const patientObj = await PatientModel.findById(patientId).select('name');
             const patientName = patientObj ? patientObj.name : 'Unknown';
             await new models.BillingActivityLog({
                 hospitalId,
@@ -449,8 +461,13 @@ router.put('/:id/pay', verifyAdmissionAccess, async (req, res) => {
 
         // Record CollectionTransaction if paid amount > 0
         if (finalAmount > 0) {
-            const User = require('../models/user.model');
-            const patientUser = await User.findById(currentAdmission.patientId).select('name phone patientId mrn').lean();
+            let PatientModel;
+            if (req.tenantDb) {
+                PatientModel = getTenantModels(req.tenantDb).HospitalPatient;
+            } else {
+                PatientModel = require('../models/hospitalPatient.model');
+            }
+            const patientUser = await PatientModel.findById(currentAdmission.patientId).select('name phone patientId mrn').lean();
             
             const transactionData = {
                 hospitalId: currentAdmission.hospitalId,

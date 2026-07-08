@@ -106,21 +106,32 @@ router.get('/stats', verifyToken, resolveTenant, verifyLab, async (req, res) => 
             // Lab manager view — all tests in hospital
             labFilter = { ...hospitalFilter };
         } else {
-            // My workspace — assigned to me OR unassigned (claimable) + legacy labId records
+            // My workspace — assigned to me OR matching this lab's service list
             const orConditions = [
-                { assignedToUserId: userId },
-                { assignedToUserId: null }
+                { assignedToUserId: userId }
             ];
             if (labProfile) {
                 orConditions.push({ labId: labProfile._id });
+                if (labProfile.services && labProfile.services.length > 0) {
+                    orConditions.push({
+                        assignedToUserId: null,
+                        testNames: { $elemMatch: { $in: labProfile.services } }
+                    });
+                } else {
+                    orConditions.push({ assignedToUserId: null });
+                }
+            } else {
+                orConditions.push({ assignedToUserId: null });
             }
             labFilter = { ...hospitalFilter, $or: orConditions };
         }
 
         // Count statuses with fallbacks for legacy data
         const pending = await LabReport.countDocuments({
-            ...labFilter,
-            $or: [{ status: 'Pending' }, { status: { $exists: false }, reportStatus: 'PENDING' }]
+            $and: [
+                labFilter,
+                { $or: [{ status: 'Pending' }, { status: { $exists: false }, reportStatus: 'PENDING' }] }
+            ]
         });
         
         const collected = await LabReport.countDocuments({
@@ -129,13 +140,17 @@ router.get('/stats', verifyToken, resolveTenant, verifyLab, async (req, res) => 
         });
 
         const inTesting = await LabReport.countDocuments({
-            ...labFilter,
-            $or: [{ status: 'In Testing' }, { status: { $exists: false }, testStatus: 'IN_PROGRESS' }]
+            $and: [
+                labFilter,
+                { $or: [{ status: 'In Testing' }, { status: { $exists: false }, testStatus: 'IN_PROGRESS' }] }
+            ]
         });
 
         const reportReady = await LabReport.countDocuments({
-            ...labFilter,
-            $or: [{ status: 'Report Ready' }, { status: { $exists: false }, reportStatus: 'UPLOADED' }]
+            $and: [
+                labFilter,
+                { $or: [{ status: 'Report Ready' }, { status: { $exists: false }, reportStatus: 'UPLOADED' }] }
+            ]
         });
 
         const completed = await LabReport.countDocuments({
@@ -144,8 +159,10 @@ router.get('/stats', verifyToken, resolveTenant, verifyLab, async (req, res) => 
         });
 
         const cancelled = await LabReport.countDocuments({
-            ...labFilter,
-            $or: [{ status: 'Cancelled' }, { status: { $exists: false }, reportStatus: 'CANCELLED' }]
+            $and: [
+                labFilter,
+                { $or: [{ status: 'Cancelled' }, { status: { $exists: false }, reportStatus: 'CANCELLED' }] }
+            ]
         });
 
         // Total orders is the sum of active/completed categories (excluding cancelled)
@@ -153,8 +170,10 @@ router.get('/stats', verifyToken, resolveTenant, verifyLab, async (req, res) => 
 
         // Dynamically calculate revenue by fetching individual test prices
         const completedReports = await LabReport.find({
-            ...labFilter,
-            $or: [{ status: { $in: ['Report Ready', 'Completed'] } }, { status: { $exists: false }, reportStatus: 'UPLOADED' }]
+            $and: [
+                labFilter,
+                { $or: [{ status: { $in: ['Report Ready', 'Completed'] } }, { status: { $exists: false }, reportStatus: 'UPLOADED' }] }
+            ]
         });
         
         const { LabTest } = getModels(req);
@@ -216,7 +235,7 @@ router.get('/stats', verifyToken, resolveTenant, verifyLab, async (req, res) => 
 // 1b. GET MY ASSIGNED REPORTS — workspace isolated per lab technician
 router.get('/my-reports', verifyToken, resolveTenant, verifyLabOrReportsView, async (req, res) => {
     try {
-        const { LabReport, Lab, Doctor } = getModels(req);
+        const { LabReport, Lab, User } = getModels(req);
         const hid = req.user.hospitalId;
         const userId = req.user.id || req.user.userId;
         const hospitalFilter = hid ? { hospitalId: hid } : {};
@@ -234,24 +253,53 @@ router.get('/my-reports', verifyToken, resolveTenant, verifyLabOrReportsView, as
             // Admin/manager: see all hospital reports
             query = { ...hospitalFilter };
         } else {
-            // WORKSPACE ISOLATION: Only reports assigned to THIS technician or unassigned
+            // WORKSPACE ISOLATION: Only reports assigned to THIS technician or matching lab's services
             const orConditions = [
-                { assignedToUserId: userId },
-                { assignedToUserId: null }
+                { assignedToUserId: userId }
             ];
             if (labProfile) {
                 orConditions.push({ labId: labProfile._id });
+                if (labProfile.services && labProfile.services.length > 0) {
+                    orConditions.push({
+                        assignedToUserId: null,
+                        testNames: { $elemMatch: { $in: labProfile.services } }
+                    });
+                } else {
+                    orConditions.push({ assignedToUserId: null });
+                }
+            } else {
+                orConditions.push({ assignedToUserId: null });
             }
             query = { ...hospitalFilter, $or: orConditions };
         }
 
         const reports = await LabReport.find(query)
             .populate('userId', 'name email phone patientId')
-            .populate({ path: 'doctorId', model: Doctor, select: 'name' })
+            .populate({ path: 'doctorId', model: User, select: 'name' })
             .populate('assignedToUserId', 'name')
             .sort({ createdAt: -1 });
 
-        res.json({ success: true, reports, canViewAll, scope });
+        const enrichedReports = reports.map(req => {
+            const rObj = req.toObject();
+            // Filter testNames to only include those matching this lab's services
+            if (labProfile && labProfile.services && labProfile.services.length > 0 && rObj.testNames) {
+                const labServices = labProfile.services.reduce((acc, s) => {
+                    if (typeof s === 'string') {
+                        s.split(',').forEach(sub => {
+                            if (sub.trim()) acc.push(sub.trim().toLowerCase());
+                        });
+                    }
+                    return acc;
+                }, []);
+                rObj.testNames = rObj.testNames.filter(testName => {
+                    const normalized = testName.trim().toLowerCase();
+                    return labServices.includes(normalized);
+                });
+            }
+            return rObj;
+        });
+
+        res.json({ success: true, reports: enrichedReports, canViewAll, scope });
     } catch (error) {
         console.error("[lab] fetch my-reports error", error);
         res.status(500).json({ success: false, message: 'An internal error occurred' });
@@ -274,19 +322,38 @@ router.get('/requests', verifyToken, resolveTenant, verifyLabOrReportsView, asyn
             $or: [{ email: req.user.email }, { userId: userId }]
         });
 
+        console.log('[DEBUG /requests] labProfile:', labProfile ? { _id: labProfile._id, email: labProfile.email, services: labProfile.services } : 'NULL');
+
         let query = { ...hospitalFilter };
         if (scope === 'all' && canViewAll) {
             // Admin/manager: see all hospital requests
             query = { ...hospitalFilter };
         } else {
-            // WORKSPACE ISOLATION: only assigned to me OR unassigned (claimable)
+            // WORKSPACE ISOLATION: only assigned to me OR matching this lab's service list
             const orConditions = [
-                { assignedToUserId: userId },
-                { assignedToUserId: null }
+                { assignedToUserId: userId }
             ];
+
             if (labProfile) {
+                // Include requests assigned directly to this lab by labId
                 orConditions.push({ labId: labProfile._id });
+
+                // Include unassigned requests that contain AT LEAST ONE test this lab handles
+                if (labProfile.services && labProfile.services.length > 0) {
+                    // Each service in the list is a test name string
+                    orConditions.push({
+                        assignedToUserId: null,
+                        testNames: { $elemMatch: { $in: labProfile.services } }
+                    });
+                } else {
+                    // Lab has no services configured — fall back to all unassigned (backward compat)
+                    orConditions.push({ assignedToUserId: null });
+                }
+            } else {
+                // No lab profile found — show all unassigned as fallback
+                orConditions.push({ assignedToUserId: null });
             }
+
             query = { ...hospitalFilter, $or: orConditions };
         }
 
@@ -294,15 +361,19 @@ router.get('/requests', verifyToken, resolveTenant, verifyLabOrReportsView, asyn
         if (status && status !== 'all') {
             const statusUpper = status.toUpperCase();
             if (statusUpper === 'PENDING') {
-                query.$or = [{ status: 'Pending' }, { status: { $exists: false }, reportStatus: 'PENDING' }];
+                query.$and = query.$and || [];
+                query.$and.push({ $or: [{ status: 'Pending' }, { status: { $exists: false }, reportStatus: 'PENDING' }] });
             } else if (statusUpper === 'SAMPLE COLLECTED' || statusUpper === 'SAMPLE_COLLECTED') {
                 query.status = 'Sample Collected';
             } else if (statusUpper === 'IN TESTING' || statusUpper === 'IN_PROGRESS') {
-                query.$or = [{ status: 'In Testing' }, { status: { $exists: false }, testStatus: 'IN_PROGRESS' }];
+                query.$and = query.$and || [];
+                query.$and.push({ $or: [{ status: 'In Testing' }, { status: { $exists: false }, testStatus: 'IN_PROGRESS' }] });
             } else if (statusUpper === 'REPORT READY' || statusUpper === 'REPORT_READY') {
-                query.$or = [{ status: 'Report Ready' }, { status: { $exists: false }, reportStatus: 'UPLOADED' }];
+                query.$and = query.$and || [];
+                query.$and.push({ $or: [{ status: 'Report Ready' }, { status: { $exists: false }, reportStatus: 'UPLOADED' }] });
             } else if (statusUpper === 'COMPLETED') {
-                query.$or = [{ status: 'Completed' }, { status: 'Report Ready' }, { status: { $exists: false }, reportStatus: 'UPLOADED' }];
+                query.$and = query.$and || [];
+                query.$and.push({ $or: [{ status: 'Completed' }, { status: 'Report Ready' }, { status: { $exists: false }, reportStatus: 'UPLOADED' }] });
             } else if (statusUpper === 'CANCELLED') {
                 query.status = 'Cancelled';
             }
@@ -339,7 +410,7 @@ router.get('/requests', verifyToken, resolveTenant, verifyLabOrReportsView, asyn
 
         const requests = await LabReport.find(query)
             .populate('userId', 'name email phone patientId')
-            .populate({ path: 'doctorId', model: Doctor, select: 'name' })
+            .populate({ path: 'doctorId', model: User, select: 'name' })
             .populate('assignedToUserId', 'name')
             .sort({ createdAt: -1 });
 
@@ -358,6 +429,22 @@ router.get('/requests', verifyToken, resolveTenant, verifyLabOrReportsView, asyn
                 } else {
                     rObj.status = 'Pending';
                 }
+            }
+
+            // Filter testNames to only include those matching this lab's services
+            if (labProfile && labProfile.services && labProfile.services.length > 0 && rObj.testNames) {
+                const labServices = labProfile.services.reduce((acc, s) => {
+                    if (typeof s === 'string') {
+                        s.split(',').forEach(sub => {
+                            if (sub.trim()) acc.push(sub.trim().toLowerCase());
+                        });
+                    }
+                    return acc;
+                }, []);
+                rObj.testNames = rObj.testNames.filter(testName => {
+                    const normalized = testName.trim().toLowerCase();
+                    return labServices.includes(normalized);
+                });
             }
             return rObj;
         });

@@ -236,8 +236,8 @@ const Appointment = () => {
     setIsSubmitting(true);
 
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
+      const user = localStorage.getItem('user');
+      if (!user) {
         setError('You must be logged in to book an appointment');
         setIsSubmitting(false);
         navigate('/login?redirect=/appointment');

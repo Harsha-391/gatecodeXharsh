@@ -86,7 +86,12 @@ const auditLogSchema = new mongoose.Schema({
             'SUPPLIER_UPDATED', 'STOCK_ADJUSTED', 'STOCK_REDUCED', 'EXPIRED_STOCK_REMOVED',
             'REPORT_PRINTED', 'REPORT_DOWNLOADED', 'CSV_EXPORT', 'EXCEL_EXPORT', 'PDF_EXPORT',
             'UNAUTHORIZED_ACCESS', 'CROSS_TENANT_BLOCK', 'RATE_LIMIT_EXCEEDED',
-            'JWT_FAILURE', 'SUSPICIOUS_UPLOAD', 'SQLI_ATTEMPT', 'XSS_ATTEMPT', 'BRUTE_FORCE'
+            'JWT_FAILURE', 'SUSPICIOUS_UPLOAD', 'SQLI_ATTEMPT', 'XSS_ATTEMPT', 'BRUTE_FORCE',
+
+            // ── Enterprise Session Management ────────────────────────────────
+            'SESSION_EXTENDED', 'SESSION_WARNING', 'AUTO_LOGOUT_IDLE',
+            'FORCED_LOGOUT', 'LOGOUT_ALL_DEVICES', 'SESSION_TERMINATED_BY_ADMIN',
+            'LOGIN_SUCCESS', 'LOGIN_FAILED'
         ],
     },
 

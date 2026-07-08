@@ -16,34 +16,92 @@ const baseURL = getBaseURL();
 const apiClient = axios.create({
     baseURL: baseURL,
     headers: { 'Content-Type': 'application/json' },
+    withCredentials: true,
 });
 
-// Request Interceptor
+// Request Interceptor — reset activity timer
 apiClient.interceptors.request.use(
     (config) => {
-        const token = localStorage.getItem('token');
-        if (token) config.headers.Authorization = `Bearer ${token}`;
+        // Sliding session: any API call counts as activity
+        try {
+            import('./sessionManager').then(sm => sm.resetActivityTimer()).catch(() => {});
+        } catch (_) {}
+
         return config;
     },
     (error) => Promise.reject(error)
 );
 
-// Response Interceptor
+// Track whether a token refresh is already in progress to avoid duplicate calls
+let _refreshing = false;
+let _refreshSubscribers = [];
+
+function _onRefreshed(success) {
+    _refreshSubscribers.forEach(cb => cb(success));
+    _refreshSubscribers = [];
+}
+
+async function _tryRefreshAndRetry(originalRequest) {
+    if (_refreshing) {
+        // Queue this request until refresh completes
+        return new Promise((resolve, reject) => {
+            _refreshSubscribers.push((success) => {
+                if (success) {
+                    resolve(apiClient(originalRequest));
+                } else {
+                    reject(new Error('Session expired'));
+                }
+            });
+        });
+    }
+
+    _refreshing = true;
+    try {
+        const res = await fetch('/api/auth/refresh', { method: 'POST', credentials: 'include' });
+        const data = await res.json();
+
+        if (data.success) {
+            _onRefreshed(true);
+            return apiClient(originalRequest);
+        } else {
+            _onRefreshed(false);
+            return null; // Signal to response interceptor to logout
+        }
+    } catch {
+        _onRefreshed(false);
+        return null;
+    } finally {
+        _refreshing = false;
+    }
+}
+
+// Response Interceptor — auto-refresh on 401, then logout if refresh fails
 apiClient.interceptors.response.use(
     (response) => response,
-    (error) => {
-        if (error.response?.status === 401 || error.response?.status === 403) {
-            // CIRCULAR DEPENDENCY FIX:
-            // Instead of dispatching logout action here, we simply clear storage and redirect.
-            // The authSlice will pick up the initial state from localStorage on reload.
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
+    async (error) => {
+        const status = error.response?.status;
+        const originalRequest = error.config;
 
-            // Only redirect if not already on the login page to avoid loops
+        // Attempt silent refresh on 401 (token expired) — but not for the refresh or logout endpoints
+        if (status === 401 && !originalRequest._retried &&
+            !originalRequest.url?.includes('/auth/refresh') &&
+            !originalRequest.url?.includes('/auth/logout')) {
+
+            originalRequest._retried = true;
+            const retried = await _tryRefreshAndRetry(originalRequest);
+            if (retried) return retried;
+
+            // Refresh failed — clear user session info and redirect
+            localStorage.removeItem('user');
             if (!window.location.pathname.includes('/login')) {
-                window.location.href = '/login';
+                window.location.href = '/login?reason=session_expired';
             }
         }
+
+        if (status === 403) {
+            // 403 Forbidden — not a session issue, just reject
+        }
+
         return Promise.reject(error);
     }
 );

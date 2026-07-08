@@ -29,28 +29,27 @@ const Pharmacy = () => {
 
   // Check authentication and fetch pharmacy orders
   useEffect(() => {
-    const token = localStorage.getItem('token');
     const userData = localStorage.getItem('user');
 
-    if (token && userData) {
+    if (userData) {
       try {
         const user = JSON.parse(userData);
         setLoggedInUser(user);
-        fetchPharmacyOrders(token);
+        fetchPharmacyOrders();
       } catch (e) {
         console.error('Error parsing user data:', e);
         navigate('/login?redirect=/pharmacy');
         return;
       }
     } else {
-      // No token or user data, redirect to login
+      // No user data, redirect to login
       navigate('/login?redirect=/pharmacy');
       return;
     }
   }, [navigate]);
 
   // Fetch pharmacy orders from API
-  const fetchPharmacyOrders = async (token) => {
+  const fetchPharmacyOrders = async () => {
     try {
       setIsLoading(true);
       // Try to fetch from API first
@@ -65,9 +64,7 @@ const Pharmacy = () => {
       const BASE = getApiBase();
       const response = await fetch(`${BASE}/api/pharmacy/my-orders`, {
         method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        credentials: 'include'
       });
 
       if (response.ok) {

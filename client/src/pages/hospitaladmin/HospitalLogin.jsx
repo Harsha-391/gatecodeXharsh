@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAppDispatch, useAuth } from '../../store/hooks';
-import { loginUser, clearError } from '../../store/slices/authSlice';
+import { loginUser, loginAdmin, clearError } from '../../store/slices/authSlice';
 import { useBranding, sanitizeBranding } from '../../context/BrandingContext';
 import { getSubdomain } from '../../utils/subdomain';
 import api, { publicAPI } from '../../utils/api';
@@ -28,13 +28,18 @@ const HospitalLogin = () => {
     const { loadBranding } = useBranding();
 
     const [hospital, setHospital] = useState(null);
-    const [hospitalLoading, setHospitalLoading] = useState(true);
+    const [hospitalLoading, setHospitalLoading] = useState(!!hospitalSlug); // Only load if subdomain exists
     const [hospitalError, setHospitalError] = useState('');
     const [formData, setFormData] = useState({ email: '', password: '' });
     const [showPassword, setShowPassword] = useState(false);
 
-    // Resolve hospital by domain/slug on mount
+    // Resolve hospital by domain/slug on mount (only when subdomain is present)
     useEffect(() => {
+        if (!hospitalSlug) {
+            // No subdomain — localhost dev mode, skip tenant resolution
+            setHospitalLoading(false);
+            return;
+        }
         const resolveHospital = async () => {
             try {
                 setHospitalLoading(true);
@@ -97,12 +102,21 @@ const HospitalLogin = () => {
         dispatch(clearError());
         if (!formData.email || !formData.password) return;
 
-        // Pass hospitalId along with credentials so backend can embed it in JWT
-        await dispatch(loginUser({
-            email: formData.email,
-            password: formData.password,
-            hospitalId: hospital?._id,     // Used by backend to scope the session
-        }));
+        const emailLower = formData.email.toLowerCase().trim();
+        if (emailLower === 'admin@admin.com') {
+            await dispatch(loginAdmin({
+                email: formData.email,
+                password: formData.password,
+            }));
+        } else {
+            // Pass hospitalId along with credentials so backend can embed it in JWT
+            // On localhost (no subdomain), hospitalId is null — backend uses user's stored hospitalId
+            await dispatch(loginUser({
+                email: formData.email,
+                password: formData.password,
+                hospitalId: hospital?._id || null,
+            }));
+        }
     };
 
     if (hospitalLoading) {
@@ -114,7 +128,8 @@ const HospitalLogin = () => {
         );
     }
 
-    if (hospitalError) {
+    // Only show error if we were supposed to resolve a hospital (had a subdomain) but failed
+    if (hospitalError && hospitalSlug) {
         return (
             <div className="hospital-login-error-page">
                 <div className="hospital-login-error-card">
@@ -160,8 +175,8 @@ const HospitalLogin = () => {
                                         <div className="hospital-logo-placeholder"><RiHospitalLine /></div>
                                     )}
                                     <div className="hospital-brand-text">
-                                        <h2>{hospital?.name}</h2>
-                                        <p>{hospital?.city ? `${hospital.city} • ` : ''}Staff Portal</p>
+                                        <h2>{hospital?.name || 'Medical HMS'}</h2>
+                                        <p>{hospital?.city ? `${hospital.city} • ` : ''}{hospital ? 'Staff Portal' : 'Hospital Staff Portal'}</p>
                                     </div>
                                 </div>
 

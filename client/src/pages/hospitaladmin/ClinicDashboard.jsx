@@ -60,8 +60,8 @@ const generateRegistrationSlipPDF = (patient) => {
 
 const loadTemplateAndBg = async (type) => {
     try {
-        const token = localStorage.getItem('token');
-        if (!token) return { template: null, bgBase64: null };
+        const user = localStorage.getItem('user');
+        if (!user) return { template: null, bgBase64: null };
         const res = await documentTemplatesAPI.getActive(type);
         if (res.success && res.template) {
             const template = res.template;
