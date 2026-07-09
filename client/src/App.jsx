@@ -5,11 +5,10 @@ import './App.css'
 import socket from './utils/socket'
 import { useAuth, useAppDispatch } from './store/hooks'
 import { useBranding } from './context/BrandingContext'
-import { updateUser, logout, setSessionRestoring } from './store/slices/authSlice'
+import { updateUser, logout } from './store/slices/authSlice'
 import { authAPI } from './utils/api'
 import { startSessionMonitoring, stopSessionMonitoring } from './utils/sessionManager'
 import IdleWarningModal from './components/IdleWarningModal'
-import SessionRestoringScreen from './components/SessionRestoringScreen'
 import { useStore } from 'react-redux'
 
 // ── BroadcastChannel multi-tab synchronization ─────────────────────────────────
@@ -35,21 +34,19 @@ export function broadcastAuthEvent(type, payload = {}) {
 }
 
 const App = () => {
-  const { user, isAuthenticated, sessionRestoring } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const dispatch = useAppDispatch();
   const store = useStore();
   const { loadBranding, resetBranding } = useBranding();
 
-  // ── Phase 1: Session Restoration — validate backend before rendering dashboard ──
+  // ── Session Restoration — validate backend in background without blocking UI ──
   useEffect(() => {
     const cachedUser = localStorage.getItem('user');
     if (!cachedUser) {
-      dispatch(setSessionRestoring(false));
       return;
     }
 
     const restoreSession = async () => {
-      dispatch(setSessionRestoring(true));
       const startMs = Date.now();
       try {
         const res = await authAPI.getProfile();
@@ -83,15 +80,12 @@ const App = () => {
         if (status === 401 || status === 403) {
           dispatch(logout());
         }
-        // Network error: don't logout — may be temporarily offline.
-        // sessionRestoring will still be cleared below.
-      } finally {
-        dispatch(setSessionRestoring(false));
       }
     };
 
     restoreSession();
   }, [dispatch]);
+
 
   // ── Multi-tab synchronization via BroadcastChannel + localStorage fallback ─────
   useEffect(() => {
@@ -285,11 +279,6 @@ const App = () => {
       document.removeEventListener('wheel', handleGlobalWheel);
     };
   }, []);
-
-  // ── Phase 1: Gate the dashboard behind session restoration ──────────────────
-  if (sessionRestoring) {
-    return <SessionRestoringScreen />;
-  }
 
   return (
     <div style={{ width: '100%', maxWidth: '100vw', overflowX: 'hidden' }}>

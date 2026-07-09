@@ -103,9 +103,6 @@ const loadInitialState = () => {
     return {
       user,
       isAuthenticated: !!user,
-      // sessionRestoring: true when app boots with a cached user and is validating
-      // the session with the backend. Dashboard is hidden until this becomes false.
-      sessionRestoring: !!user,
       loading: false,
       error: null,
       idleWarningActive: false,
@@ -114,7 +111,6 @@ const loadInitialState = () => {
     return {
       user: null,
       isAuthenticated: false,
-      sessionRestoring: false,
       loading: false,
       error: null,
       idleWarningActive: false,
@@ -129,7 +125,6 @@ const authSlice = createSlice({
     logout: (state) => {
       state.user = null;
       state.isAuthenticated = false;
-      state.sessionRestoring = false;
       state.error = null;
       state.idleWarningActive = false;
       localStorage.removeItem('user');
@@ -140,12 +135,6 @@ const authSlice = createSlice({
     updateUser: (state, action) => {
       state.user = { ...state.user, ...action.payload };
       localStorage.setItem('user', JSON.stringify(state.user));
-    },
-    // ── Session restoration loading state ────────────────────────────────
-    // True while the app is validating a cached session with the backend.
-    // The dashboard is gated behind sessionRestoring === false.
-    setSessionRestoring: (state, action) => {
-      state.sessionRestoring = !!action.payload;
     },
     // ── Idle notice (informational only — Persistent Session Policy) ──────
     showIdleWarning: (state) => {
@@ -160,7 +149,6 @@ const authSlice = createSlice({
     builder.addCase(loginUser.pending, (state) => { state.loading = true; state.error = null; });
     builder.addCase(loginUser.fulfilled, (state, action) => {
       state.loading = false;
-      state.sessionRestoring = false;
       state.user = action.payload.user;
       state.isAuthenticated = true;
     });
@@ -204,5 +192,5 @@ const authSlice = createSlice({
   },
 });
 
-export const { logout, clearError, updateUser, showIdleWarning, hideIdleWarning, setSessionRestoring } = authSlice.actions;
+export const { logout, clearError, updateUser, showIdleWarning, hideIdleWarning } = authSlice.actions;
 export default authSlice.reducer;
