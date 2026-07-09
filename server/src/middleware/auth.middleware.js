@@ -46,6 +46,15 @@ exports.verifyToken = async (req, res, next) => {
             return res.status(403).json({ success: false, message: 'Account is disabled. Contact administrator.' });
         }
 
+        // Prevent Super/Central Admin sessions from leaking to tenant subdomains (Production only)
+        const origin = req.headers.origin || req.headers.referer || '';
+        const isCentralRole = user.role === 'superadmin' || user.role === 'centraladmin';
+        const isTenantHost = origin.includes('boonkies.com') && !origin.includes('admin.boonkies.com');
+
+        if (isCentralRole && isTenantHost) {
+            return res.status(401).json({ success: false, message: 'Central Admin session not allowed on tenant subdomains.' });
+        }
+
         // Deactivated Hospital check
         if (user.hospitalId && user.role !== 'superadmin' && user.role !== 'centraladmin') {
             const Hospital = require('../models/hospital.model');
