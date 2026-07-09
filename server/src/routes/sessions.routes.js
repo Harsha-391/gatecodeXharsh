@@ -1,15 +1,25 @@
-﻿const express = require("express");
+const express = require("express");
 const router = express.Router();
 const mongoose = require("mongoose");
 const RefreshToken = require("../models/refreshToken.model");
 const { verifyToken, verifySuperAdmin, verifyAdminOrSuperAdmin } = require("../middleware/auth.middleware");
 const { parseUserAgent } = require("../utils/userAgentParser");
 
-function formatSession(record) {
+function formatSession(record, currentJti = null) {
     const now = Date.now();
     const loginTime = new Date(record.sessionStart || record.createdAt);
-    const lastActive = new Date(record.lastUsedAt);
+    const lastActive = new Date(record.lastUsedAt || record.createdAt);
     const durationMs = now - loginTime.getTime();
+    const hours = Math.floor(durationMs / 3600000);
+    const minutes = Math.floor((durationMs % 3600000) / 60000);
+
+    // Determine status
+    const isRevoked  = !!record.isRevoked;
+    const isExpired  = !isRevoked && new Date(record.expiresAt) < new Date();
+    const isCurrent  = !isRevoked && !isExpired && currentJti && record.jti === currentJti;
+    const status     = isRevoked ? "revoked" : isExpired ? "expired" : "active";
+    const sessionType = isCurrent ? "current" : isRevoked ? "revoked" : isExpired ? "expired" : "other";
+
     return {
         id: record._id,
         sessionId: record.sessionId,
@@ -21,25 +31,42 @@ function formatSession(record) {
         device: record.device,
         loginTime: loginTime.toISOString(),
         lastActivity: lastActive.toISOString(),
-        duration: Math.floor(durationMs/3600000) + "h " + Math.floor((durationMs%3600000)/60000) + "m",
+        duration: hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`,
         durationMs,
-        status: record.isRevoked ? "revoked" : "active",
-        isCurrentSession: false,
+        status,
+        sessionType,     // "current" | "other" | "revoked" | "expired"
+        isCurrentSession: isCurrent,
     };
+}
+
+// Helper: safely decode jti from Authorization header
+function _getCurrentJti(req) {
+    try {
+        const authHeader = req.headers.authorization || '';
+        const token = authHeader.split(' ')[1];
+        if (!token) return null;
+        const decoded = require('jsonwebtoken').decode(token);
+        return decoded?.jti || null;
+    } catch (_) {
+        return null;
+    }
 }
 
 // GET /api/sessions/mine
 router.get("/mine", verifyToken, async (req, res) => {
     try {
-        const records = await RefreshToken.find({ userId: req.user._id, isRevoked: false, expiresAt: { $gt: new Date() } }).sort({ lastUsedAt: -1 }).lean();
-        const decoded = require("jsonwebtoken").decode(req.headers.authorization.split(" ")[1]);
-        const currentJti = decoded?.jti;
-        const sessions = records.map(r => ({ ...formatSession(r), isCurrentSession: r.jti === currentJti }));
+        const currentJti = _getCurrentJti(req);
+        const records = await RefreshToken
+            .find({ userId: req.user._id, expiresAt: { $gt: new Date() } })
+            .sort({ lastUsedAt: -1 })
+            .lean();
+        const sessions = records.map(r => formatSession(r, currentJti));
         res.json({ success: true, sessions });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
 });
+
 
 // GET /api/sessions/hospital
 router.get("/hospital", verifyAdminOrSuperAdmin, async (req, res) => {

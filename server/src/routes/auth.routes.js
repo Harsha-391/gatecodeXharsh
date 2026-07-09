@@ -817,22 +817,28 @@ router.post('/refresh', async (req, res) => {
   }
 });
 
-// POST /api/auth/log-session-event — client reports idle logout, max session, etc.
+// POST /api/auth/log-session-event — client reports session lifecycle events.
 router.post('/log-session-event', verifyToken, async (req, res) => {
   try {
-    const { action, reason } = req.body;
-    // Persistent Session Policy — allowed audit events.
-    // AUTO_LOGOUT_IDLE removed: idle inactivity no longer causes logout.
+    const { action, reason, meta } = req.body;
+    // Persistent Session Policy — allowed audit events (v2.1).
     const allowedActions = [
-      'SESSION_EXTENDED',          // User dismissed idle notice and continued
-      'SESSION_WARNING_SHOWN',     // Informational idle toast displayed (non-blocking)
-      'SESSION_WARNING_DISMISSED', // User interacted — toast dismissed
-      'SESSION_RESTORED',          // Session restored on page/browser/computer restart
-      'REFRESH_SUCCESS',           // Silent access token refresh succeeded
-      'REFRESH_FAILED',            // Refresh token invalid/expired — session ended
-      'FORCED_LOGOUT',             // Admin force-logout or password change
+      // ── Idle notice ──────────────────────────────────────────────────────────
+      'SESSION_EXTENDED',            // User dismissed idle notice and continued
+      'SESSION_WARNING_SHOWN',       // Informational idle toast displayed
+      'SESSION_WARNING_DISMISSED',   // User interacted — toast dismissed
+      // ── Session restoration (Phase 4) ────────────────────────────────────────
+      'SESSION_RESTORE_STARTED',     // App boot: attempting to restore cached session
+      'SESSION_RESTORE_SUCCESS',     // Session validated successfully after restore
+      'SESSION_RESTORE_FAILED',      // Restore failed (token expired, revoked, network, etc.)
+      // ── Token lifecycle ───────────────────────────────────────────────────────
+      'REFRESH_SUCCESS',             // Silent access token refresh succeeded
+      'REFRESH_FAILED',              // Refresh token invalid/expired — session ended
+      // ── Session termination ───────────────────────────────────────────────────
+      'FORCED_LOGOUT',               // Admin force-logout or password change
       'SESSION_TERMINATED_BY_ADMIN', // Hospital/Super Admin terminated a session
-      'MANUAL_LOGOUT',             // User clicked Logout
+      'MANUAL_LOGOUT',               // User clicked Logout
+      'SESSION_REVOKED',             // Session explicitly revoked
     ];
     if (!allowedActions.includes(action)) {
       return res.status(400).json({ success: false, message: 'Invalid action' });
@@ -840,19 +846,25 @@ router.post('/log-session-event', verifyToken, async (req, res) => {
     const AuditLog3 = require('../models/auditLog.model');
     const ua = req.headers['user-agent'] || '';
     const parsed = parseUserAgent(ua);
+
+    // Build an enriched reason string including failure cause and duration
+    let enrichedReason = reason || '';
+    if (meta?.failureCause) enrichedReason = `${enrichedReason ? enrichedReason + ' | ' : ''}Cause: ${meta.failureCause}`;
+    if (meta?.durationMs)   enrichedReason = `${enrichedReason ? enrichedReason + ' | ' : ''}Duration: ${meta.durationMs}ms`;
+
     await AuditLog3.create({
       clinicId: req.user.hospitalId || new mongoose.Types.ObjectId('6a200269d01a91451fefb80d'),
       userId: req.user._id,
       userName: req.user.name,
       role: req.user._roleData?.name || String(req.user.role || ''),
       action,
-      reason: reason || '',
+      reason: enrichedReason,
       ip: req.ip || '',
       userAgent: ua,
       browser: parsed.browser,
       os: parsed.os,
       device: parsed.device,
-      success: true,
+      success: !action.includes('FAILED'),
     }).catch(() => {});
     res.json({ success: true });
   } catch (_) {

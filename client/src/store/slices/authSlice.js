@@ -103,16 +103,18 @@ const loadInitialState = () => {
     return {
       user,
       isAuthenticated: !!user,
+      // sessionRestoring: true when app boots with a cached user and is validating
+      // the session with the backend. Dashboard is hidden until this becomes false.
+      sessionRestoring: !!user,
       loading: false,
       error: null,
-      // Session management — persistent session policy
-      // idleWarningActive: non-blocking informational toast only
       idleWarningActive: false,
     };
   } catch {
     return {
       user: null,
       isAuthenticated: false,
+      sessionRestoring: false,
       loading: false,
       error: null,
       idleWarningActive: false,
@@ -127,6 +129,7 @@ const authSlice = createSlice({
     logout: (state) => {
       state.user = null;
       state.isAuthenticated = false;
+      state.sessionRestoring = false;
       state.error = null;
       state.idleWarningActive = false;
       localStorage.removeItem('user');
@@ -138,9 +141,13 @@ const authSlice = createSlice({
       state.user = { ...state.user, ...action.payload };
       localStorage.setItem('user', JSON.stringify(state.user));
     },
-    // ── Session management — Persistent Session Policy ────────────────────
-    // showIdleWarning: displays a non-blocking informational toast (no countdown).
-    // Idle inactivity NEVER causes logout — this is an informational notice only.
+    // ── Session restoration loading state ────────────────────────────────
+    // True while the app is validating a cached session with the backend.
+    // The dashboard is gated behind sessionRestoring === false.
+    setSessionRestoring: (state, action) => {
+      state.sessionRestoring = !!action.payload;
+    },
+    // ── Idle notice (informational only — Persistent Session Policy) ──────
     showIdleWarning: (state) => {
       state.idleWarningActive = true;
     },
@@ -153,6 +160,7 @@ const authSlice = createSlice({
     builder.addCase(loginUser.pending, (state) => { state.loading = true; state.error = null; });
     builder.addCase(loginUser.fulfilled, (state, action) => {
       state.loading = false;
+      state.sessionRestoring = false;
       state.user = action.payload.user;
       state.isAuthenticated = true;
     });
@@ -196,5 +204,5 @@ const authSlice = createSlice({
   },
 });
 
-export const { logout, clearError, updateUser, showIdleWarning, hideIdleWarning } = authSlice.actions;
+export const { logout, clearError, updateUser, showIdleWarning, hideIdleWarning, setSessionRestoring } = authSlice.actions;
 export default authSlice.reducer;

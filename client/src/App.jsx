@@ -5,47 +5,153 @@ import './App.css'
 import socket from './utils/socket'
 import { useAuth, useAppDispatch } from './store/hooks'
 import { useBranding } from './context/BrandingContext'
-import { updateUser, logout } from './store/slices/authSlice'
+import { updateUser, logout, setSessionRestoring } from './store/slices/authSlice'
 import { authAPI } from './utils/api'
 import { startSessionMonitoring, stopSessionMonitoring } from './utils/sessionManager'
 import IdleWarningModal from './components/IdleWarningModal'
+import SessionRestoringScreen from './components/SessionRestoringScreen'
 import { useStore } from 'react-redux'
 
+// ── BroadcastChannel multi-tab synchronization ─────────────────────────────────
+// Uses BroadcastChannel when available; falls back to the storage event.
+let _bc = null;
+try {
+  if (typeof BroadcastChannel !== 'undefined') {
+    _bc = new BroadcastChannel('hms_auth_sync');
+  }
+} catch (_) { /* unsupported */ }
+
+export function broadcastAuthEvent(type, payload = {}) {
+  const msg = { type, payload, ts: Date.now() };
+  try {
+    _bc?.postMessage(msg);
+  } catch (_) {}
+  // Also write to localStorage as fallback for browsers without BroadcastChannel
+  try {
+    localStorage.setItem('hms_auth_sync', JSON.stringify(msg));
+    // Remove immediately so the 'storage' event fires next time too
+    setTimeout(() => localStorage.removeItem('hms_auth_sync'), 100);
+  } catch (_) {}
+}
+
 const App = () => {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, sessionRestoring } = useAuth();
   const dispatch = useAppDispatch();
   const store = useStore();
   const { loadBranding, resetBranding } = useBranding();
 
-  // Refresh user profile/permissions on mount/load if authenticated
+  // ── Phase 1: Session Restoration — validate backend before rendering dashboard ──
   useEffect(() => {
     const cachedUser = localStorage.getItem('user');
-    if (cachedUser) {
-      const fetchProfile = async () => {
-        try {
-          const res = await authAPI.getProfile();
-          if (res.success && res.user) {
-            dispatch(updateUser(res.user));
-          } else {
-            dispatch(logout());
-          }
-        } catch (err) {
-          console.error('Failed to sync profile permissions on mount:', err);
-          if (err.response?.status === 401 || err.message?.includes('401') || err.response?.data?.message?.includes('unauthorized')) {
-            dispatch(logout());
-          }
-        }
-      };
-      fetchProfile();
+    if (!cachedUser) {
+      dispatch(setSessionRestoring(false));
+      return;
     }
+
+    const restoreSession = async () => {
+      dispatch(setSessionRestoring(true));
+      const startMs = Date.now();
+      try {
+        const res = await authAPI.getProfile();
+        if (res.success && res.user) {
+          dispatch(updateUser(res.user));
+          // Log successful restoration to audit (best-effort, fire-and-forget)
+          _logRestoreAudit('SESSION_RESTORE_SUCCESS', {
+            durationMs: Date.now() - startMs,
+            reason: 'Session validated via /api/auth/me',
+          });
+        } else {
+          _logRestoreAudit('SESSION_RESTORE_FAILED', {
+            durationMs: Date.now() - startMs,
+            failureCause: 'Profile endpoint returned failure',
+          });
+          dispatch(logout());
+        }
+      } catch (err) {
+        const status = err?.response?.status;
+        const failureCause =
+          status === 401 ? '401 Unauthorized — refresh token invalid or expired'
+          : status === 403 ? '403 Forbidden — account disabled or deleted'
+          : err?.message?.includes('Network') ? 'Network Failure'
+          : `HTTP ${status || 'unknown'}`;
+
+        _logRestoreAudit('SESSION_RESTORE_FAILED', {
+          durationMs: Date.now() - startMs,
+          failureCause,
+        });
+
+        if (status === 401 || status === 403) {
+          dispatch(logout());
+        }
+        // Network error: don't logout — may be temporarily offline.
+        // sessionRestoring will still be cleared below.
+      } finally {
+        dispatch(setSessionRestoring(false));
+      }
+    };
+
+    restoreSession();
   }, [dispatch]);
 
-  // Auto-load hospital branding when user logs in
+  // ── Multi-tab synchronization via BroadcastChannel + localStorage fallback ─────
+  useEffect(() => {
+    const handleSync = (msg) => {
+      if (!msg || !msg.type) return;
+      switch (msg.type) {
+        case 'LOGOUT':
+        case 'FORCED_LOGOUT':
+        case 'PASSWORD_CHANGED':
+        case 'SESSION_REVOKED':
+          // Another tab logged out — clear this tab too
+          dispatch(logout());
+          break;
+        case 'LOGIN':
+          // Another tab logged in — sync if this tab isn't already authenticated
+          if (!store.getState().auth.isAuthenticated) {
+            try {
+              const freshUser = msg.payload?.user;
+              if (freshUser) {
+                localStorage.setItem('user', JSON.stringify(freshUser));
+                dispatch(updateUser(freshUser));
+              }
+            } catch (_) {}
+          }
+          break;
+        case 'SESSION_RESTORE':
+          // Another tab restored a session — no action needed, we have our own restore flow
+          break;
+        default:
+          break;
+      }
+    };
+
+    // BroadcastChannel listener
+    if (_bc) {
+      _bc.onmessage = (event) => handleSync(event.data);
+    }
+
+    // localStorage fallback listener
+    const handleStorage = (event) => {
+      if (event.key === 'hms_auth_sync' && event.newValue) {
+        try {
+          const msg = JSON.parse(event.newValue);
+          handleSync(msg);
+        } catch (_) {}
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+
+    return () => {
+      if (_bc) _bc.onmessage = null;
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, [dispatch, store]);
+
+  // ── Auto-load hospital branding when user logs in ───────────────────────────
   useEffect(() => {
     if (isAuthenticated && user) {
       const hospitalId = user.hospitalId;
       const role = (user.role || '').toLowerCase();
-      // Apply branding only for hospital-scoped users (not central admins)
       if (hospitalId && !['centraladmin', 'superadmin'].includes(role)) {
         loadBranding(hospitalId);
       }
@@ -58,8 +164,7 @@ const App = () => {
   const userRole = user?.role;
   const hospitalId = user?.hospitalId;
 
-  // Session monitoring — start on login, stop on logout
-  // Persistent session policy: no max-session parameter needed.
+  // ── Session monitoring — start on login, stop on logout ─────────────────────
   useEffect(() => {
     if (isAuthenticated && userId) {
       startSessionMonitoring(store);
@@ -68,14 +173,13 @@ const App = () => {
     }
   }, [isAuthenticated, userId]);
 
-  // Socket Connection Management
+  // ── Socket Connection Management ────────────────────────────────────────────
   useEffect(() => {
     if (isAuthenticated && userId) {
       const roleStr = typeof userRole === 'string'
         ? userRole.toLowerCase()
         : '';
 
-      // ── Room join helper (called on connect and on every reconnect) ──────────
       const joinRooms = () => {
         socket.emit('join', userId);
 
@@ -103,35 +207,26 @@ const App = () => {
         }
       };
 
-      // ── Named notification handler — prevents duplicate listeners ────────────
       const handleNewNotification = (notification) => {
         dispatch({ type: 'notifications/addNotification', payload: notification });
       };
 
-      // ── Auth-error handler — handles token expiration gracefully ─────────────
       const handleConnectError = (err) => {
         if (err.message && err.message.toLowerCase().includes('authentication')) {
-          // Token is expired or invalid — disconnect cleanly.
-          // The user will be redirected to login by the api.js 401 interceptor.
           socket.disconnect();
         }
       };
 
-      // Socket auth token is handled automatically via cookie headers
-
-      // Register listeners (each is a stable named reference so off() is precise)
       socket.on('connect', joinRooms);
       socket.on('new_notification', handleNewNotification);
       socket.on('connect_error', handleConnectError);
 
-      // Connect (or re-join rooms if already connected)
       if (!socket.connected) {
         socket.connect();
       } else {
         joinRooms();
       }
 
-      // ── Cleanup — remove only OUR listeners, don't touch others ─────────────
       return () => {
         socket.off('connect', joinRooms);
         socket.off('new_notification', handleNewNotification);
@@ -139,12 +234,11 @@ const App = () => {
         socket.disconnect();
       };
     } else {
-      // Logged out — disconnect socket
       socket.disconnect();
     }
   }, [isAuthenticated, userId, userRole, hospitalId, dispatch]);
 
-  // Smooth scrolling
+  // ── Smooth scrolling ────────────────────────────────────────────────────────
   useEffect(() => {
     const lenis = new Lenis({
       duration: 1.2,
@@ -162,7 +256,7 @@ const App = () => {
     return () => { lenis.destroy(); };
   }, []);
 
-  // Restore mouse wheel scrolling inside scrollable containers and forms
+  // ── Restore wheel scrolling inside scrollable containers ───────────────────
   useEffect(() => {
     const handleGlobalWheel = (e) => {
       let el = e.target;
@@ -170,15 +264,12 @@ const App = () => {
         const style = window.getComputedStyle(el);
         const overflowY = style.overflowY;
         const overflowX = style.overflowX;
-        
+
         const isScrollableY = (overflowY === 'auto' || overflowY === 'scroll') && el.scrollHeight > el.clientHeight;
         const isScrollableX = (overflowX === 'auto' || overflowX === 'scroll') && el.scrollWidth > el.clientWidth;
-        
+
         if (isScrollableY || isScrollableX) {
-          // Prevent Lenis from swallowing/intercepting this wheel event
           e.stopPropagation();
-          
-          // Translate vertical scrolling to horizontal scrolling for horizontal-only scrollbars
           if (isScrollableX && !isScrollableY && Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
             el.scrollLeft += e.deltaY;
             e.preventDefault();
@@ -195,6 +286,11 @@ const App = () => {
     };
   }, []);
 
+  // ── Phase 1: Gate the dashboard behind session restoration ──────────────────
+  if (sessionRestoring) {
+    return <SessionRestoringScreen />;
+  }
+
   return (
     <div style={{ width: '100%', maxWidth: '100vw', overflowX: 'hidden' }}>
       <MainRoutes />
@@ -202,6 +298,35 @@ const App = () => {
       <IdleWarningModal />
     </div>
   )
+}
+
+// ── Best-effort audit log for session restoration events ─────────────────────
+async function _logRestoreAudit(action, extra = {}) {
+  try {
+    const userStr = localStorage.getItem('user');
+    if (!userStr) return;
+
+    const apiBase = (() => {
+      if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) return import.meta.env.VITE_API_URL;
+      const h = window.location.hostname;
+      if (h === 'localhost' || h === '127.0.0.1' || h.endsWith('.localhost')) return '';
+      return 'https://gatecodexharsh-1.onrender.com';
+    })();
+
+    await fetch(`${apiBase}/api/auth/log-session-event`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Tenant-Domain': window.location.hostname,
+      },
+      body: JSON.stringify({
+        action,
+        reason: extra.failureCause || extra.reason || '',
+        meta: { durationMs: extra.durationMs },
+      }),
+    });
+  } catch (_) { /* best-effort */ }
 }
 
 export default App

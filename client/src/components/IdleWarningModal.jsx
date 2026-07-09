@@ -1,12 +1,15 @@
 /**
- * IdleWarningModal — Non-blocking Persistent Session Notice
+ * IdleWarningModal — Non-blocking Persistent Session Notice (v2.1)
  *
- * Policy (v2):
+ * Policy:
  * • Appears as a small toast in the bottom-right corner.
- * • No countdown. No urgency. No forced logout.
+ * • No countdown. No urgency. No forced logout. No blocking overlay.
  * • States clearly that the session is STILL ACTIVE.
- * • Dismissed by clicking "Continue Working", "Logout", or any user interaction.
- * • Does not block any clinical workflow behind it.
+ * • Dismissed by:
+ *     - "Continue Working" button → hides toast + resets timer + keeps session
+ *     - "Dismiss" button → same as Continue Working
+ *     - "Logout" button → ends session explicitly
+ *     - Any user interaction (mouse/keyboard) → auto-dismissed
  */
 import React from "react";
 import { useSelector } from "react-redux";
@@ -20,7 +23,13 @@ const IdleWarningModal = () => {
 
   if (!idleWarningActive) return null;
 
+  // Both "Continue Working" and "Dismiss" do the same thing:
+  // hide the toast, reset inactivity timer, and continue the session.
   const handleContinue = async () => {
+    await continueSession();
+  };
+
+  const handleDismiss = async () => {
     await continueSession();
   };
 
@@ -48,21 +57,35 @@ const IdleWarningModal = () => {
         <strong>Your session is still active.</strong>
       </p>
 
-      {/* Actions */}
+      {/* Primary Actions */}
       <div style={styles.actions}>
         <button
           id="idle-continue-btn"
           onClick={handleContinue}
           style={styles.btnPrimary}
+          title="Continue your session"
         >
           Continue Working
         </button>
         <button
+          id="idle-dismiss-btn"
+          onClick={handleDismiss}
+          style={styles.btnDismiss}
+          title="Dismiss this notice"
+        >
+          Dismiss
+        </button>
+      </div>
+
+      {/* Secondary logout link */}
+      <div style={styles.logoutRow}>
+        <button
           id="idle-logout-btn"
           onClick={handleLogout}
-          style={styles.btnSecondary}
+          style={styles.btnLogout}
+          title="End session"
         >
-          Logout
+          Sign Out
         </button>
       </div>
     </div>
@@ -79,10 +102,9 @@ const styles = {
     border: "1px solid rgba(99,102,241,0.35)",
     borderRadius: "16px",
     padding: "20px 22px",
-    width: "300px",
+    width: "312px",
     boxShadow: "0 16px 48px rgba(0,0,0,0.45), 0 0 24px rgba(99,102,241,0.12)",
     animation: "slideInRight 0.35s cubic-bezier(0.34,1.56,0.64,1)",
-    // No backdrop, no page-blocking overlay
   },
   header: {
     display: "flex",
@@ -121,12 +143,14 @@ const styles = {
     fontSize: "13px",
     color: "#94a3b8",
     lineHeight: 1.6,
-    margin: "0 0 16px",
+    margin: "0 0 14px",
   },
   actions: {
     display: "flex",
     gap: "8px",
+    marginBottom: "10px",
   },
+  // "Continue Working" — primary CTA
   btnPrimary: {
     flex: 1,
     padding: "9px 12px",
@@ -140,18 +164,37 @@ const styles = {
     boxShadow: "0 3px 10px rgba(99,102,241,0.35)",
     transition: "opacity 0.15s ease",
   },
-  btnSecondary: {
+  // "Dismiss" — secondary, same effect as Continue Working
+  btnDismiss: {
     padding: "9px 14px",
     borderRadius: "9px",
     cursor: "pointer",
     background: "transparent",
-    border: "1px solid rgba(148,163,184,0.2)",
-    color: "#94a3b8",
+    border: "1px solid rgba(99,102,241,0.3)",
+    color: "#a5b4fc",
     fontWeight: 600,
     fontSize: "13px",
     transition: "all 0.15s ease",
   },
+  // Logout row — below primary actions, styled as a subtle text link
+  logoutRow: {
+    display: "flex",
+    justifyContent: "center",
+    paddingTop: "2px",
+  },
+  btnLogout: {
+    background: "transparent",
+    border: "none",
+    cursor: "pointer",
+    color: "#64748b",
+    fontSize: "12px",
+    fontWeight: 500,
+    textDecoration: "underline",
+    padding: "2px 4px",
+    transition: "color 0.15s ease",
+  },
 };
+
 
 // Inject the slide-in animation (added once to the document head)
 if (typeof document !== "undefined") {
