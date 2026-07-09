@@ -13,6 +13,27 @@
  */
 import socket from "./socket";
 
+// ── API Base URL ──────────────────────────────────────────────────────────────
+// In production the frontend (Vercel) and backend (Render) are on different origins.
+// Using a relative URL like '/api/auth/refresh' hits the Vercel SPA router → 405.
+// We must use the absolute backend URL for all fetch() calls that bypass the axios client.
+const _getApiBase = () => {
+    // If an explicit env var is set, use it (highest priority)
+    if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) {
+        return import.meta.env.VITE_API_URL;
+    }
+    if (typeof window !== 'undefined') {
+        const h = window.location.hostname;
+        // On localhost, Vite proxy handles /api/* — use relative path
+        if (h === 'localhost' || h === '127.0.0.1' || h.endsWith('.localhost')) {
+            return '';
+        }
+    }
+    // Production fallback — absolute Render backend URL
+    return 'https://gatecodesharsh-1.onrender.com';
+};
+const API_BASE = _getApiBase();
+
 // ── Configuration (mirrors server/src/config/jwt.js) ─────────────────────────
 const CONFIG = {
     IDLE_WARN_MS:      60 * 60 * 1000,   // 60 minutes
@@ -109,7 +130,9 @@ async function _performForceLogout(message) {
 // ── Token Refresh ─────────────────────────────────────────────────────────────
 async function refreshAccessToken() {
     try {
-        const res = await fetch("/api/auth/refresh", {
+        // Use absolute URL so production fetch() reaches the Render backend,
+        // not Vercel's SPA router (which returns 405 on POST).
+        const res = await fetch(`${API_BASE}/api/auth/refresh`, {
             method: "POST",
             credentials: "include", // sends the httpOnly cookie
         });

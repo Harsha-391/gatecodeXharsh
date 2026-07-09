@@ -57,7 +57,9 @@ async function _tryRefreshAndRetry(originalRequest) {
 
     _refreshing = true;
     try {
-        const res = await fetch('/api/auth/refresh', { method: 'POST', credentials: 'include' });
+        // Use the same absolute base URL as the axios client.
+        // A relative URL ('/api/auth/refresh') hits Vercel's SPA router in production → 405.
+        const res = await fetch(`${baseURL}/api/auth/refresh`, { method: 'POST', credentials: 'include' });
         const data = await res.json();
 
         if (data.success) {

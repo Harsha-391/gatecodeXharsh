@@ -23,23 +23,26 @@ const { JWT_SECRET, JWT_EXPIRES_IN, REFRESH_TOKEN_EXPIRES_MS } = require('../con
 const validatePassword = require('../utils/validatePassword');
 
 function setCookies(res, accessToken, rawRefreshToken) {
+    // Cross-origin cookie fix: frontend (Vercel) and backend (Render) are different origins.
+    // sameSite:'none' + secure:true is required for cookies to be sent cross-origin.
+    const isProduction = process.env.NODE_ENV === 'production';
+
     res.cookie('accessToken', accessToken, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        secure: isProduction,
+        sameSite: isProduction ? 'none' : 'lax',
         maxAge: 30 * 60 * 1000, // 30 minutes
         path: '/',
     });
 
     res.cookie('refreshToken', rawRefreshToken, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
+        secure: isProduction,
+        sameSite: isProduction ? 'none' : 'lax',  // was 'strict' — blocked cross-origin!
         maxAge: REFRESH_TOKEN_EXPIRES_MS,
-        path: '/api/auth/refresh',
+        path: '/',   // was '/api/auth/refresh' — cookie must be sent to all API paths
     });
 }
-
 
 // ==========================================
 // HELPERS

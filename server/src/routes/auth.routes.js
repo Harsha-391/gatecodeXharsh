@@ -18,28 +18,36 @@ const { parseUserAgent } = require('../utils/userAgentParser');
 
 // ── Helpers: set and clear cookies for both tokens ───────────────────────────
 function setCookies(res, accessToken, rawRefreshToken) {
+    // Detect cross-origin production deployments (frontend on Vercel, backend on Render)
+    // sameSite:'none' + secure:true is required to send cookies cross-origin.
+    // On localhost the Vite proxy makes it same-origin so lax/strict also work,
+    // but 'none' is safe everywhere as long as the connection is HTTPS.
+    const isProduction = process.env.NODE_ENV === 'production';
+
     // Access token cookie
     res.cookie('accessToken', accessToken, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        secure: isProduction,          // Must be true when sameSite:'none'
+        sameSite: isProduction ? 'none' : 'lax',  // 'none' enables cross-origin
         maxAge: 30 * 60 * 1000, // 30 minutes
         path: '/',
     });
 
-    // Refresh token cookie
+    // Refresh token cookie — 'none' allows the cross-origin refresh endpoint
+    // to receive it from Vercel → Render in production.
     res.cookie('refreshToken', rawRefreshToken, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
+        secure: isProduction,          // Must be true when sameSite:'none'
+        sameSite: isProduction ? 'none' : 'lax',  // was 'strict' — blocked cross-origin!
         maxAge: REFRESH_TOKEN_EXPIRES_MS,
-        path: '/api/auth/refresh',
+        path: '/',                    // Use '/' so the cookie reaches the full backend URL
     });
 }
 
 function clearCookies(res) {
-    res.clearCookie('accessToken', { httpOnly: true, path: '/' });
-    res.clearCookie('refreshToken', { httpOnly: true, path: '/api/auth/refresh' });
+    const isProduction = process.env.NODE_ENV === 'production';
+    res.clearCookie('accessToken', { httpOnly: true, path: '/', sameSite: isProduction ? 'none' : 'lax', secure: isProduction });
+    res.clearCookie('refreshToken', { httpOnly: true, path: '/', sameSite: isProduction ? 'none' : 'lax', secure: isProduction });
 }
 
 /**

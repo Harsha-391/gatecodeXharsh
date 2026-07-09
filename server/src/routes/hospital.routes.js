@@ -28,20 +28,24 @@ const auditLog = require('../middleware/audit.middleware');
 const validatePassword = require('../utils/validatePassword');
 
 function setCookies(res, accessToken, rawRefreshToken) {
+    // Cross-origin fix: tenant frontend (slug.boonkies.com) and backend (Render) are different origins.
+    // sameSite:'none' + secure:true is required for cookies to work cross-origin.
+    const isProduction = process.env.NODE_ENV === 'production';
+
     res.cookie('accessToken', accessToken, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        secure: isProduction,
+        sameSite: isProduction ? 'none' : 'lax',
         maxAge: 30 * 60 * 1000, // 30 minutes
         path: '/',
     });
 
     res.cookie('refreshToken', rawRefreshToken, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
+        secure: isProduction,
+        sameSite: isProduction ? 'none' : 'lax',  // was 'strict' — blocked cross-origin!
         maxAge: REFRESH_TOKEN_EXPIRES_MS,
-        path: '/api/auth/refresh',
+        path: '/',   // was '/api/auth/refresh' — must be '/' to reach full backend URL
     });
 }
 
