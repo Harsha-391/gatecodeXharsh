@@ -1,14 +1,20 @@
 const rateLimit = require('express-rate-limit');
+const { ipKeyGenerator } = rateLimit;
 
 const isDev = process.env.NODE_ENV !== 'production';
 
-// Login — 5 attempts per 15 minutes per IP
+// Login — 5 attempts per 1 minute per email/IP
 const loginLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
+    windowMs: 1 * 60 * 1000,
     max: isDev ? 1000 : 5,
     standardHeaders: true,
     legacyHeaders: false,
-    message: { success: false, message: 'Too many login attempts. Please try again after 15 minutes.' },
+    keyGenerator: (req) => {
+        return req.body && typeof req.body.email === 'string'
+            ? req.body.email.toLowerCase().trim()
+            : ipKeyGenerator(req);
+    },
+    message: { success: false, message: 'Too many login attempts. Please try again after 1 minute.' },
     skipSuccessfulRequests: false,
 });
 
