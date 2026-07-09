@@ -30,7 +30,7 @@ const _getApiBase = () => {
         }
     }
     // Production fallback — absolute Render backend URL
-    return 'https://gatecodesharsh-1.onrender.com';
+    return 'https://gatecodexharsh-1.onrender.com';
 };
 const API_BASE = _getApiBase();
 

@@ -52,6 +52,11 @@ exports.verifyToken = async (req, res, next) => {
         const isTenantHost = origin.includes('boonkies.com') && !origin.includes('admin.boonkies.com');
 
         if (isCentralRole && isTenantHost) {
+            console.warn('[AUTH BLOCKED] Central admin blocked on tenant subdomain:', {
+                email: user.email,
+                origin,
+                isTenantHost
+            });
             return res.status(401).json({ success: false, message: 'Central Admin session not allowed on tenant subdomains.' });
         }
 

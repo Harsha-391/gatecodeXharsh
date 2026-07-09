@@ -264,6 +264,21 @@ if (process.env.NODE_ENV !== 'test') {
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // ── Routes ────────────────────────────────────────────────────────────────────
+app.use((req, res, next) => {
+    if (req.path.startsWith('/api/')) {
+        console.log('[DEBUG API REQ]', {
+            path: req.path,
+            method: req.method,
+            origin: req.headers.origin,
+            referer: req.headers.referer,
+            cookies: req.cookies ? Object.keys(req.cookies) : null,
+            hasAccessToken: !!req.cookies?.accessToken,
+            hasRefreshToken: !!req.cookies?.refreshToken
+        });
+    }
+    next();
+});
+
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/doctor', doctorRoutes);
