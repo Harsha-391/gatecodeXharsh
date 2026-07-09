@@ -3206,7 +3206,7 @@ const ReceptionDashboard = () => {
                             )}
 
                             <span style={{ background: '#f1f5f9', color: '#475569', padding: '2px 10px', borderRadius: '20px', fontSize: '0.78rem', fontWeight: 600 }}>
-                                {filteredAppointments.length} patients
+                                {new Set(filteredAppointments.map(a => a.userId?._id || a.patientId).filter(Boolean)).size} patients
                             </span>
                         </div>
                         <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>

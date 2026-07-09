@@ -380,7 +380,9 @@ const Patient = () => {
                                 {activeTab === 'completed_today' && "✅ Completed Today's Appointments"}
                                 {activeTab === 'all' && "📁 All Appointments"}
                             </h3>
-                            <span style={S.sectionCount}>{displayList.length} patients</span>
+                            <span style={S.sectionCount}>
+                                {new Set(displayList.map(a => a.userId?._id || a.patientId).filter(Boolean)).size} patients
+                            </span>
                         </div>
 
                         <div style={S.tableWrap}>
