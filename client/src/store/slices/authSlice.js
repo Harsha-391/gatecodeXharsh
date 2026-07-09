@@ -105,10 +105,9 @@ const loadInitialState = () => {
       isAuthenticated: !!user,
       loading: false,
       error: null,
-      // Session management
+      // Session management — persistent session policy
+      // idleWarningActive: non-blocking informational toast only
       idleWarningActive: false,
-      idleCountdown: 120,
-      maxSessionReached: false,
     };
   } catch {
     return {
@@ -117,8 +116,6 @@ const loadInitialState = () => {
       loading: false,
       error: null,
       idleWarningActive: false,
-      idleCountdown: 120,
-      maxSessionReached: false,
     };
   }
 };
@@ -132,7 +129,6 @@ const authSlice = createSlice({
       state.isAuthenticated = false;
       state.error = null;
       state.idleWarningActive = false;
-      state.maxSessionReached = false;
       localStorage.removeItem('user');
     },
     clearError: (state) => {
@@ -142,16 +138,14 @@ const authSlice = createSlice({
       state.user = { ...state.user, ...action.payload };
       localStorage.setItem('user', JSON.stringify(state.user));
     },
-    // ── Session management ────────────────────────────────────────────────
-    showIdleWarning: (state, action) => {
+    // ── Session management — Persistent Session Policy ────────────────────
+    // showIdleWarning: displays a non-blocking informational toast (no countdown).
+    // Idle inactivity NEVER causes logout — this is an informational notice only.
+    showIdleWarning: (state) => {
       state.idleWarningActive = true;
-      state.idleCountdown = action.payload?.countdown ?? 120;
     },
     hideIdleWarning: (state) => {
       state.idleWarningActive = false;
-    },
-    setMaxSession: (state, action) => {
-      state.maxSessionReached = !!action.payload;
     },
   },
   extraReducers: (builder) => {
@@ -202,5 +196,5 @@ const authSlice = createSlice({
   },
 });
 
-export const { logout, clearError, updateUser, showIdleWarning, hideIdleWarning, setMaxSession } = authSlice.actions;
+export const { logout, clearError, updateUser, showIdleWarning, hideIdleWarning } = authSlice.actions;
 export default authSlice.reducer;

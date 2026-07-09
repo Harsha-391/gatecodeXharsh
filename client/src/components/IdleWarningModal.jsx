@@ -1,4 +1,14 @@
-﻿import React, { useEffect, useRef, useState } from "react";
+/**
+ * IdleWarningModal — Non-blocking Persistent Session Notice
+ *
+ * Policy (v2):
+ * • Appears as a small toast in the bottom-right corner.
+ * • No countdown. No urgency. No forced logout.
+ * • States clearly that the session is STILL ACTIVE.
+ * • Dismissed by clicking "Continue Working", "Logout", or any user interaction.
+ * • Does not block any clinical workflow behind it.
+ */
+import React from "react";
 import { useSelector } from "react-redux";
 import { continueSession } from "../utils/sessionManager";
 import { useAppDispatch } from "../store/hooks";
@@ -6,38 +16,9 @@ import { logoutUser } from "../store/slices/authSlice";
 
 const IdleWarningModal = () => {
   const dispatch = useAppDispatch();
-  const { idleWarningActive, idleCountdown } = useSelector((s) => s.auth);
-  const [secondsLeft, setSecondsLeft] = useState(idleCountdown || 120);
-  const intervalRef = useRef(null);
-
-  useEffect(() => {
-    if (!idleWarningActive) {
-      setSecondsLeft(idleCountdown || 120);
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      return;
-    }
-
-    setSecondsLeft(idleCountdown || 120);
-    intervalRef.current = setInterval(() => {
-      setSecondsLeft((prev) => {
-        if (prev <= 1) {
-          clearInterval(intervalRef.current);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [idleWarningActive, idleCountdown]);
+  const idleWarningActive = useSelector((s) => s.auth.idleWarningActive);
 
   if (!idleWarningActive) return null;
-
-  const mm = String(Math.floor(secondsLeft / 60)).padStart(2, "0");
-  const ss = String(secondsLeft % 60).padStart(2, "0");
-  const urgent = secondsLeft <= 30;
 
   const handleContinue = async () => {
     await continueSession();
@@ -48,113 +29,144 @@ const IdleWarningModal = () => {
   };
 
   return (
-    <div style={styles.overlay} id="idle-warning-modal">
-      <div style={styles.modal}>
-        {/* Header */}
-        <div style={styles.header}>
-          <div style={styles.iconWrap}>
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="12" r="10" />
-              <polyline points="12 6 12 12 16 14" />
-            </svg>
-          </div>
-          <h2 style={styles.title}>Session Expiring</h2>
+    <div style={styles.toast} id="idle-session-notice" role="status" aria-live="polite">
+      {/* Icon + Title Row */}
+      <div style={styles.header}>
+        <div style={styles.iconWrap}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+          </svg>
         </div>
+        <span style={styles.title}>Session Active</span>
+        <span style={styles.badge}>🟢 Active</span>
+      </div>
 
-        {/* Body */}
-        <p style={styles.desc}>
-          No activity has been detected. Your session will expire in:
-        </p>
+      {/* Message */}
+      <p style={styles.message}>
+        You have been inactive for a while.
+        <br />
+        <strong>Your session is still active.</strong>
+      </p>
 
-        <div style={{ ...styles.countdown, ...(urgent ? styles.urgent : {}) }}>
-          {mm}:{ss}
-        </div>
-
-        <p style={styles.subtext}>
-          Click <strong>Continue Working</strong> to stay logged in.
-        </p>
-
-        {/* Actions */}
-        <div style={styles.actions}>
-          <button id="idle-continue-btn" onClick={handleContinue} style={styles.btnPrimary}>
-            ✓ Continue Working
-          </button>
-          <button id="idle-logout-btn" onClick={handleLogout} style={styles.btnSecondary}>
-            Logout
-          </button>
-        </div>
+      {/* Actions */}
+      <div style={styles.actions}>
+        <button
+          id="idle-continue-btn"
+          onClick={handleContinue}
+          style={styles.btnPrimary}
+        >
+          Continue Working
+        </button>
+        <button
+          id="idle-logout-btn"
+          onClick={handleLogout}
+          style={styles.btnSecondary}
+        >
+          Logout
+        </button>
       </div>
     </div>
   );
 };
 
 const styles = {
-  overlay: {
-    position: "fixed", inset: 0, zIndex: 99999,
-    background: "rgba(0,0,0,0.65)",
-    backdropFilter: "blur(8px)",
-    display: "flex", alignItems: "center", justifyContent: "center",
-    animation: "fadeIn 0.3s ease",
-  },
-  modal: {
+  toast: {
+    position: "fixed",
+    bottom: "24px",
+    right: "24px",
+    zIndex: 99999,
     background: "linear-gradient(145deg, #1a1f35 0%, #0f1628 100%)",
-    border: "1px solid rgba(99,102,241,0.3)",
-    borderRadius: "20px",
-    padding: "40px 36px",
-    maxWidth: "420px",
-    width: "90%",
-    boxShadow: "0 25px 60px rgba(0,0,0,0.5), 0 0 40px rgba(99,102,241,0.15)",
-    textAlign: "center",
-    animation: "slideUp 0.4s cubic-bezier(0.34,1.56,0.64,1)",
+    border: "1px solid rgba(99,102,241,0.35)",
+    borderRadius: "16px",
+    padding: "20px 22px",
+    width: "300px",
+    boxShadow: "0 16px 48px rgba(0,0,0,0.45), 0 0 24px rgba(99,102,241,0.12)",
+    animation: "slideInRight 0.35s cubic-bezier(0.34,1.56,0.64,1)",
+    // No backdrop, no page-blocking overlay
   },
   header: {
-    display: "flex", alignItems: "center", justifyContent: "center",
-    gap: "12px", marginBottom: "16px",
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    marginBottom: "12px",
   },
   iconWrap: {
-    width: "48px", height: "48px", borderRadius: "14px",
+    width: "32px",
+    height: "32px",
+    borderRadius: "9px",
     background: "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)",
-    display: "flex", alignItems: "center", justifyContent: "center",
-    color: "#fff", flexShrink: 0,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    color: "#fff",
+    flexShrink: 0,
   },
   title: {
-    margin: 0, fontSize: "22px", fontWeight: 700,
-    color: "#f1f5f9", letterSpacing: "-0.3px",
+    fontSize: "14px",
+    fontWeight: 700,
+    color: "#f1f5f9",
+    flex: 1,
   },
-  desc: {
-    color: "#94a3b8", fontSize: "15px", lineHeight: 1.6,
-    marginBottom: "24px",
+  badge: {
+    fontSize: "11px",
+    fontWeight: 600,
+    color: "#4ade80",
+    background: "rgba(74,222,128,0.1)",
+    border: "1px solid rgba(74,222,128,0.25)",
+    borderRadius: "100px",
+    padding: "2px 8px",
+    whiteSpace: "nowrap",
   },
-  countdown: {
-    fontSize: "56px", fontWeight: 800, letterSpacing: "-2px",
-    color: "#6366f1", marginBottom: "16px",
-    fontVariantNumeric: "tabular-nums",
-    transition: "color 0.3s ease",
-  },
-  urgent: {
-    color: "#ef4444",
-    textShadow: "0 0 20px rgba(239,68,68,0.4)",
-  },
-  subtext: {
-    color: "#64748b", fontSize: "13px", marginBottom: "28px",
+  message: {
+    fontSize: "13px",
+    color: "#94a3b8",
+    lineHeight: 1.6,
+    margin: "0 0 16px",
   },
   actions: {
-    display: "flex", gap: "12px", flexDirection: "column",
+    display: "flex",
+    gap: "8px",
   },
   btnPrimary: {
-    padding: "14px 24px", borderRadius: "12px", border: "none", cursor: "pointer",
+    flex: 1,
+    padding: "9px 12px",
+    borderRadius: "9px",
+    border: "none",
+    cursor: "pointer",
     background: "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)",
-    color: "#fff", fontWeight: 700, fontSize: "15px",
-    transition: "all 0.2s ease",
-    boxShadow: "0 4px 15px rgba(99,102,241,0.4)",
+    color: "#fff",
+    fontWeight: 700,
+    fontSize: "13px",
+    boxShadow: "0 3px 10px rgba(99,102,241,0.35)",
+    transition: "opacity 0.15s ease",
   },
   btnSecondary: {
-    padding: "12px 24px", borderRadius: "12px", cursor: "pointer",
+    padding: "9px 14px",
+    borderRadius: "9px",
+    cursor: "pointer",
     background: "transparent",
     border: "1px solid rgba(148,163,184,0.2)",
-    color: "#94a3b8", fontWeight: 600, fontSize: "14px",
-    transition: "all 0.2s ease",
+    color: "#94a3b8",
+    fontWeight: 600,
+    fontSize: "13px",
+    transition: "all 0.15s ease",
   },
 };
+
+// Inject the slide-in animation (added once to the document head)
+if (typeof document !== "undefined") {
+  const styleId = "idle-toast-anim";
+  if (!document.getElementById(styleId)) {
+    const styleEl = document.createElement("style");
+    styleEl.id = styleId;
+    styleEl.textContent = `
+      @keyframes slideInRight {
+        from { opacity: 0; transform: translateX(40px); }
+        to   { opacity: 1; transform: translateX(0); }
+      }
+    `;
+    document.head.appendChild(styleEl);
+  }
+}
 
 export default IdleWarningModal;

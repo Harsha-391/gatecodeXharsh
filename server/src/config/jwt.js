@@ -17,13 +17,25 @@ if (!secret || secret.trim().length < 32) {
     }
 }
 
-// ── Enterprise Session Policy ────────────────────────────────────────────────
+// ── Enterprise Persistent Session Policy ─────────────────────────────────────
 // All values are configurable via environment variables.
-// Access token: short-lived (30 min). Refreshed silently by the client.
+// Access token: short-lived (30 min). Refreshed silently by the client every 25 min.
 // Refresh token: long-lived (7 days). Stored in httpOnly cookie.
-// Max session: regardless of activity, force re-auth after 8 hours.
-// Idle warning: warn user after 60 minutes of inactivity.
-// Auto logout: log out user after 90 minutes of inactivity.
+//
+// PERSISTENT SESSION — Sessions are NOT terminated by:
+//   • Idle inactivity
+//   • Long-running shifts (max session removed)
+//   • Browser refresh, restart, or computer restart
+//
+// Sessions are terminated ONLY by:
+//   • Manual Logout
+//   • Password Changed (revokes all refresh tokens)
+//   • Administrator Force Logout (revokes session)
+//   • Account Disabled / Deleted
+//   • Refresh Token expired or revoked
+//
+// Idle warning: show a non-blocking informational toast after 60 min of inactivity.
+// No forced logout from idle inactivity.
 
 module.exports = {
     JWT_SECRET: secret,
@@ -35,19 +47,20 @@ module.exports = {
     REFRESH_TOKEN_EXPIRES_IN: process.env.REFRESH_TOKEN_EXPIRES_IN || '7d',
     REFRESH_TOKEN_EXPIRES_MS: parseInt(process.env.REFRESH_TOKEN_EXPIRES_MS || String(7 * 24 * 60 * 60 * 1000)),
 
-    // Maximum continuous session — force re-auth after this regardless of activity (default: 8 hours)
+    // Max session (retained for environment variable compatibility, no longer used for forced logout)
     MAX_SESSION_HOURS: parseInt(process.env.MAX_SESSION_HOURS || '8'),
     MAX_SESSION_MS: parseInt(process.env.MAX_SESSION_MS || String(8 * 60 * 60 * 1000)),
 
-    // Idle warning — show warning dialog after this many minutes (default: 60 min)
+    // Idle warning threshold — show informational notice after this many minutes (default: 60 min)
+    // Does NOT cause logout. Informational only.
     IDLE_WARN_MINUTES: parseInt(process.env.IDLE_WARN_MINUTES || '60'),
     IDLE_WARN_MS: parseInt(process.env.IDLE_WARN_MS || String(60 * 60 * 1000)),
 
-    // Auto logout — disconnect after this many minutes of inactivity (default: 90 min)
+    // Idle logout (retained for environment variable compatibility, no longer triggers logout)
+    // Idle inactivity no longer terminates sessions under the Persistent Session Policy.
     IDLE_LOGOUT_MINUTES: parseInt(process.env.IDLE_LOGOUT_MINUTES || '90'),
     IDLE_LOGOUT_MS: parseInt(process.env.IDLE_LOGOUT_MS || String(90 * 60 * 1000)),
 
-    // Countdown duration shown in idle warning modal (default: 2 minutes)
+    // Countdown duration (retained for environment variable compatibility — no countdown shown)
     IDLE_COUNTDOWN_SECONDS: parseInt(process.env.IDLE_COUNTDOWN_SECONDS || '120'),
 };
-

@@ -9,7 +9,6 @@ import { updateUser, logout } from './store/slices/authSlice'
 import { authAPI } from './utils/api'
 import { startSessionMonitoring, stopSessionMonitoring } from './utils/sessionManager'
 import IdleWarningModal from './components/IdleWarningModal'
-import MaxSessionModal from './components/MaxSessionModal'
 import { useStore } from 'react-redux'
 
 const App = () => {
@@ -60,10 +59,10 @@ const App = () => {
   const hospitalId = user?.hospitalId;
 
   // Session monitoring — start on login, stop on logout
+  // Persistent session policy: no max-session parameter needed.
   useEffect(() => {
     if (isAuthenticated && userId) {
-      const sessionStart = user?.sessionStart || null;
-      startSessionMonitoring(store, sessionStart);
+      startSessionMonitoring(store);
     } else {
       stopSessionMonitoring();
     }
@@ -199,8 +198,8 @@ const App = () => {
   return (
     <div style={{ width: '100%', maxWidth: '100vw', overflowX: 'hidden' }}>
       <MainRoutes />
+      {/* Non-blocking idle session notice (informational only — no auto-logout) */}
       <IdleWarningModal />
-      <MaxSessionModal />
     </div>
   )
 }

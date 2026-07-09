@@ -1,45 +1,42 @@
 /**
- * sessionManager.js — Enterprise Session Management Singleton
+ * sessionManager.js — Enterprise Persistent Session Manager
  *
- * Responsibilities:
- * - Track user activity (mouse, keyboard, API calls, navigation)
- * - Implement sliding session: reset idle timer on any activity
- * - Silently refresh access token before it expires (every 25 min)
- * - Show idle warning modal after 60 min of inactivity
- * - Auto-logout after 90 min of inactivity
- * - Force re-authentication after 8 hour max session
- * - Coordinate with Socket.IO on login/logout
- * - Log session events to the audit API
+ * Policy (v2 — Persistent Session Edition):
+ * ─────────────────────────────────────────
+ * • Sessions persist across page refresh, browser restart, and computer restart.
+ * • Sessions are ONLY terminated by:
+ *     - Manual Logout
+ *     - Password Changed (server revokes refresh token)
+ *     - Administrator Force Logout (server revokes refresh token)
+ *     - Account Disabled / Deleted (server rejects refresh)
+ *     - Refresh Token expired or revoked
+ * • Idle inactivity NEVER causes logout.
+ * • Maximum session duration NO LONGER forces logout.
+ * • Access tokens are refreshed silently every 25 minutes.
+ * • After 60 minutes of inactivity, a single non-blocking informational
+ *   toast is shown. Any user interaction dismisses it.
+ * • The toast is shown ONLY ONCE per inactivity cycle — not repeatedly.
  */
 import socket from "./socket";
 
 // ── API Base URL ──────────────────────────────────────────────────────────────
-// In production the frontend (Vercel) and backend (Render) are on different origins.
-// Using a relative URL like '/api/auth/refresh' hits the Vercel SPA router → 405.
-// We must use the absolute backend URL for all fetch() calls that bypass the axios client.
 const _getApiBase = () => {
-    // If an explicit env var is set, use it (highest priority)
     if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) {
         return import.meta.env.VITE_API_URL;
     }
     if (typeof window !== 'undefined') {
         const h = window.location.hostname;
-        // On localhost, Vite proxy handles /api/* — use relative path
         if (h === 'localhost' || h === '127.0.0.1' || h.endsWith('.localhost')) {
             return '';
         }
     }
-    // Production fallback — absolute Render backend URL
     return 'https://gatecodexharsh-1.onrender.com';
 };
 const API_BASE = _getApiBase();
 
-// ── Configuration (mirrors server/src/config/jwt.js) ─────────────────────────
+// ── Configuration ─────────────────────────────────────────────────────────────
 const CONFIG = {
-    IDLE_WARN_MS:      60 * 60 * 1000,   // 60 minutes
-    IDLE_LOGOUT_MS:    90 * 60 * 1000,   // 90 minutes
-    IDLE_COUNTDOWN_S:  120,               // 2 minute countdown in modal
-    MAX_SESSION_MS:     8 * 60 * 60 * 1000, // 8 hours
+    IDLE_WARN_MS:      60 * 60 * 1000,   // 60 minutes — show informational toast
     TOKEN_REFRESH_MS:  25 * 60 * 1000,   // Refresh access token every 25 min (before 30 min expiry)
 };
 
@@ -50,91 +47,55 @@ const ACTIVITY_EVENTS = [
 ];
 
 // ── Internal State ────────────────────────────────────────────────────────────
-let _store         = null;   // Redux store reference
-let _lastActivity  = Date.now();
-let _sessionStart  = Date.now();
-let _idleWarnTimer   = null;
-let _idleLogoutTimer = null;
-let _maxSessionTimer = null;
+let _store               = null;   // Redux store reference
+let _lastActivity        = Date.now();
+let _idleWarnTimer       = null;
 let _tokenRefreshInterval = null;
-let _warningActive = false;
-let _criticalWorkflow = false;  // Phase 7: role-aware protection
-let _isRunning = false;
+let _warningShownThisCycle = false;  // Guard: show toast only once per inactivity cycle
+let _isRunning           = false;
 
 // ── Activity Tracking ─────────────────────────────────────────────────────────
 function _handleActivity() {
     _lastActivity = Date.now();
-    if (_warningActive) return; // Don't reset during active warning countdown
-    _scheduleTimers();
+
+    // Any interaction dismisses the idle warning toast
+    if (_warningShownThisCycle) {
+        _warningShownThisCycle = false;
+        _store?.dispatch({ type: "auth/hideIdleWarning" });
+        _logSessionEvent("SESSION_WARNING_DISMISSED", "User resumed activity after idle notice");
+    }
+
+    // Reset the idle warning timer
+    _scheduleIdleWarnTimer();
 }
 
 // ── Timer Management ──────────────────────────────────────────────────────────
-function _clearTimers() {
-    if (_idleWarnTimer)    clearTimeout(_idleWarnTimer);
-    if (_idleLogoutTimer)  clearTimeout(_idleLogoutTimer);
-    if (_maxSessionTimer)  clearTimeout(_maxSessionTimer);
-    _idleWarnTimer = _idleLogoutTimer = _maxSessionTimer = null;
+function _clearIdleWarnTimer() {
+    if (_idleWarnTimer) clearTimeout(_idleWarnTimer);
+    _idleWarnTimer = null;
 }
 
-function _scheduleTimers() {
-    _clearTimers();
+function _scheduleIdleWarnTimer() {
+    _clearIdleWarnTimer();
 
-    // Idle warning timer
     _idleWarnTimer = setTimeout(() => {
-        _warningActive = true;
-        _store?.dispatch({ type: "auth/showIdleWarning", payload: { countdown: CONFIG.IDLE_COUNTDOWN_S } });
-        _logSessionEvent("SESSION_WARNING", "User idle for 60 minutes");
-    }, CONFIG.IDLE_WARN_MS);
-
-    // Auto-logout timer (warning + countdown period)
-    _idleLogoutTimer = setTimeout(() => {
-        if (_criticalWorkflow) {
-            // Phase 7: delay 5 more minutes if user is mid-workflow
-            setTimeout(() => _performAutoLogout(), 5 * 60 * 1000);
-        } else {
-            _performAutoLogout();
+        // Only show the toast once per inactivity cycle (don't spam)
+        if (!_warningShownThisCycle) {
+            _warningShownThisCycle = true;
+            _store?.dispatch({ type: "auth/showIdleWarning" });
+            _logSessionEvent("SESSION_WARNING_SHOWN", "User idle for 60 minutes — informational notice displayed");
         }
-    }, CONFIG.IDLE_LOGOUT_MS);
-}
-
-function _scheduleMaxSession(sessionStartTime) {
-    const elapsed = Date.now() - sessionStartTime;
-    const remaining = Math.max(CONFIG.MAX_SESSION_MS - elapsed, 1000);
-
-    _maxSessionTimer = setTimeout(() => {
-        _store?.dispatch({ type: "auth/setMaxSession", payload: true });
-        _performForceLogout("Your work shift session has ended. Please sign in again.");
-    }, remaining);
-}
-
-// ── Logout Helpers ────────────────────────────────────────────────────────────
-async function _performAutoLogout() {
-    if (!_store) return;
-    _warningActive = false;
-    _logSessionEvent("AUTO_LOGOUT_IDLE", "Session expired due to 90 minutes of inactivity");
-
-    socket.disconnect();
-
-    const { logoutUser } = await import("../store/slices/authSlice");
-    _store.dispatch(logoutUser());
-}
-
-async function _performForceLogout(message) {
-    if (!_store) return;
-    _logSessionEvent("FORCED_LOGOUT", message);
-    socket.disconnect();
-    const { logoutUser } = await import("../store/slices/authSlice");
-    _store.dispatch(logoutUser());
+        // Do NOT set another timer — the toast stays visible until the user interacts.
+        // No auto-logout is triggered.
+    }, CONFIG.IDLE_WARN_MS);
 }
 
 // ── Token Refresh ─────────────────────────────────────────────────────────────
-async function refreshAccessToken() {
+export async function refreshAccessToken() {
     try {
-        // Use absolute URL so production fetch() reaches the Render backend,
-        // not Vercel's SPA router (which returns 405 on POST).
         const res = await fetch(`${API_BASE}/api/auth/refresh`, {
             method: "POST",
-            credentials: "include", // sends the httpOnly cookie
+            credentials: "include",
             headers: {
                 "X-Tenant-Domain": typeof window !== 'undefined' ? window.location.hostname : ""
             }
@@ -142,22 +103,20 @@ async function refreshAccessToken() {
         const data = await res.json();
 
         if (data.success) {
-            if (data.sessionStart) {
-                _sessionStart = new Date(data.sessionStart).getTime();
-            }
+            _logSessionEvent("REFRESH_SUCCESS", "Silent access token refresh succeeded");
             return true;
-        } else if (data.code === "MAX_SESSION") {
-            _store?.dispatch({ type: "auth/setMaxSession", payload: true });
-            _performForceLogout("Maximum session duration reached.");
-            return false;
         } else {
-            // Refresh token invalid or expired — logout
+            // Only the server can terminate the session (revoked/expired refresh token,
+            // account disabled, password changed, admin force-logout).
+            _logSessionEvent("REFRESH_FAILED", data.message || "Refresh token invalid or expired");
             const { logout } = await import("../store/slices/authSlice");
             _store?.dispatch(logout());
             return false;
         }
     } catch (err) {
-        console.warn("[SessionManager] Token refresh failed:", err);
+        console.warn("[SessionManager] Token refresh failed (network):", err);
+        // Network error — do NOT logout. The user may be temporarily offline.
+        // The next refresh cycle or API call will retry.
         return false;
     }
 }
@@ -167,69 +126,79 @@ async function _logSessionEvent(action, reason) {
     try {
         const user = localStorage.getItem("user");
         if (!user) return;
-        await fetch("/api/auth/log-session-event", {
+        await fetch(`${API_BASE}/api/auth/log-session-event`, {
             method: "POST",
+            credentials: "include",
             headers: {
                 "Content-Type": "application/json",
+                "X-Tenant-Domain": typeof window !== 'undefined' ? window.location.hostname : ""
             },
             body: JSON.stringify({ action, reason }),
         });
-    } catch (_) {}
-}
-
-// ── Critical Workflow (Phase 7) ───────────────────────────────────────────────
-export function setCriticalWorkflow(active) {
-    _criticalWorkflow = !!active;
-}
-
-// ── Reset (called on "Continue Working") ─────────────────────────────────────
-export async function continueSession() {
-    _warningActive = false;
-    _lastActivity = Date.now();
-    _store?.dispatch({ type: "auth/hideIdleWarning" });
-
-    const success = await refreshAccessToken();
-    if (success) {
-        _logSessionEvent("SESSION_EXTENDED", "User continued session from idle warning");
-        _scheduleTimers();
+    } catch (_) {
+        // Audit logging is best-effort — never block the user
     }
 }
 
-// ── Reset activity timer (called from api.js interceptor) ────────────────────
+// ── Forced Logout (only called by server-driven events) ───────────────────────
+export async function _performForceLogout(message) {
+    if (!_store) return;
+    _logSessionEvent("FORCED_LOGOUT", message);
+    socket.disconnect();
+    const { logoutUser } = await import("../store/slices/authSlice");
+    _store.dispatch(logoutUser());
+}
+
+// ── "Continue Working" — dismiss the toast and reset the inactivity timer ─────
+export async function continueSession() {
+    _warningShownThisCycle = false;
+    _lastActivity = Date.now();
+    _store?.dispatch({ type: "auth/hideIdleWarning" });
+    _logSessionEvent("SESSION_EXTENDED", "User dismissed idle notice — session continuing");
+    _scheduleIdleWarnTimer();
+
+    // Proactively refresh the token when the user re-engages
+    await refreshAccessToken();
+}
+
+// ── Reset activity timer (called from api.js request interceptor) ─────────────
 export function resetActivityTimer() {
     if (!_isRunning) return;
-    _lastActivity = Date.now();
-    if (!_warningActive) _scheduleTimers();
+    _handleActivity();
+}
+
+// ── Critical Workflow Flag (kept for API compatibility) ───────────────────────
+export function setCriticalWorkflow(_active) {
+    // No-op in the persistent session policy — inactivity never causes logout
 }
 
 // ── Start / Stop ──────────────────────────────────────────────────────────────
-export function startSessionMonitoring(store, sessionStartTime) {
+export function startSessionMonitoring(store) {
     if (_isRunning) return;
     _isRunning = true;
     _store = store;
     _lastActivity = Date.now();
-    _sessionStart = sessionStartTime ? new Date(sessionStartTime).getTime() : Date.now();
+    _warningShownThisCycle = false;
 
-    // Attach activity listeners
+    // Attach passive activity listeners to track inactivity for the toast
     ACTIVITY_EVENTS.forEach(ev => document.addEventListener(ev, _handleActivity, { passive: true }));
 
-    // Start timers
-    _scheduleTimers();
-    _scheduleMaxSession(_sessionStart);
+    // Start idle warning timer (informational only — no auto-logout)
+    _scheduleIdleWarnTimer();
 
-    // Token refresh interval: every 25 minutes
+    // Silent token refresh — every 25 minutes
     _tokenRefreshInterval = setInterval(refreshAccessToken, CONFIG.TOKEN_REFRESH_MS);
 
-    console.debug("[SessionManager] Started. Idle warn:", CONFIG.IDLE_WARN_MS / 60000, "min | Auto-logout:", CONFIG.IDLE_LOGOUT_MS / 60000, "min | Max session:", CONFIG.MAX_SESSION_MS / 3600000, "h");
+    console.debug("[SessionManager] Persistent session started. Idle notice at:", CONFIG.IDLE_WARN_MS / 60000, "min | Token refresh every:", CONFIG.TOKEN_REFRESH_MS / 60000, "min");
 }
 
 export function stopSessionMonitoring() {
     if (!_isRunning) return;
     _isRunning = false;
-    _warningActive = false;
+    _warningShownThisCycle = false;
 
     ACTIVITY_EVENTS.forEach(ev => document.removeEventListener(ev, _handleActivity));
-    _clearTimers();
+    _clearIdleWarnTimer();
 
     if (_tokenRefreshInterval) {
         clearInterval(_tokenRefreshInterval);

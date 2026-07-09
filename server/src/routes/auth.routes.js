@@ -821,7 +821,19 @@ router.post('/refresh', async (req, res) => {
 router.post('/log-session-event', verifyToken, async (req, res) => {
   try {
     const { action, reason } = req.body;
-    const allowedActions = ['SESSION_EXTENDED', 'SESSION_WARNING', 'AUTO_LOGOUT_IDLE', 'FORCED_LOGOUT', 'SESSION_TERMINATED_BY_ADMIN'];
+    // Persistent Session Policy — allowed audit events.
+    // AUTO_LOGOUT_IDLE removed: idle inactivity no longer causes logout.
+    const allowedActions = [
+      'SESSION_EXTENDED',          // User dismissed idle notice and continued
+      'SESSION_WARNING_SHOWN',     // Informational idle toast displayed (non-blocking)
+      'SESSION_WARNING_DISMISSED', // User interacted — toast dismissed
+      'SESSION_RESTORED',          // Session restored on page/browser/computer restart
+      'REFRESH_SUCCESS',           // Silent access token refresh succeeded
+      'REFRESH_FAILED',            // Refresh token invalid/expired — session ended
+      'FORCED_LOGOUT',             // Admin force-logout or password change
+      'SESSION_TERMINATED_BY_ADMIN', // Hospital/Super Admin terminated a session
+      'MANUAL_LOGOUT',             // User clicked Logout
+    ];
     if (!allowedActions.includes(action)) {
       return res.status(400).json({ success: false, message: 'Invalid action' });
     }
