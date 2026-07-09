@@ -213,7 +213,7 @@ app.use(cors({
         callback(null, false);
     },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Authorization', 'Content-Type', 'Accept', 'X-Requested-With'],
+    allowedHeaders: ['Authorization', 'Content-Type', 'Accept', 'X-Requested-With', 'x-tenant-domain'],
     credentials: true,
 }));
 
