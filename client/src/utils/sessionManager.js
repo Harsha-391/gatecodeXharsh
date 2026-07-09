@@ -135,6 +135,9 @@ async function refreshAccessToken() {
         const res = await fetch(`${API_BASE}/api/auth/refresh`, {
             method: "POST",
             credentials: "include", // sends the httpOnly cookie
+            headers: {
+                "X-Tenant-Domain": typeof window !== 'undefined' ? window.location.hostname : ""
+            }
         });
         const data = await res.json();
 

@@ -47,9 +47,15 @@ exports.verifyToken = async (req, res, next) => {
         }
 
         // Prevent Super/Central Admin sessions from leaking to tenant subdomains (Production only)
-        const origin = req.headers.origin || req.headers.referer || '';
+        const origin = req.headers['x-tenant-domain'] || req.headers.origin || req.headers.referer || '';
         const isCentralRole = user.role === 'superadmin' || user.role === 'centraladmin';
-        const isTenantHost = origin.includes('boonkies.com') && !origin.includes('admin.boonkies.com');
+        
+        // A tenant host is any domain that is NOT localhost, NOT the admin subdomain, and NOT empty.
+        const isTenantHost = origin && 
+            !origin.includes('localhost') && 
+            !origin.includes('127.0.0.1') && 
+            !origin.includes('admin.boonkies.com') && 
+            !origin.includes('admin.medicalhms.in');
 
         if (isCentralRole && isTenantHost) {
             console.warn('[AUTH BLOCKED] Central admin blocked on tenant subdomain:', {

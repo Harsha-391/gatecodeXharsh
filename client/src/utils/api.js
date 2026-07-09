@@ -22,6 +22,9 @@ const apiClient = axios.create({
 // Request Interceptor — reset activity timer
 apiClient.interceptors.request.use(
     (config) => {
+        if (typeof window !== 'undefined') {
+            config.headers['X-Tenant-Domain'] = window.location.hostname;
+        }
         // Sliding session: any API call counts as activity
         try {
             import('./sessionManager').then(sm => sm.resetActivityTimer()).catch(() => {});
@@ -59,7 +62,13 @@ async function _tryRefreshAndRetry(originalRequest) {
     try {
         // Use the same absolute base URL as the axios client.
         // A relative URL ('/api/auth/refresh') hits Vercel's SPA router in production → 405.
-        const res = await fetch(`${baseURL}/api/auth/refresh`, { method: 'POST', credentials: 'include' });
+        const res = await fetch(`${baseURL}/api/auth/refresh`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: {
+                'X-Tenant-Domain': typeof window !== 'undefined' ? window.location.hostname : ''
+            }
+        });
         const data = await res.json();
 
         if (data.success) {
