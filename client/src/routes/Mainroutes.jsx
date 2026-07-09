@@ -122,6 +122,21 @@ const SmartLogin = () => {
     const subdomain = getSubdomain();
     const wasAuthenticatedRef = useRef(isAuthenticated);
 
+    // Redirect to admin subdomain if accessing login from base domain in production
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const hostname = window.location.hostname;
+            const isBaseBoonkies = hostname === 'boonkies.com' || hostname === 'www.boonkies.com';
+            const isBaseMedical = hostname === 'medicalhms.in' || hostname === 'www.medicalhms.in';
+            
+            if (isBaseBoonkies) {
+                window.location.href = `https://admin.boonkies.com/login${window.location.search}`;
+            } else if (isBaseMedical) {
+                window.location.href = `https://admin.medicalhms.in/login${window.location.search}`;
+            }
+        }
+    }, []);
+
     useEffect(() => {
         if (wasAuthenticatedRef.current && isAuthenticated) {
             dispatch(logout());
