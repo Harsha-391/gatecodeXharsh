@@ -27,25 +27,37 @@ const { JWT_SECRET, JWT_EXPIRES_IN, REFRESH_TOKEN_EXPIRES_MS } = require('../con
 const auditLog = require('../middleware/audit.middleware');
 const validatePassword = require('../utils/validatePassword');
 
+function getCookieOptions(res) {
+    const req = res.req;
+    const hostname = req ? (req.hostname || '') : '';
+    const isLocal = hostname === 'localhost' || hostname === '127.0.0.1';
+
+    // In production, backend (Render) and frontend (Vercel) are cross-origin.
+    // sameSite:'none' + secure:true is required.
+    // We default to true unless we are explicitly on localhost.
+    const secure = !isLocal;
+    const sameSite = isLocal ? 'lax' : 'none';
+
+    return { secure, sameSite };
+}
+
 function setCookies(res, accessToken, rawRefreshToken) {
-    // Cross-origin fix: tenant frontend (slug.boonkies.com) and backend (Render) are different origins.
-    // sameSite:'none' + secure:true is required for cookies to work cross-origin.
-    const isProduction = process.env.NODE_ENV === 'production';
+    const { secure, sameSite } = getCookieOptions(res);
 
     res.cookie('accessToken', accessToken, {
         httpOnly: true,
-        secure: isProduction,
-        sameSite: isProduction ? 'none' : 'lax',
+        secure,
+        sameSite,
         maxAge: 30 * 60 * 1000, // 30 minutes
         path: '/',
     });
 
     res.cookie('refreshToken', rawRefreshToken, {
         httpOnly: true,
-        secure: isProduction,
-        sameSite: isProduction ? 'none' : 'lax',  // was 'strict' — blocked cross-origin!
+        secure,
+        sameSite,
         maxAge: REFRESH_TOKEN_EXPIRES_MS,
-        path: '/',   // was '/api/auth/refresh' — must be '/' to reach full backend URL
+        path: '/',
     });
 }
 

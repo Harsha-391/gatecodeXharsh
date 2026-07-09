@@ -16,38 +16,46 @@ const auditLog = require('../middleware/audit.middleware');
 const { v4: uuidv4 } = require('uuid');
 const { parseUserAgent } = require('../utils/userAgentParser');
 
-// ── Helpers: set and clear cookies for both tokens ───────────────────────────
+function getCookieOptions(res) {
+    const req = res.req;
+    const hostname = req ? (req.hostname || '') : '';
+    const isLocal = hostname === 'localhost' || hostname === '127.0.0.1';
+    
+    // In production, backend (Render) and frontend (Vercel) are cross-origin.
+    // sameSite:'none' + secure:true is required.
+    // We default to true unless we are explicitly on localhost.
+    const secure = !isLocal;
+    const sameSite = isLocal ? 'lax' : 'none';
+    
+    return { secure, sameSite };
+}
+
 function setCookies(res, accessToken, rawRefreshToken) {
-    // Detect cross-origin production deployments (frontend on Vercel, backend on Render)
-    // sameSite:'none' + secure:true is required to send cookies cross-origin.
-    // On localhost the Vite proxy makes it same-origin so lax/strict also work,
-    // but 'none' is safe everywhere as long as the connection is HTTPS.
-    const isProduction = process.env.NODE_ENV === 'production';
+    const { secure, sameSite } = getCookieOptions(res);
 
     // Access token cookie
     res.cookie('accessToken', accessToken, {
         httpOnly: true,
-        secure: isProduction,          // Must be true when sameSite:'none'
-        sameSite: isProduction ? 'none' : 'lax',  // 'none' enables cross-origin
+        secure,
+        sameSite,
         maxAge: 30 * 60 * 1000, // 30 minutes
         path: '/',
     });
 
-    // Refresh token cookie — 'none' allows the cross-origin refresh endpoint
-    // to receive it from Vercel → Render in production.
+    // Refresh token cookie
     res.cookie('refreshToken', rawRefreshToken, {
         httpOnly: true,
-        secure: isProduction,          // Must be true when sameSite:'none'
-        sameSite: isProduction ? 'none' : 'lax',  // was 'strict' — blocked cross-origin!
+        secure,
+        sameSite,
         maxAge: REFRESH_TOKEN_EXPIRES_MS,
-        path: '/',                    // Use '/' so the cookie reaches the full backend URL
+        path: '/',
     });
 }
 
 function clearCookies(res) {
-    const isProduction = process.env.NODE_ENV === 'production';
-    res.clearCookie('accessToken', { httpOnly: true, path: '/', sameSite: isProduction ? 'none' : 'lax', secure: isProduction });
-    res.clearCookie('refreshToken', { httpOnly: true, path: '/', sameSite: isProduction ? 'none' : 'lax', secure: isProduction });
+    const { secure, sameSite } = getCookieOptions(res);
+    res.clearCookie('accessToken', { httpOnly: true, path: '/', sameSite, secure });
+    res.clearCookie('refreshToken', { httpOnly: true, path: '/', sameSite, secure });
 }
 
 /**
