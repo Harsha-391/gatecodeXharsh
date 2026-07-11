@@ -114,14 +114,21 @@ router.get('/stats', verifyToken, resolveTenant, verifyLab, async (req, res) => 
                 orConditions.push({ labId: labProfile._id });
                 if (labProfile.services && labProfile.services.length > 0) {
                     orConditions.push({
+                        labId: { $in: [null, labProfile._id] },
                         assignedToUserId: null,
                         testNames: { $elemMatch: { $in: labProfile.services } }
                     });
                 } else {
-                    orConditions.push({ assignedToUserId: null });
+                    orConditions.push({
+                        labId: { $in: [null, labProfile._id] },
+                        assignedToUserId: null
+                    });
                 }
             } else {
-                orConditions.push({ assignedToUserId: null });
+                orConditions.push({
+                    labId: null,
+                    assignedToUserId: null
+                });
             }
             labFilter = { ...hospitalFilter, $or: orConditions };
         }
@@ -261,14 +268,21 @@ router.get('/my-reports', verifyToken, resolveTenant, verifyLabOrReportsView, as
                 orConditions.push({ labId: labProfile._id });
                 if (labProfile.services && labProfile.services.length > 0) {
                     orConditions.push({
+                        labId: { $in: [null, labProfile._id] },
                         assignedToUserId: null,
                         testNames: { $elemMatch: { $in: labProfile.services } }
                     });
                 } else {
-                    orConditions.push({ assignedToUserId: null });
+                    orConditions.push({
+                        labId: { $in: [null, labProfile._id] },
+                        assignedToUserId: null
+                    });
                 }
             } else {
-                orConditions.push({ assignedToUserId: null });
+                orConditions.push({
+                    labId: null,
+                    assignedToUserId: null
+                });
             }
             query = { ...hospitalFilter, $or: orConditions };
         }
@@ -342,16 +356,23 @@ router.get('/requests', verifyToken, resolveTenant, verifyLabOrReportsView, asyn
                 if (labProfile.services && labProfile.services.length > 0) {
                     // Each service in the list is a test name string
                     orConditions.push({
+                        labId: { $in: [null, labProfile._id] },
                         assignedToUserId: null,
                         testNames: { $elemMatch: { $in: labProfile.services } }
                     });
                 } else {
                     // Lab has no services configured — fall back to all unassigned (backward compat)
-                    orConditions.push({ assignedToUserId: null });
+                    orConditions.push({
+                        labId: { $in: [null, labProfile._id] },
+                        assignedToUserId: null
+                    });
                 }
             } else {
                 // No lab profile found — show all unassigned as fallback
-                orConditions.push({ assignedToUserId: null });
+                orConditions.push({
+                    labId: null,
+                    assignedToUserId: null
+                });
             }
 
             query = { ...hospitalFilter, $or: orConditions };

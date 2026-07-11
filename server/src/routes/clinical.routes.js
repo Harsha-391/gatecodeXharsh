@@ -264,7 +264,7 @@ router.post('/diagnose/:visitId', verifyToken, resolveTenant, async (req, res) =
                         }
                     }
 
-                    const groupKey = matchedLabId ? matchedLabId.toString() : 'unassigned';
+                    const groupKey = matchedLabId ? matchedLabId.toString() : `unassigned_${testName}`;
                     if (!groups[groupKey]) {
                         groups[groupKey] = {
                             labId: matchedLabId,

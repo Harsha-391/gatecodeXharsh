@@ -779,7 +779,7 @@ router.patch('/appointments/:id/prescription', verifyToken, resolveTenant, uploa
                     }
                 }
 
-                const groupKey = matchedLabId ? matchedLabId.toString() : 'unassigned';
+                const groupKey = matchedLabId ? matchedLabId.toString() : `unassigned_${testName}`;
                 if (!groups[groupKey]) {
                     groups[groupKey] = {
                         labId: matchedLabId,
