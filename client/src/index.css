@@ -20,6 +20,11 @@
   --brand-800: #115e59;
   --brand-900: #134e4a;
 
+  /* Brand Pink */
+  --brand-pink: #d91a8a;
+  --brand-pink-gradient: linear-gradient(135deg, #d91a8a, #b0126e);
+  --brand-pink-soft: #ffeaf5;
+
   /* Deep Blue Palette */
   --navy-50:  #f0f4ff;
   --navy-100: #e0e9ff;
