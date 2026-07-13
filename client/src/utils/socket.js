@@ -36,7 +36,7 @@ const getSocketURL = () => {
 const socket = io(getSocketURL(), {
     autoConnect:             false,              // Connect manually after login
     transports:              IS_DEV ? ['polling'] : ['websocket', 'polling'],
-    withCredentials:         true,
+    withCredentials:         false,
 
     // Production-grade reconnection with exponential back-off
     reconnection:            true,
@@ -46,10 +46,19 @@ const socket = io(getSocketURL(), {
     timeout:                 20000,             // Generous timeout for Render cold starts
 });
 
+// Dynamically resolve auth token from localStorage on every connection/reconnection handshake
+Object.defineProperty(socket, 'auth', {
+    get: () => ({
+        token: localStorage.getItem('accessToken')
+    }),
+    configurable: true
+});
+
 // ─── Dev-Mode Lifecycle Logging ───────────────────────────────────────────────
 // Registered once at module load — never duplicated, never removed in production.
 if (IS_DEV) {
     socket.on('connect', () => {
+        window.__authLogger?.('Socket.IO connected successfully', { socketId: socket.id });
         console.log(
             '%c[Socket.IO] ✅ Connected',
             'color:#22c55e;font-weight:bold',
@@ -58,6 +67,7 @@ if (IS_DEV) {
         );
     });
     socket.on('disconnect', (reason) => {
+        window.__authLogger?.('Socket.IO disconnected', { reason });
         console.warn(
             '%c[Socket.IO] ❌ Disconnected',
             'color:#f97316;font-weight:bold',
@@ -65,6 +75,7 @@ if (IS_DEV) {
         );
     });
     socket.on('connect_error', (err) => {
+        window.__authLogger?.('Socket.IO connection error caught', { message: err.message });
         console.error(
             '%c[Socket.IO] 🔴 Connection error',
             'color:#ef4444;font-weight:bold',
@@ -72,15 +83,18 @@ if (IS_DEV) {
         );
     });
     socket.on('reconnect_attempt', (n) => {
+        window.__authLogger?.(`Socket.IO reconnection attempt #${n}`);
         console.log(`%c[Socket.IO] 🔄 Reconnect attempt #${n}`, 'color:#a78bfa');
     });
     socket.on('reconnect', (n) => {
+        window.__authLogger?.(`Socket.IO reconnected after ${n} attempts`);
         console.log(
             `%c[Socket.IO] ✅ Reconnected after ${n} attempt(s)`,
             'color:#22c55e;font-weight:bold',
         );
     });
     socket.on('reconnect_failed', () => {
+        window.__authLogger?.('Socket.IO reconnection failed');
         console.error(
             '%c[Socket.IO] 💀 Reconnection failed — max attempts reached',
             'color:#ef4444;font-weight:bold',

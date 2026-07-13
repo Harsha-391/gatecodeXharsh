@@ -6,7 +6,7 @@ const Role = require('../models/role.model');
 const Hospital = require('../models/hospital.model');
 const jwt = require('jsonwebtoken');
 
-const { JWT_SECRET, JWT_EXPIRES_IN, REFRESH_TOKEN_EXPIRES_IN, REFRESH_TOKEN_EXPIRES_MS, MAX_SESSION_MS } = require('../config/jwt');
+const { JWT_SECRET, JWT_EXPIRES_IN, JWT_EXPIRES_MS, REFRESH_TOKEN_EXPIRES_IN, REFRESH_TOKEN_EXPIRES_MS } = require('../config/jwt');
 const { loginLimiter, signupLimiter } = require('../middleware/rateLimiter');
 const validatePassword = require('../utils/validatePassword');
 const { verifyToken } = require('../middleware/auth.middleware');
@@ -16,47 +16,6 @@ const auditLog = require('../middleware/audit.middleware');
 const { v4: uuidv4 } = require('uuid');
 const { parseUserAgent } = require('../utils/userAgentParser');
 
-function getCookieOptions(res) {
-    const req = res.req;
-    const hostname = req ? (req.hostname || '') : '';
-    const isLocal = hostname === 'localhost' || hostname === '127.0.0.1';
-    
-    // In production, backend (Render) and frontend (Vercel) are cross-origin.
-    // sameSite:'none' + secure:true is required.
-    // We default to true unless we are explicitly on localhost.
-    const secure = !isLocal;
-    const sameSite = isLocal ? 'lax' : 'none';
-    
-    return { secure, sameSite };
-}
-
-function setCookies(res, accessToken, rawRefreshToken) {
-    const { secure, sameSite } = getCookieOptions(res);
-
-    // Access token cookie
-    res.cookie('accessToken', accessToken, {
-        httpOnly: true,
-        secure,
-        sameSite,
-        maxAge: 30 * 60 * 1000, // 30 minutes
-        path: '/',
-    });
-
-    // Refresh token cookie
-    res.cookie('refreshToken', rawRefreshToken, {
-        httpOnly: true,
-        secure,
-        sameSite,
-        maxAge: REFRESH_TOKEN_EXPIRES_MS,
-        path: '/',
-    });
-}
-
-function clearCookies(res) {
-    const { secure, sameSite } = getCookieOptions(res);
-    res.clearCookie('accessToken', { httpOnly: true, path: '/', sameSite, secure });
-    res.clearCookie('refreshToken', { httpOnly: true, path: '/', sameSite, secure });
-}
 
 /**
  * Helper: Build user response with full role data
@@ -237,14 +196,13 @@ router.post('/signup', signupLimiter, async (req, res) => {
       userAgent: uaSignup,
     });
 
-    setCookies(res, token, rawRefreshToken);
-
     const userData = await buildUserResponse(user);
     userData.sessionStart = new Date().toISOString();
 
     res.status(201).json({
       success: true,
       message: 'User created successfully',
+      token,
       user: userData
     });
   } catch (error) {
@@ -595,7 +553,8 @@ router.post('/login', loginLimiter, async (req, res) => {
       device: parsed2.device,
       userAgent: ua2,
     });
-    setCookies(res, token, rawRefreshToken);
+    // Token is returned in the response body — client stores in localStorage
+    // (no httpOnly cookies needed for this simple approach)
 
     // Build user response with role data (roleData is already fetched above)
     let clinicType = hospitalInfo?.clinicType || 'hospital';
@@ -644,6 +603,7 @@ router.post('/login', loginLimiter, async (req, res) => {
     res.json({
       success: true,
       message: 'Login successful',
+      token,
       user: userData
     });
   } catch (error) {
@@ -693,7 +653,6 @@ router.post('/logout', verifyToken, auditLog('STAFF_LOGOUT', null, { severity: '
       }
     }
 
-    clearCookies(res);
     res.json({ success: true, message: 'Logged out successfully' });
   } catch (error) {
     res.status(500).json({ success: false, message: 'An internal error occurred' });
@@ -704,42 +663,63 @@ router.post('/logout', verifyToken, auditLog('STAFF_LOGOUT', null, { severity: '
 router.post('/refresh', async (req, res) => {
   try {
     const rawRefreshToken = req.cookies?.refreshToken;
+    console.log(`[REFRESH DEBUG] Received rawRefreshToken: ${rawRefreshToken ? rawRefreshToken.substring(0, 8) + '...' : 'none'}`);
     if (!rawRefreshToken) {
       return res.status(401).json({ success: false, message: 'No refresh token', code: 'NO_REFRESH_TOKEN' });
     }
 
-    // Find a matching non-revoked, non-expired record
-    const stored = await RefreshToken.find({
+    // Fast O(1) lookup: query by SHA-256 lookup hash (indexed field)
+    const crypto = require('crypto');
+    const tokenLookupHash = crypto.createHash('sha256').update(rawRefreshToken).digest('hex');
+    console.log(`[REFRESH DEBUG] Computed tokenLookupHash: ${tokenLookupHash}`);
+
+    let matchedRecord = await RefreshToken.findOne({
+      tokenLookupHash,
       isRevoked: false,
       expiresAt: { $gt: new Date() },
     }).lean();
+    console.log(`[REFRESH DEBUG] O(1) matchedRecord found: ${!!matchedRecord}`);
 
-    let matchedRecord = null;
-    for (const record of stored) {
-      const ok = await RefreshToken.verifyToken(rawRefreshToken, record.tokenHash);
-      if (ok) { matchedRecord = record; break; }
+    // Fallback for legacy tokens created before tokenLookupHash was added
+    // Limit scan to recent tokens only (last 7 days) to avoid full table scan
+    if (!matchedRecord) {
+      console.log(`[REFRESH DEBUG] Token lookup failed. Checking legacy tokens...`);
+      const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      const legacyTokens = await RefreshToken.find({
+        tokenLookupHash: { $exists: false },
+        isRevoked: false,
+        expiresAt: { $gt: new Date() },
+        createdAt: { $gt: cutoff },
+      }).lean();
+      console.log(`[REFRESH DEBUG] Found ${legacyTokens.length} legacy tokens to verify`);
+
+      for (const record of legacyTokens) {
+        const ok = await RefreshToken.verifyToken(rawRefreshToken, record.tokenHash);
+        if (ok) {
+          matchedRecord = record;
+          console.log(`[REFRESH DEBUG] Match found in legacy tokens: ${record._id}`);
+          // Backfill the lookup hash so future refreshes are fast
+          RefreshToken.updateOne({ _id: record._id }, { $set: { tokenLookupHash } }).catch(() => {});
+          break;
+        }
+      }
     }
 
     if (!matchedRecord) {
-      clearCookies(res);
-      return res.status(401).json({ success: false, message: 'Invalid or expired refresh token', code: 'INVALID_REFRESH' });
-    }
-
-    // Check max session limit (8 hours from sessionStart)
-    const sessionAge = Date.now() - new Date(matchedRecord.sessionStart).getTime();
-    if (sessionAge > MAX_SESSION_MS) {
-      await RefreshToken.updateOne(
-        { _id: matchedRecord._id },
-        { $set: { isRevoked: true, revokedAt: new Date(), revokedBy: 'max_session' } }
-      );
-      clearCookies(res);
-      return res.status(401).json({ success: false, message: 'Maximum session duration reached. Please log in again.', code: 'MAX_SESSION' });
+      console.warn(`[REFRESH DEBUG] Refresh token verification failed: no matching active record in DB.`);
+      if (!res.headersSent) {
+        return res.status(401).json({ success: false, message: 'Invalid or expired refresh token', code: 'INVALID_REFRESH' });
+      }
+      return;
     }
 
     const user = await User.findById(matchedRecord.userId);
+    console.log(`[REFRESH DEBUG] User found: ${user ? user.email : 'none'} (Active: ${user ? user.isActive : 'n/a'})`);
     if (!user || user.isActive === false) {
-      clearCookies(res);
-      return res.status(401).json({ success: false, message: 'User not found or disabled', code: 'USER_DISABLED' });
+      if (!res.headersSent) {
+        return res.status(401).json({ success: false, message: 'User not found or disabled', code: 'USER_DISABLED' });
+      }
+      return;
     }
 
     // Issue new access token + rotate refresh token
@@ -773,7 +753,7 @@ router.post('/refresh', async (req, res) => {
       userId: user._id,
       hospitalId: user.hospitalId || null,
       rawToken: newRawRefresh,
-      sessionId: matchedRecord.sessionId, // same session
+      sessionId: matchedRecord.sessionId,
       jti: newJti,
       ip: req.ip || '',
       browser: parsed3.browser,
@@ -782,15 +762,9 @@ router.post('/refresh', async (req, res) => {
       userAgent: ua3,
     });
 
-    // Update lastUsedAt on old record (soft update before rotation)
-    await RefreshToken.updateMany(
-      { sessionId: matchedRecord.sessionId, isRevoked: false },
-      { $set: { lastUsedAt: new Date() } }
-    ).catch(() => {});
+    if (res.headersSent) return;
 
-    setCookies(res, newAccessToken, newRawRefresh);
-
-    // Audit log: TOKEN_REFRESH
+    // Audit log: TOKEN_REFRESH (fire-and-forget)
     try {
       const AuditLog2 = require('../models/auditLog.model');
       AuditLog2.create({
@@ -807,13 +781,15 @@ router.post('/refresh', async (req, res) => {
       }).catch(() => {});
     } catch (_) {}
 
-    res.json({
+    return res.json({
       success: true,
       sessionStart: matchedRecord.sessionStart,
     });
   } catch (error) {
-    console.error('Refresh error:', error);
-    res.status(500).json({ success: false, message: 'An internal error occurred' });
+    if (!res.headersSent) {
+      console.error('Refresh error:', error);
+      return res.status(500).json({ success: false, message: 'An internal error occurred' });
+    }
   }
 });
 

@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useDispatch } from 'react-redux';
+import { logoutUser } from '../../store/slices/authSlice';
 import { adminAPI, uploadAPI, hospitalAPI, authAPI, simpleClinicAPI } from '../../utils/api';
 import '../administration/SuperAdmin.css';
 
 const Admin = () => {
     const navigate = useNavigate();
+    const dispatch = useDispatch();
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     const isCentral = ['superadmin', 'centraladmin'].includes((user.role || '').toLowerCase());
 
@@ -299,11 +302,7 @@ const Admin = () => {
     };
 
     const handleLogout = async () => {
-        try {
-            await authAPI.logout();
-        } catch (_) {}
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
+        await dispatch(logoutUser());
         navigate('/');
     };
 

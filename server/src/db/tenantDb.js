@@ -17,6 +17,9 @@ const connectionCache = new Map();
 // In-memory cache: { hospitalId -> tenantKey }
 const idToTenantKeyCache = new Map();
 
+// In-memory cache: { hospitalId/tenantKey -> isClinic (boolean) }
+const idToIsClinicCache = new Map();
+
 /**
  * Extract the base cluster URI (strip the database name from the URL).
  * e.g. "mongodb+srv://user:pass@cluster0.xyz.mongodb.net/IVF_CRM_TEST?retryWrites=true"
@@ -127,36 +130,49 @@ async function getTenantConnection(hospitalIdOrKey) {
     let tenantKey = hospitalIdOrKey;
     let isClinic = false;
 
-    // Resolve tenantKey and check clinicType
-    try {
-        const Hospital = require('../models/hospital.model');
-        let query = {};
-        if (/^[0-9a-fA-F]{24}$/.test(hospitalIdOrKey)) {
-            query._id = hospitalIdOrKey;
-        } else {
-            const parts = hospitalIdOrKey.split('-');
-            const potentialId = parts[parts.length - 1];
-            if (/^[0-9a-fA-F]{24}$/.test(potentialId)) {
-                query._id = potentialId;
-            } else {
-                query.tenantKey = hospitalIdOrKey;
-            }
-        }
-        
-        let hospital = await Hospital.findOne(query).select('tenantKey originalSubdomain slug clinicType').lean();
-        if (!hospital) {
-            const Clinic = require('../models/clinic.model');
-            hospital = await Clinic.findOne(query).select('tenantKey originalSubdomain slug clinicType').lean();
-        }
-        if (hospital) {
-            tenantKey = hospital.tenantKey || `${hospital.originalSubdomain || hospital.slug}-${hospital._id.toString()}`;
+    const cacheKey = String(hospitalIdOrKey);
+    const cachedTenantKey = idToTenantKeyCache.get(cacheKey);
+    const cachedIsClinic = idToIsClinicCache.get(cacheKey);
+
+    if (cachedTenantKey !== undefined) {
+        tenantKey = cachedTenantKey;
+        isClinic = cachedIsClinic === true;
+    } else {
+        // Resolve tenantKey and check clinicType
+        try {
+            const Hospital = require('../models/hospital.model');
+            let query = {};
             if (/^[0-9a-fA-F]{24}$/.test(hospitalIdOrKey)) {
-                idToTenantKeyCache.set(hospitalIdOrKey, tenantKey);
+                query._id = hospitalIdOrKey;
+            } else {
+                const parts = hospitalIdOrKey.split('-');
+                const potentialId = parts[parts.length - 1];
+                if (/^[0-9a-fA-F]{24}$/.test(potentialId)) {
+                    query._id = potentialId;
+                } else {
+                    query.tenantKey = hospitalIdOrKey;
+                }
             }
-            isClinic = hospital.clinicType === 'clinic';
+            
+            let hospital = await Hospital.findOne(query).select('tenantKey originalSubdomain slug clinicType').lean();
+            if (!hospital) {
+                const Clinic = require('../models/clinic.model');
+                hospital = await Clinic.findOne(query).select('tenantKey originalSubdomain slug clinicType').lean();
+            }
+            if (hospital) {
+                tenantKey = hospital.tenantKey || `${hospital.originalSubdomain || hospital.slug}-${hospital._id.toString()}`;
+                isClinic = hospital.clinicType === 'clinic';
+                
+                // Cache the values immediately
+                idToTenantKeyCache.set(cacheKey, tenantKey);
+                idToIsClinicCache.set(cacheKey, isClinic);
+                // Also cache by the resolved tenantKey itself
+                idToTenantKeyCache.set(tenantKey, tenantKey);
+                idToIsClinicCache.set(tenantKey, isClinic);
+            }
+        } catch (err) {
+            console.error('[getTenantConnection clinic resolve error]', err);
         }
-    } catch (err) {
-        console.error('[getTenantConnection clinic resolve error]', err);
     }
 
     const dbName = sanitizeDbName(tenantKey);

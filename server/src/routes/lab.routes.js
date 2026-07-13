@@ -526,6 +526,32 @@ router.post('/upload-report/:reportId', verifyToken, resolveTenant, verifyLab, u
 
         await report.save();
 
+        // Central Workflow Transition Integration (Report Uploaded)
+        try {
+            const { getTenantModels } = require('../db/tenantModels');
+            const { PatientEncounter } = getTenantModels(req.tenantDb);
+            let encounter = await PatientEncounter.findOne({ patientId: report.userId, isArchived: false });
+            if (!encounter) {
+                const { createEncounter } = require('../utils/workflowEngine');
+                encounter = await createEncounter(req, report.userId, 'OPD');
+            }
+            if (report.appointmentId) {
+                encounter.activeAppointmentId = report.appointmentId;
+                await encounter.save();
+            }
+            const { executeTransition } = require('../utils/workflowEngine');
+            await executeTransition(
+                req,
+                encounter._id,
+                'Report Ready',
+                'Lab Report Uploaded',
+                `Lab report file ${req.file.originalname} uploaded for tests: ${report.testNames.join(', ')}.`,
+                [{ name: req.file.originalname, url: fileResult.url, fileId: fileResult.fileId }]
+            );
+        } catch (workflowErr) {
+            console.error('[workflowEngine upload report transition error]', workflowErr.message);
+        }
+
         // OPTIONAL: Update Appointment to reflect report availability
         // This puts the file into the Doctor's view as well
         if (report.appointmentId) {
@@ -811,6 +837,31 @@ router.post('/:id/collect-sample', verifyToken, resolveTenant, verifyLab, auditL
 
         await report.save();
 
+        // Central Workflow Transition Integration (Sample Collected)
+        try {
+            const { getTenantModels } = require('../db/tenantModels');
+            const { PatientEncounter } = getTenantModels(req.tenantDb);
+            let encounter = await PatientEncounter.findOne({ patientId: report.userId, isArchived: false });
+            if (!encounter) {
+                const { createEncounter } = require('../utils/workflowEngine');
+                encounter = await createEncounter(req, report.userId, 'OPD');
+            }
+            if (report.appointmentId) {
+                encounter.activeAppointmentId = report.appointmentId;
+                await encounter.save();
+            }
+            const { executeTransition } = require('../utils/workflowEngine');
+            await executeTransition(
+                req,
+                encounter._id,
+                'Sample Collected',
+                'Lab Specimen Collected',
+                `Sample type ${sampleType} collected for tests: ${report.testNames.join(', ')}.`
+            );
+        } catch (workflowErr) {
+            console.error('[workflowEngine sample collection transition error]', workflowErr.message);
+        }
+
         // Emit real-time events
         const io = req.app.get('io');
         if (io) {
@@ -881,6 +932,38 @@ router.patch('/:id/status', verifyToken, resolveTenant, verifyLab, auditLog('UPD
         });
 
         await report.save();
+
+        // Central Workflow Transition Integration (Status Updates)
+        try {
+            const { getTenantModels } = require('../db/tenantModels');
+            const { PatientEncounter } = getTenantModels(req.tenantDb);
+            let encounter = await PatientEncounter.findOne({ patientId: report.userId, isArchived: false });
+            if (!encounter) {
+                const { createEncounter } = require('../utils/workflowEngine');
+                encounter = await createEncounter(req, report.userId, 'OPD');
+            }
+            if (report.appointmentId) {
+                encounter.activeAppointmentId = report.appointmentId;
+                await encounter.save();
+            }
+
+            let targetStatus = null;
+            let eventTitle = '';
+            if (status === 'In Testing') {
+                targetStatus = 'Testing';
+                eventTitle = 'Lab Testing Started';
+            } else if (status === 'Report Ready' || status === 'Completed') {
+                targetStatus = 'Report Ready';
+                eventTitle = 'Lab Report Ready';
+            }
+
+            if (targetStatus) {
+                const { executeTransition } = require('../utils/workflowEngine');
+                await executeTransition(req, encounter._id, targetStatus, eventTitle, notes || `Lab status updated to ${status}`);
+            }
+        } catch (workflowErr) {
+            console.error('[workflowEngine status transition error]', workflowErr.message);
+        }
 
         // Emit real-time events
         const io = req.app.get('io');

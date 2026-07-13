@@ -62,8 +62,11 @@ const REFRESH_TOKEN_EXPIRES_MS = parseDurationToMs(REFRESH_TOKEN_EXPIRES_IN);
 module.exports = {
     JWT_SECRET: secret,
 
-    // Short-lived access token (default: 30 minutes)
-    JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '30m',
+    // Short-lived access token (default: 45 minutes)
+    JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '45m',
+
+    // Pre-computed ms value for access token cookie maxAge
+    JWT_EXPIRES_MS: parseDurationToMs(process.env.JWT_EXPIRES_IN || '45m'),
 
     // ── Refresh token lifetime ────────────────────────────────────────────────
     // Configurable via REFRESH_TOKEN_EXPIRES_IN env var (e.g. '7d', '14d', '30d').

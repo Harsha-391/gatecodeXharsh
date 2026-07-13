@@ -9,6 +9,7 @@ export const loginUser = createAsyncThunk(
       const response = await authAPI.login(email, password, hospitalId);
       if (response.success) {
         localStorage.setItem('user', JSON.stringify(response.user));
+        if (response.token) localStorage.setItem('accessToken', response.token);
         return response;
       }
       return rejectWithValue(response.message || 'Login failed');
@@ -25,6 +26,7 @@ export const signupUser = createAsyncThunk(
       const response = await authAPI.signup(name, email, password, phone);
       if (response.success) {
         localStorage.setItem('user', JSON.stringify(response.user));
+        if (response.token) localStorage.setItem('accessToken', response.token);
         return response;
       }
       return rejectWithValue(response.message || 'Signup failed');
@@ -41,6 +43,7 @@ export const loginAdmin = createAsyncThunk(
       const response = await adminAPI.login(email, password);
       if (response.success) {
         localStorage.setItem('user', JSON.stringify(response.user));
+        if (response.token) localStorage.setItem('accessToken', response.token);
         return response;
       }
       return rejectWithValue(response.message || 'Login failed');
@@ -57,6 +60,7 @@ export const loginHospitalAdmin = createAsyncThunk(
       const response = await hospitalAdminAPI.login(email, password);
       if (response.success) {
         localStorage.setItem('user', JSON.stringify(response.user));
+        if (response.token) localStorage.setItem('accessToken', response.token);
         return response;
       }
       return rejectWithValue(response.message || 'Login failed');
@@ -86,10 +90,11 @@ export const logoutUser = createAsyncThunk(
   'auth/logoutUser',
   async (_, { dispatch }) => {
     try {
-      await authAPI.logout();
-    } catch (error) {
-      console.error('Server logout failed:', error);
-    }
+      const { broadcastAuthEvent } = await import('../../utils/authSync');
+      broadcastAuthEvent('LOGOUT');
+    } catch (_) {}
+    // Fire-and-forget server logout (to blacklist the token JTI)
+    try { await authAPI.logout(); } catch (_) {}
     dispatch(logout());
   }
 );
@@ -99,10 +104,10 @@ const loadInitialState = () => {
   try {
     const userStr = localStorage.getItem('user');
     const user = userStr ? JSON.parse(userStr) : null;
-
     return {
       user,
       isAuthenticated: !!user,
+      isRestoring: false, // No async restoration needed — token lives in localStorage
       loading: false,
       error: null,
       idleWarningActive: false,
@@ -111,6 +116,7 @@ const loadInitialState = () => {
     return {
       user: null,
       isAuthenticated: false,
+      isRestoring: false,
       loading: false,
       error: null,
       idleWarningActive: false,
@@ -125,9 +131,14 @@ const authSlice = createSlice({
     logout: (state) => {
       state.user = null;
       state.isAuthenticated = false;
+      state.isRestoring = false;
       state.error = null;
       state.idleWarningActive = false;
+      // Clear ALL session data from browser storage
       localStorage.removeItem('user');
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('__hms_auth_logs');
+      sessionStorage.clear();
     },
     clearError: (state) => {
       state.error = null;
@@ -135,6 +146,9 @@ const authSlice = createSlice({
     updateUser: (state, action) => {
       state.user = { ...state.user, ...action.payload };
       localStorage.setItem('user', JSON.stringify(state.user));
+    },
+    setRestoring: (state, action) => {
+      state.isRestoring = action.payload;
     },
     // ── Idle notice (informational only — Persistent Session Policy) ──────
     showIdleWarning: (state) => {
@@ -192,5 +206,5 @@ const authSlice = createSlice({
   },
 });
 
-export const { logout, clearError, updateUser, showIdleWarning, hideIdleWarning } = authSlice.actions;
+export const { logout, clearError, updateUser, showIdleWarning, hideIdleWarning, setRestoring } = authSlice.actions;
 export default authSlice.reducer;

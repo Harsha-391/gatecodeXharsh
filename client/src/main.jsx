@@ -8,6 +8,13 @@ import { BrandingProvider } from './context/BrandingContext'
 import './index.css'
 import App from './App.jsx'
 
+// Expose store globally for session instrumentation
+window.__store = store;
+
+// Disable global authentication logging
+window.__authLogger = () => {};
+window.__traceLogout = () => {};
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <Provider store={store}>

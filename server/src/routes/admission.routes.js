@@ -419,6 +419,30 @@ router.put('/:id/discharge', verifyAdmissionAccess, auditLog('DISCHARGE_COMPLETE
             io.to('reception').emit('admission_discharged', admission);
         }
 
+        // Central Workflow Transition Integration (Patient Discharged)
+        try {
+            const { getTenantModels } = require('../db/tenantModels');
+            const { PatientEncounter } = getTenantModels(req.tenantDb);
+            let encounter = await PatientEncounter.findOne({ patientId, isArchived: false });
+            if (!encounter) {
+                const { createEncounter } = require('../utils/workflowEngine');
+                encounter = await createEncounter(req, patientId, 'IPD');
+            }
+            encounter.activeAdmissionId = admission._id;
+            await encounter.save();
+
+            const { executeTransition } = require('../utils/workflowEngine');
+            await executeTransition(
+                req,
+                encounter._id,
+                'Discharged',
+                'Discharged Completed',
+                notes || 'Patient discharged from admission ward.'
+            );
+        } catch (workflowErr) {
+            console.error('[workflowEngine admission discharge transition error]', workflowErr.message);
+        }
+
         res.json({ success: true, message: 'Patient discharged successfully', admission });
     } catch (err) {
         console.error('Discharge error:', err);

@@ -765,8 +765,8 @@ const TopBar = ({ toggleSidebar, sidebarOpen }) => {
     const navigate = useNavigate();
     const location = useLocation();
 
-    const handleLogout = () => {
-        dispatch(logoutUser());
+    const handleLogout = async () => {
+        await dispatch(logoutUser());
         navigate('/login');
     };
 

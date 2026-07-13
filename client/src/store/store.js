@@ -33,4 +33,9 @@ export const store = configureStore({
 // Set store reference for use in API interceptors (e.g., for logging out on 401)
 setStoreRef(store);
 
+// Log store initialization
+if (typeof window !== 'undefined') {
+  window.__authLogger?.('Redux Store Initialized');
+}
+
 export default store;

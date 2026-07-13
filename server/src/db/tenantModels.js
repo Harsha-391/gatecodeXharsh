@@ -5,6 +5,10 @@ function getTenantModels(tenantDb) {
         throw new Error('tenantDb connection is required for getTenantModels()');
     }
 
+    if (tenantDb.cachedModels) {
+        return tenantDb.cachedModels;
+    }
+
     const isClinic = tenantDb.isClinic === true;
 
     // Helper: register model once per connection, or globally if not required for clinic
@@ -25,7 +29,7 @@ function getTenantModels(tenantDb) {
         }
     };
 
-    return {
+    const compiled = {
         User: model('User', require('../models/user.model').schema, true),
         Appointment: model('Appointment', require('../models/appointment.model').schema, true),
         LabReport: model('LabReport', require('../models/labReport.model').schema, false),
@@ -70,7 +74,13 @@ function getTenantModels(tenantDb) {
         AuditLog: model('AuditLog', require('../models/auditLog.model').schema, false),
         QuestionLibrary: model('QuestionLibrary', require('../models/questionLibrary.model').schema, false),
         DocumentTemplate: model('DocumentTemplate', require('../models/documentTemplate.model').schema, true),
+        PatientEncounter: model('PatientEncounter', require('../models/patientEncounter.model').schema, true),
+        PatientTimeline: model('PatientTimeline', require('../models/patientTimeline.model').schema, true),
+        WorkflowConfig: model('WorkflowConfig', require('../models/workflowConfig.model').schema, true),
     };
+
+    tenantDb.cachedModels = compiled;
+    return compiled;
 }
 
 module.exports = { getTenantModels };

@@ -113,6 +113,7 @@ io.use(async (socket, next) => {
 
         next();
     } catch (err) {
+        console.error('[SOCKET AUTH ERROR]', err.message || err);
         return next(new Error('Authentication error: Invalid token'));
     }
 });

@@ -1,4 +1,4 @@
-﻿import React from "react";
+import React from "react";
 import { useSelector } from "react-redux";
 
 const MaxSessionModal = () => {
@@ -8,6 +8,7 @@ const MaxSessionModal = () => {
 
   const handleReLogin = () => {
     localStorage.removeItem("token");
+    localStorage.removeItem("accessToken");
     localStorage.removeItem("user");
     window.location.href = "/login?reason=max_session";
   };

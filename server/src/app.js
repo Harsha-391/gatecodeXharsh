@@ -1,4 +1,5 @@
 const express = require('express');
+const compression = require('compression');
 const cors = require('cors');
 const morgan = require('morgan');
 const path = require('path');
@@ -46,11 +47,15 @@ const revenueRoutes     = require('./routes/revenue.routes');
 const mfaRoutes         = require('./routes/mfa.routes');
 const documentTemplateRoutes = require('./routes/documentTemplate.routes');
 const sessionsRoutes    = require('./routes/sessions.routes');
+const patientEncounterRoutes = require('./routes/patientEncounter.routes');
 
 const app = express();
 
 // Disable Express fingerprinting header
 app.disable('x-powered-by');
+
+// Enable Gzip/Deflate compression for HTTP payloads
+app.use(compression());
 
 // Observability Middleware: Request IDs & Structured Metrics
 app.use((req, res, next) => {
@@ -263,21 +268,7 @@ if (process.env.NODE_ENV !== 'test') {
 // ── Static uploads ────────────────────────────────────────────────────────────
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
-// ── Routes ────────────────────────────────────────────────────────────────────
-app.use((req, res, next) => {
-    if (req.path.startsWith('/api/')) {
-        console.log('[DEBUG API REQ]', {
-            path: req.path,
-            method: req.method,
-            origin: req.headers.origin,
-            referer: req.headers.referer,
-            cookies: req.cookies ? Object.keys(req.cookies) : null,
-            hasAccessToken: !!req.cookies?.accessToken,
-            hasRefreshToken: !!req.cookies?.refreshToken
-        });
-    }
-    next();
-});
+
 
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
@@ -311,6 +302,7 @@ app.use('/api/patient-app', patientAppRoutes);
 app.use('/api/patient-local', patientLocalRoutes);
 app.use('/api/mfa', mfaRoutes);
 app.use('/api/sessions', sessionsRoutes);
+app.use('/api/encounters', patientEncounterRoutes);
 
 // ── Health Check Endpoint ───────────────────────────────────────────────────
 app.get('/health', async (req, res) => {

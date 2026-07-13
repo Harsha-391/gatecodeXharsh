@@ -31,8 +31,8 @@ const Navbar = () => {
     }
   }, [isAuthenticated, user, dispatch]);
 
-  const handleLogout = () => {
-    dispatch(logoutUser());
+  const handleLogout = async () => {
+    await dispatch(logoutUser());
     navigate('/');
   };
 

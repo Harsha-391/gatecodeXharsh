@@ -80,5 +80,7 @@ const hospitalPatientSchema = new mongoose.Schema({
 hospitalPatientSchema.index({ hospitalId: 1, patientId: 1 }, { unique: true });
 // phone unique per hospital
 hospitalPatientSchema.index({ hospitalId: 1, phone: 1 }, { unique: true });
+// name index per hospital for optimized searches
+hospitalPatientSchema.index({ hospitalId: 1, name: 1 });
 
 module.exports = mongoose.model('HospitalPatient', hospitalPatientSchema);

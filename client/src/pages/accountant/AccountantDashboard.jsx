@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useDispatch } from 'react-redux';
+import { logoutUser } from '../../store/slices/authSlice';
 import { financeAPI, authAPI, billingAPI } from '../../utils/api';
 import './AccountantDashboard.css';
 
 const AccountantDashboard = () => {
     const navigate = useNavigate();
+    const dispatch = useDispatch();
     const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
 
     const [kpis, setKpis] = useState(null);
@@ -64,13 +67,7 @@ const AccountantDashboard = () => {
     };
 
     const handleLogout = async () => {
-        try {
-            await authAPI.logout();
-        } catch (err) {
-            console.error('Logout error:', err);
-        }
-        localStorage.removeItem('user');
-        localStorage.removeItem('token');
+        await dispatch(logoutUser());
         navigate('/login');
     };
 

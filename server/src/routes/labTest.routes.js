@@ -37,7 +37,13 @@ router.get('/', verifyToken, resolveTenant, async (req, res) => {
         // Non-admins only see active tests
         if (!isAdmin) query.isActive = { $ne: false };
 
-        const labTests = await LabTest.find(query).sort({ name: 1 }).lean();
+        const cache = require('../utils/cache');
+        const cacheKey = `labTests_${isTenant}_${hospitalId || 'global'}_${isAdmin}`;
+        let labTests = cache.get(cacheKey);
+        if (!labTests) {
+            labTests = await LabTest.find(query).sort({ name: 1 }).lean();
+            cache.set(cacheKey, labTests, 300);
+        }
 
         // Resolve hospital-specific prices
         labTests.forEach(test => {
@@ -87,6 +93,9 @@ router.post('/', verifyAdminOrSuperAdmin, resolveTenant, async (req, res) => {
             name, code, description, price, category, isActive, hospitalId
         });
 
+        const cache = require('../utils/cache');
+        cache.clear();
+
         res.status(201).json({ success: true, message: 'Lab test created', data: newTest });
     } catch (error) {
         console.error('Create Lab Test Error:', error);
@@ -131,6 +140,9 @@ router.put('/:id', verifyAdminOrSuperAdmin, resolveTenant, async (req, res) => {
             { new: true, runValidators: true }
         );
 
+        const cache = require('../utils/cache');
+        cache.clear();
+
         res.json({ success: true, message: 'Lab test updated', data: updatedTest });
     } catch (error) {
         console.error('Update Lab Test Error:', error);
@@ -166,6 +178,9 @@ router.put('/:id/hospital-price', verifyAdminOrSuperAdmin, resolveTenant, async 
         }
         await test.save();
 
+        const cache = require('../utils/cache');
+        cache.clear();
+
         res.json({ success: true, message: 'Hospital price updated', data: test });
     } catch (error) {
         console.error('Set Hospital Price Error:', error);
@@ -194,6 +209,10 @@ router.delete('/:id', verifyAdminOrSuperAdmin, resolveTenant, async (req, res) =
         }
 
         await test.deleteOne();
+        
+        const cache = require('../utils/cache');
+        cache.clear();
+
         res.json({ success: true, message: 'Lab test deleted successfully' });
     } catch (error) {
         console.error('Delete Lab Test Error:', error);

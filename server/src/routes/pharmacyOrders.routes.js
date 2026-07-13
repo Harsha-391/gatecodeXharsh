@@ -258,6 +258,32 @@ router.patch('/:id/complete', verifyToken, resolveTenant, auditLog('CONFIRM_PAYM
         order.orderStatus = 'Completed';
         await order.save();
 
+        // Central Workflow Transition Integration (Medicine Dispensed)
+        try {
+            const { getTenantModels } = require('../db/tenantModels');
+            const { PatientEncounter } = getTenantModels(req.tenantDb);
+            let encounter = await PatientEncounter.findOne({ patientId: order.userId, isArchived: false });
+            if (!encounter) {
+                const { createEncounter } = require('../utils/workflowEngine');
+                encounter = await createEncounter(req, order.userId, 'OPD');
+            }
+            if (order.appointmentId) {
+                encounter.activeAppointmentId = order.appointmentId;
+                await encounter.save();
+            }
+            const { executeTransition } = require('../utils/workflowEngine');
+            const itemsList = order.items.map(i => i.medicineName).join(', ');
+            await executeTransition(
+                req,
+                encounter._id,
+                'Billing Pending',
+                'Prescription Dispensed',
+                `Dispensed medicines: ${itemsList}. Total dispensed value: ₹${totalAmount}.`
+            );
+        } catch (workflowErr) {
+            console.error('[workflowEngine pharmacy dispense transition error]', workflowErr.message);
+        }
+
         if (order.paymentStatus === 'Paid' && totalAmount > 0) {
             try {
                 const { HospitalPatient } = getModels(req);

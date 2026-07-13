@@ -977,6 +977,42 @@ router.patch('/appointments/:id/prescription', verifyToken, resolveTenant, uploa
             }
         }
 
+        // Central Workflow Transition Integration
+        if (appointment.status === 'completed') {
+            try {
+                const { getTenantModels } = require('../db/tenantModels');
+                const { PatientEncounter } = getTenantModels(req.tenantDb);
+                let encounter = await PatientEncounter.findOne({ patientId: appointment.userId, isArchived: false });
+                if (!encounter) {
+                    const { createEncounter } = require('../utils/workflowEngine');
+                    encounter = await createEncounter(req, appointment.userId, 'OPD');
+                }
+
+                encounter.activeAppointmentId = appointment._id;
+                encounter.assignedDoctorId = req.user.id;
+                await encounter.save();
+
+                let targetStatus = 'Billing Pending';
+                let eventTitle = 'Consultation Completed';
+                let desc = `Doctor ${req.user.name || 'Doctor'} completed consultation.`;
+
+                if (appointment.labTests && appointment.labTests.length > 0) {
+                    targetStatus = 'Lab Ordered';
+                    eventTitle = 'Lab Tests Ordered';
+                    desc += ` Prescribed ${appointment.labTests.length} lab tests.`;
+                } else if (appointment.pharmacy && appointment.pharmacy.length > 0) {
+                    targetStatus = 'Medicine Pending';
+                    eventTitle = 'Prescription Sent to Pharmacy';
+                    desc += ` Prescribed ${appointment.pharmacy.length} medicines.`;
+                }
+
+                const { executeTransition } = require('../utils/workflowEngine');
+                await executeTransition(req, encounter._id, targetStatus, eventTitle, desc);
+            } catch (workflowErr) {
+                console.error('[workflowEngine consultation complete error]', workflowErr.message);
+            }
+        }
+
         res.json({ success: true, message: 'Saved', appointment });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Update failed' });

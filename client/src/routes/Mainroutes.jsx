@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 
 // Components
@@ -8,119 +8,118 @@ import ProtectedRoute from '../components/ProtectedRoute';
 import RoleDashboard from '../pages/RoleDashboard';
 import { useAuth, useAppDispatch } from '../store/hooks';
 import { getSubdomain } from '../utils/subdomain';
-import { logout } from '../store/slices/authSlice';
 
 // User Pages
-import Services from '../pages/user/Services';
-import Doctors from '../pages/user/Doctors';
-import Appointment from '../pages/user/Appointment';
-import AppointmentSuccess from '../pages/user/AppointmentSuccess';
-import LabReports from '../pages/user/LabReports';
-import Dashboard from '../pages/user/Dashboard';
-import Pharmacy from '../pages/user/Pharmacy';
-import Login from '../pages/user/Login';
-import Signup from '../pages/user/Signup';
+const Services = React.lazy(() => import('../pages/user/Services'));
+const Doctors = React.lazy(() => import('../pages/user/Doctors'));
+const Appointment = React.lazy(() => import('../pages/user/Appointment'));
+const AppointmentSuccess = React.lazy(() => import('../pages/user/AppointmentSuccess'));
+const LabReports = React.lazy(() => import('../pages/user/LabReports'));
+const Dashboard = React.lazy(() => import('../pages/user/Dashboard'));
+const Pharmacy = React.lazy(() => import('../pages/user/Pharmacy'));
+const Login = React.lazy(() => import('../pages/user/Login'));
+const Signup = React.lazy(() => import('../pages/user/Signup'));
 
 // Doctor Pages
-import Patient from '../pages/doctors/Patient';
-import AdminLabTests from '../pages/admin/AdminLabTests';
-import DoctorPatientDetails from '../pages/doctors/DoctorPatientDetails';
-import UnifiedPatientProfile from '../pages/patient/UnifiedPatientProfile';
+const Patient = React.lazy(() => import('../pages/doctors/Patient'));
+const AdminLabTests = React.lazy(() => import('../pages/admin/AdminLabTests'));
+const DoctorPatientDetails = React.lazy(() => import('../pages/doctors/DoctorPatientDetails'));
+const UnifiedPatientProfile = React.lazy(() => import('../pages/patient/UnifiedPatientProfile'));
 
 // Hospital Admin (Tier 2) Pages
-import Admin from '../pages/admin/Admin';
-import AdminDoctors from '../pages/admin/AdminDoctors';
-import AdminLabs from '../pages/admin/AdminLabs';
-import AdminPharmacy from '../pages/admin/AdminPharmacy';
-import AdminReception from '../pages/admin/AdminReception';
-import AdminServices from '../pages/admin/AdminServices';
-import AdminFacilities from '../pages/admin/AdminFacilities';
-import AdminRoles from '../pages/admin/AdminRoles';
-import AdminMainDashboard from '../pages/admin/AdminMainDashboard';
-import AdminMedicines from '../pages/admin/AdminMedicines';
-import AdminQuestionLibrary from '../pages/admin/AdminQuestionLibrary';
-import AdminTestPackages from '../pages/admin/AdminTestPackages';
-import AdminPermissionsPage from '../pages/admin/AdminPermissionsPage';
-import InventoryMonitoring from '../pages/admin/InventoryMonitoring';
-import Reports from '../pages/admin/Reports';
+const Admin = React.lazy(() => import('../pages/admin/Admin'));
+const AdminDoctors = React.lazy(() => import('../pages/admin/AdminDoctors'));
+const AdminLabs = React.lazy(() => import('../pages/admin/AdminLabs'));
+const AdminPharmacy = React.lazy(() => import('../pages/admin/AdminPharmacy'));
+const AdminReception = React.lazy(() => import('../pages/admin/AdminReception'));
+const AdminServices = React.lazy(() => import('../pages/admin/AdminServices'));
+const AdminFacilities = React.lazy(() => import('../pages/admin/AdminFacilities'));
+const AdminRoles = React.lazy(() => import('../pages/admin/AdminRoles'));
+const AdminMainDashboard = React.lazy(() => import('../pages/admin/AdminMainDashboard'));
+const AdminMedicines = React.lazy(() => import('../pages/admin/AdminMedicines'));
+const AdminQuestionLibrary = React.lazy(() => import('../pages/admin/AdminQuestionLibrary'));
+const AdminTestPackages = React.lazy(() => import('../pages/admin/AdminTestPackages'));
+const AdminPermissionsPage = React.lazy(() => import('../pages/admin/AdminPermissionsPage'));
+const InventoryMonitoring = React.lazy(() => import('../pages/admin/InventoryMonitoring'));
+const Reports = React.lazy(() => import('../pages/admin/Reports'));
 
 // Central Admin (Tier 1) Pages — /supremeadmin
-import CentralAdminLogin from '../pages/centraladmin/CentralAdminLogin';
-import CentralAdminSignup from '../pages/centraladmin/CentralAdminSignup';
-import CentralAdminDashboard from '../pages/centraladmin/CentralAdminDashboard';
-import SystemRevenueDashboard from '../pages/centraladmin/SystemRevenueDashboard';
-import AdminProfile from '../pages/centraladmin/AdminProfile';
+const CentralAdminLogin = React.lazy(() => import('../pages/centraladmin/CentralAdminLogin'));
+const CentralAdminSignup = React.lazy(() => import('../pages/centraladmin/CentralAdminSignup'));
+const CentralAdminDashboard = React.lazy(() => import('../pages/centraladmin/CentralAdminDashboard'));
+const SystemRevenueDashboard = React.lazy(() => import('../pages/centraladmin/SystemRevenueDashboard'));
+const AdminProfile = React.lazy(() => import('../pages/centraladmin/AdminProfile'));
 
 // Hospital Admin (Tier 2) Pages — /hospitaladmin
-import HospitalAdminLogin from '../pages/hospitaladmin/HospitalAdminLogin';
-import HospitalAdminDashboard from '../pages/hospitaladmin/HospitalAdminDashboard';
-import ClinicDashboard from '../pages/hospitaladmin/ClinicDashboard';
-import HospitalLogin from '../pages/hospitaladmin/HospitalLogin';
-import HospitalAdminQuestionLibrary from '../pages/hospitaladmin/HospitalAdminQuestionLibrary';
-import DocumentTemplates from '../pages/hospitaladmin/DocumentTemplates';
+const HospitalAdminLogin = React.lazy(() => import('../pages/hospitaladmin/HospitalAdminLogin'));
+const HospitalAdminDashboard = React.lazy(() => import('../pages/hospitaladmin/HospitalAdminDashboard'));
+const ClinicDashboard = React.lazy(() => import('../pages/hospitaladmin/ClinicDashboard'));
+const HospitalLogin = React.lazy(() => import('../pages/hospitaladmin/HospitalLogin'));
+const HospitalAdminQuestionLibrary = React.lazy(() => import('../pages/hospitaladmin/HospitalAdminQuestionLibrary'));
+const DocumentTemplates = React.lazy(() => import('../pages/hospitaladmin/DocumentTemplates'));
 
 // Cashier Routing
-import CashierDashboard from '../pages/cashier/CashierDashboard';
+const CashierDashboard = React.lazy(() => import('../pages/cashier/CashierDashboard'));
 
 // Legacy Admin Auth (keep for backward-compat)
-import AdminLogin from '../pages/administration/AdminLogin';
-import AdminSignup from '../pages/administration/AdminSignup';
+const AdminLogin = React.lazy(() => import('../pages/administration/AdminLogin'));
+const AdminSignup = React.lazy(() => import('../pages/administration/AdminSignup'));
 
 // Lab Pages
-import LabDashboard from '../pages/lab/LabDashboard';
-import AssignedTests from '../pages/lab/AssignedTests';
-import CompletedReports from '../pages/lab/CompletedReports';
-import LabOrders from '../pages/lab/LabOrders';
-import SampleCollection from '../pages/lab/SampleCollection';
-import TestProcessing from '../pages/lab/TestProcessing';
-import CompletedReportsDetails from '../pages/lab/CompletedReports';
+const LabDashboard = React.lazy(() => import('../pages/lab/LabDashboard'));
+const AssignedTests = React.lazy(() => import('../pages/lab/AssignedTests'));
+const CompletedReports = React.lazy(() => import('../pages/lab/CompletedReports'));
+const LabOrders = React.lazy(() => import('../pages/lab/LabOrders'));
+const SampleCollection = React.lazy(() => import('../pages/lab/SampleCollection'));
+const TestProcessing = React.lazy(() => import('../pages/lab/TestProcessing'));
+const CompletedReportsDetails = React.lazy(() => import('../pages/lab/CompletedReports'));
 
 // Pharmacy Management Pages
-import PharmacyInventory from '../pages/pharmacy/PharmacyInventory';
-import PharmacyOrders from '../pages/pharmacy/PharmacyOrders';
-import PharmacyPurchaseApprovals from '../pages/pharmacy/PharmacyPurchaseApprovals';
+const PharmacyInventory = React.lazy(() => import('../pages/pharmacy/PharmacyInventory'));
+const PharmacyOrders = React.lazy(() => import('../pages/pharmacy/PharmacyOrders'));
+const PharmacyPurchaseApprovals = React.lazy(() => import('../pages/pharmacy/PharmacyPurchaseApprovals'));
 
 // Reception Pages
-import ReceptionDashboard from '../pages/reception/ReceptionDashboard';
+const ReceptionDashboard = React.lazy(() => import('../pages/reception/ReceptionDashboard'));
 
 // Accountant / Finance Pages
-import AccountantDashboard from '../pages/accountant/AccountantDashboard';
-import OutstandingPayments from '../pages/accountant/OutstandingPayments';
-import InsuranceClaims from '../pages/accountant/InsuranceClaims';
-import ExpensesPage from '../pages/accountant/ExpensesPage';
-import ProfitLoss from '../pages/accountant/ProfitLoss';
-import FinancialStatements from '../pages/accountant/FinancialStatements';
-import Reconciliation from '../pages/accountant/Reconciliation';
-import TransactionLogs from '../pages/accountant/TransactionLogs';
-import FinancialAuditCenter from '../pages/accountant/FinancialAuditCenter';
-import PayrollManagement from '../pages/accountant/PayrollManagement';
-import DoctorPayouts from '../pages/accountant/DoctorPayouts';
-import DiscountApprovals from '../pages/accountant/DiscountApprovals';
-import ReceptionCollections from '../pages/finance/ReceptionCollections';
+const AccountantDashboard = React.lazy(() => import('../pages/accountant/AccountantDashboard'));
+const OutstandingPayments = React.lazy(() => import('../pages/accountant/OutstandingPayments'));
+const InsuranceClaims = React.lazy(() => import('../pages/accountant/InsuranceClaims'));
+const ExpensesPage = React.lazy(() => import('../pages/accountant/ExpensesPage'));
+const ProfitLoss = React.lazy(() => import('../pages/accountant/ProfitLoss'));
+const FinancialStatements = React.lazy(() => import('../pages/accountant/FinancialStatements'));
+const Reconciliation = React.lazy(() => import('../pages/accountant/Reconciliation'));
+const TransactionLogs = React.lazy(() => import('../pages/accountant/TransactionLogs'));
+const FinancialAuditCenter = React.lazy(() => import('../pages/accountant/FinancialAuditCenter'));
+const PayrollManagement = React.lazy(() => import('../pages/accountant/PayrollManagement'));
+const DoctorPayouts = React.lazy(() => import('../pages/accountant/DoctorPayouts'));
+const DiscountApprovals = React.lazy(() => import('../pages/accountant/DiscountApprovals'));
+const ReceptionCollections = React.lazy(() => import('../pages/finance/ReceptionCollections'));
 
 // Billing Pages
-import BillingDashboard from '../pages/billing/BillingDashboard';
-import InsuranceBilling from '../pages/billing/InsuranceBilling';
-import IPDSettlement from '../pages/billing/IPDSettlement';
-import ReceiptReprint from '../pages/billing/ReceiptReprint';
-import DiscountsAdjustments from '../pages/billing/DiscountsAdjustments';
+const BillingDashboard = React.lazy(() => import('../pages/billing/BillingDashboard'));
+const InsuranceBilling = React.lazy(() => import('../pages/billing/InsuranceBilling'));
+const IPDSettlement = React.lazy(() => import('../pages/billing/IPDSettlement'));
+const ReceiptReprint = React.lazy(() => import('../pages/billing/ReceiptReprint'));
+const DiscountsAdjustments = React.lazy(() => import('../pages/billing/DiscountsAdjustments'));
 
 // Administrator Pages
-import LaboratoryManagement from '../pages/admin/LaboratoryManagement';
-import PharmacyManagement from '../pages/admin/PharmacyManagement';
-import AuditLogs from '../pages/admin/AuditLogs';
-import ResourceManagement from '../pages/admin/ResourceManagement';
-import AdmissionsOversight from '../pages/admin/AdmissionsOversight';
-import PatientFlow from '../pages/admin/PatientFlow';
+const LaboratoryManagement = React.lazy(() => import('../pages/admin/LaboratoryManagement'));
+const PharmacyManagement = React.lazy(() => import('../pages/admin/PharmacyManagement'));
+const AuditLogs = React.lazy(() => import('../pages/admin/AuditLogs'));
+const ResourceManagement = React.lazy(() => import('../pages/admin/ResourceManagement'));
+const AdmissionsOversight = React.lazy(() => import('../pages/admin/AdmissionsOversight'));
+const PatientFlow = React.lazy(() => import('../pages/admin/PatientFlow'));
 
 // Subdomains reserved for the platform itself — NOT hospital slugs
 const RESERVED_SUBDOMAINS = ['admin', 'www', 'api'];
 
 const SmartLogin = () => {
-    const { isAuthenticated } = useAuth();
-    const dispatch = useAppDispatch();
+    const { isAuthenticated, isRestoring } = useAuth();
     const subdomain = getSubdomain();
-    const wasAuthenticatedRef = useRef(isAuthenticated);
+
+    window.__authLogger?.('SmartLogin evaluated', { isAuthenticated, isRestoring, subdomain });
 
     // Redirect to admin subdomain if accessing login from base domain in production
     useEffect(() => {
@@ -130,27 +129,20 @@ const SmartLogin = () => {
             const isBaseMedical = hostname === 'medicalhms.in' || hostname === 'www.medicalhms.in';
             
             if (isBaseBoonkies) {
+                window.__authLogger?.('SmartLogin redirecting to admin subdomain (boonkies)');
                 window.location.href = `https://admin.boonkies.com/login${window.location.search}`;
             } else if (isBaseMedical) {
+                window.__authLogger?.('SmartLogin redirecting to admin subdomain (medicalhms)');
                 window.location.href = `https://admin.medicalhms.in/login${window.location.search}`;
             }
         }
     }, []);
 
-    useEffect(() => {
-        if (wasAuthenticatedRef.current && isAuthenticated) {
-            dispatch(logout());
-            wasAuthenticatedRef.current = false;
-        }
-    }, [isAuthenticated, dispatch]);
-
-    if (wasAuthenticatedRef.current && isAuthenticated) {
-        return (
-            <div className="hospital-login-loading">
-                <div className="hospital-login-spinner"></div>
-                <p>Logging out...</p>
-            </div>
-        );
+    // If already authenticated, redirect to dashboard instead of showing login
+    // (removed the previous auto-logout behavior which was causing unintended logouts)
+    if (isAuthenticated) {
+        window.__authLogger?.('SmartLogin Redirect triggered to dashboard because isAuthenticated is true');
+        return <SmartDashboardRedirector />;
     }
 
     if (subdomain && !RESERVED_SUBDOMAINS.includes(subdomain)) return <HospitalLogin />;
@@ -164,6 +156,7 @@ const SmartLogin = () => {
 
 const SmartDashboardRedirector = () => {
     const subdomain = getSubdomain();
+    window.__authLogger?.('SmartDashboardRedirector evaluated', { subdomain });
     if (subdomain && !RESERVED_SUBDOMAINS.includes(subdomain)) return <Navigate to="/my-dashboard" replace />;
     return <Navigate to="/supremeadmin" replace />;
 };
@@ -171,16 +164,19 @@ const SmartDashboardRedirector = () => {
 
 
 
-/**
- * SubdomainRoleGuard — enforces that the user's role matches the subdomain context.
- *
- * admin.domain.com   → only centraladmin / superadmin allowed
- * slug.domain.com    → hospital staff allowed, centraladmin/superadmin blocked
- * localhost (null)   → no enforcement (local dev without subdomain)
- */
 const SubdomainRoleGuard = ({ children }) => {
-    const { user, isAuthenticated } = useAuth();
+    const { user, isAuthenticated, isRestoring } = useAuth();
     const subdomain = getSubdomain();
+    const location = useLocation();
+
+    // Trace logging
+    window.__authLogger?.('SubdomainRoleGuard evaluated', { subdomain, isAuthenticated, isRestoring, role: user?.role, userSubdomain: user?.subdomain });
+
+    // NEVER make a redirect or routing decision while session restoration is active
+    if (isRestoring) {
+        console.debug(`[SUBDOMAIN ROLE GUARD] Session is still restoring. Suppressing redirect. Route: ${location.pathname}`);
+        return null;
+    }
 
     if (subdomain && isAuthenticated && user) {
         const role = (user.role || '').toLowerCase();
@@ -199,18 +195,41 @@ const SubdomainRoleGuard = ({ children }) => {
             } else {
                 targetHost = `admin.${hostname}`;
             }
-            window.location.href = `${window.location.protocol}//${targetHost}${port}/supremeadmin`;
+            const targetUrl = `${window.location.protocol}//${targetHost}${port}/supremeadmin`;
+            window.__authLogger?.('SubdomainRoleGuard redirecting central admin to admin.* subdomain', { targetUrl });
+            window.location.href = targetUrl;
             return null;
         }
 
         // Hospital staff / hospital admin must NOT operate from admin.* subdomain
         if (!isCentralRole && isAdminSubdomain) {
-            return <Navigate to="/login" replace />;
+            // Resolve the infinite redirect loop:
+            // Instead of redirecting to /login on the admin subdomain (which redirects to /supremeadmin and loops),
+            // redirect the user directly to their designated hospital tenant subdomain.
+            if (user.subdomain) {
+                const hostname = window.location.hostname;
+                const port = window.location.port ? `:${window.location.port}` : '';
+                const cleanHost = hostname.replace('admin.', '');
+                const targetUrl = `${window.location.protocol}//${user.subdomain}.${cleanHost}${port}/my-dashboard`;
+                window.__authLogger?.('SubdomainRoleGuard redirecting hospital staff to tenant subdomain', { targetUrl });
+                window.location.href = targetUrl;
+                return null;
+            } else {
+                window.__authLogger?.('SubdomainRoleGuard redirecting hospital staff to /login (no user subdomain configured)');
+                return <Navigate to="/login" replace />;
+            }
         }
     }
 
     return children;
 };
+
+const PageLoader = () => (
+    <div className="hospital-login-loading" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '80vh' }}>
+        <div className="hospital-login-spinner"></div>
+        <p style={{ marginTop: '16px', color: '#64748b', fontSize: '14px' }}>Loading page...</p>
+    </div>
+);
 
 const MainRoutes = () => {
     const { isAuthenticated } = useAuth();
@@ -224,7 +243,8 @@ const MainRoutes = () => {
             {isAuthenticated && !isLoginPath ? (
                 <DashboardLayout>
                   <SubdomainRoleGuard>
-                    <Routes>
+                    <React.Suspense fallback={<PageLoader />}>
+                      <Routes>
                         <Route path="/" element={<SmartDashboardRedirector />} />
                         <Route path="/services" element={<Navigate to="/" replace />} />
                         <Route path="/doctors" element={<Navigate to="/" replace />} />
@@ -352,11 +372,13 @@ const MainRoutes = () => {
                         <Route path="/login" element={<SmartLogin />} />
 
                         <Route path="*" element={<Navigate to="/my-dashboard" />} />
-                    </Routes>
+                      </Routes>
+                    </React.Suspense>
                   </SubdomainRoleGuard>
                 </DashboardLayout>
             ) : (
-                <Routes>
+                <React.Suspense fallback={<PageLoader />}>
+                  <Routes>
                     {/* Unified Smart Login URL - Reads current domain/subdomain natively */}
                     <Route path="/login" element={<SmartLogin />} />
                     
@@ -365,7 +387,8 @@ const MainRoutes = () => {
                     <Route path="/supremeadmin/signup" element={<CentralAdminSignup />} />
                     <Route path="/admin/signup" element={<AdminSignup />} />
                     <Route path="*" element={<Navigate to="/login" />} />
-                </Routes>
+                  </Routes>
+                </React.Suspense>
             )}
         </>
     );

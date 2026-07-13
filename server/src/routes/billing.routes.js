@@ -625,6 +625,27 @@ router.post('/invoice', verifyBillingAccess, auditLog('INVOICE_CREATED', (req, b
 
         await invoice.save();
 
+        // Central Workflow Transition Integration (Invoice Generated)
+        try {
+            const { getTenantModels } = require('../db/tenantModels');
+            const { PatientEncounter } = getTenantModels(req.tenantDb);
+            let encounter = await PatientEncounter.findOne({ patientId, isArchived: false });
+            if (!encounter) {
+                const { createEncounter } = require('../utils/workflowEngine');
+                encounter = await createEncounter(req, patientId, 'OPD');
+            }
+            const { executeTransition } = require('../utils/workflowEngine');
+            await executeTransition(
+                req,
+                encounter._id,
+                'Billing Pending',
+                'Invoice Generated',
+                `Invoice ${invoiceNumber} created. Grand Total: ₹${grandTotal}`
+            );
+        } catch (workflowErr) {
+            console.error('[workflowEngine invoice transition error]', workflowErr.message);
+        }
+
         // Write Activity Log
         await new BillingActivityLog({
             hospitalId,
@@ -761,6 +782,28 @@ router.post('/invoice/:id/payment', verifyBillingAccess, auditLog('PAYMENT_COLLE
             io.emit('payment_received', { invoiceId: invoice._id, receiptNumber, amount: payVal, patientId: invoice.patientId, hospitalId: invoice.hospitalId });
             if (invoice.paymentStatus === 'Paid') {
                 io.emit('invoice_paid', { invoiceId: invoice._id, patientId: invoice.patientId, hospitalId: invoice.hospitalId });
+            }
+        }
+
+        if (invoice.paymentStatus === 'Paid') {
+            try {
+                const { getTenantModels } = require('../db/tenantModels');
+                const { PatientEncounter } = getTenantModels(req.tenantDb);
+                let encounter = await PatientEncounter.findOne({ patientId: invoice.patientId, isArchived: false });
+                if (!encounter) {
+                    const { createEncounter } = require('../utils/workflowEngine');
+                    encounter = await createEncounter(req, invoice.patientId, 'OPD');
+                }
+                const { executeTransition } = require('../utils/workflowEngine');
+                await executeTransition(
+                    req,
+                    encounter._id,
+                    'Payment Completed',
+                    'Payment Received',
+                    `Payment of ₹${payVal} collected. Receipt: ${receiptNumber}. Invoice ${invoice.invoiceNumber} fully cleared.`
+                );
+            } catch (workflowErr) {
+                console.error('[workflowEngine payment transition error]', workflowErr.message);
             }
         }
 

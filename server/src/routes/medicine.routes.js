@@ -20,7 +20,18 @@ const getModels = (req) => {
 router.get('/', verifyToken, resolveTenant, async (req, res) => {
     try {
         const { Medicine } = getModels(req);
-        const medicines = await Medicine.find({}).sort({ name: 1 });
+        
+        const cache = require('../utils/cache');
+        const isTenant = !!req.tenantDb;
+        const tenantKey = isTenant ? (req.user.hospitalId || 'tenant') : 'master';
+        const cacheKey = `medicines_${tenantKey}`;
+
+        let medicines = cache.get(cacheKey);
+        if (!medicines) {
+            medicines = await Medicine.find({}).sort({ name: 1 });
+            cache.set(cacheKey, medicines, 300);
+        }
+
         res.json({ success: true, data: medicines });
     } catch (error) {
         res.status(500).json({ success: false, message: 'An internal error occurred' });
@@ -39,6 +50,9 @@ router.post('/', verifyAdminOrSuperAdmin, resolveTenant, async (req, res) => {
         const medicine = new Medicine({ name, genericName, category, description });
         await medicine.save();
 
+        const cache = require('../utils/cache');
+        cache.clear();
+
         res.status(201).json({ success: true, message: 'Medicine added successfully', data: medicine });
     } catch (error) {
         res.status(500).json({ success: false, message: 'An internal error occurred' });
@@ -55,6 +69,9 @@ router.put('/:id', verifyAdminOrSuperAdmin, resolveTenant, async (req, res) => {
 
         if (!medicine) return res.status(404).json({ success: false, message: 'Medicine not found' });
 
+        const cache = require('../utils/cache');
+        cache.clear();
+
         res.json({ success: true, message: 'Medicine updated successfully', data: medicine });
     } catch (error) {
         res.status(500).json({ success: false, message: 'An internal error occurred' });
@@ -69,6 +86,9 @@ router.delete('/:id', verifyAdminOrSuperAdmin, resolveTenant, async (req, res) =
         const medicine = await Medicine.findByIdAndDelete(id);
 
         if (!medicine) return res.status(404).json({ success: false, message: 'Medicine not found' });
+
+        const cache = require('../utils/cache');
+        cache.clear();
 
         res.json({ success: true, message: 'Medicine deleted successfully' });
     } catch (error) {

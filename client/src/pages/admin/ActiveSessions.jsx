@@ -77,6 +77,7 @@ export default function ActiveSessions() {
     try {
       await api("/api/sessions/all", { method: "DELETE" });
       localStorage.removeItem("token");
+      localStorage.removeItem("accessToken");
       localStorage.removeItem("user");
       window.location.href = "/login";
     } catch { setMsg({ type: "error", text: "Failed." }); }

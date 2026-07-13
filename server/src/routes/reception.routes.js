@@ -173,6 +173,18 @@ router.post('/register', verifyToken, verifyReception, async (req, res) => {
             await newAppointment.save();
         }
 
+        // Central Workflow Encounter Creation
+        try {
+            const { createEncounter } = require('../utils/workflowEngine');
+            const encounter = await createEncounter(req, newUser._id, 'OPD');
+            if (newAppointment) {
+                encounter.activeAppointmentId = newAppointment._id;
+                await encounter.save();
+            }
+        } catch (wErr) {
+            console.error('[workflowEngine registration error]', wErr.message);
+        }
+
         res.status(201).json({ success: true, message: 'Patient registered successfully!', user: newUser, appointment: newAppointment });
     } catch (error) {
         console.error("Register Error:", error);
@@ -892,6 +904,30 @@ router.post('/check-in', verifyToken, verifyReception, async (req, res) => {
         if (appointmentId) {
             // Update appointment status - set to confirmed so it remains in the active queue until completed by the doctor
             await Appointment.findByIdAndUpdate(appointmentId, { status: 'confirmed' });
+        }
+
+        // Central Workflow Transition Integration (Waiting Room check-in)
+        try {
+            const { PatientEncounter } = getTenantModels(req.tenantDb);
+            let encounter = await PatientEncounter.findOne({ patientId, isArchived: false });
+            if (!encounter) {
+                const { createEncounter } = require('../utils/workflowEngine');
+                encounter = await createEncounter(req, patientId, 'OPD');
+            }
+            if (appointmentId) {
+                encounter.activeAppointmentId = appointmentId;
+                await encounter.save();
+            }
+            const { executeTransition } = require('../utils/workflowEngine');
+            await executeTransition(
+                req,
+                encounter._id,
+                'Waiting',
+                'Patient Checked In',
+                `Checked in at reception queue. Status: ${status}`
+            );
+        } catch (workflowErr) {
+            console.error('[workflowEngine check-in transition error]', workflowErr.message);
         }
 
         // Emit socket event to update Reception/Doctor grids

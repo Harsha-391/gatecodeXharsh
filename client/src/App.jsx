@@ -6,32 +6,10 @@ import socket from './utils/socket'
 import { useAuth, useAppDispatch } from './store/hooks'
 import { useBranding } from './context/BrandingContext'
 import { updateUser, logout } from './store/slices/authSlice'
-import { authAPI } from './utils/api'
-import { startSessionMonitoring, stopSessionMonitoring } from './utils/sessionManager'
 import IdleWarningModal from './components/IdleWarningModal'
 import { useStore } from 'react-redux'
-
-// ── BroadcastChannel multi-tab synchronization ─────────────────────────────────
-// Uses BroadcastChannel when available; falls back to the storage event.
-let _bc = null;
-try {
-  if (typeof BroadcastChannel !== 'undefined') {
-    _bc = new BroadcastChannel('hms_auth_sync');
-  }
-} catch (_) { /* unsupported */ }
-
-export function broadcastAuthEvent(type, payload = {}) {
-  const msg = { type, payload, ts: Date.now() };
-  try {
-    _bc?.postMessage(msg);
-  } catch (_) {}
-  // Also write to localStorage as fallback for browsers without BroadcastChannel
-  try {
-    localStorage.setItem('hms_auth_sync', JSON.stringify(msg));
-    // Remove immediately so the 'storage' event fires next time too
-    setTimeout(() => localStorage.removeItem('hms_auth_sync'), 100);
-  } catch (_) {}
-}
+import { startSessionMonitoring, stopSessionMonitoring } from './utils/sessionManager'
+import { subscribeToAuthSync } from './utils/authSync'
 
 const App = () => {
   const { user, isAuthenticated } = useAuth();
@@ -39,64 +17,29 @@ const App = () => {
   const store = useStore();
   const { loadBranding, resetBranding } = useBranding();
 
-  // ── Session Restoration — validate backend in background without blocking UI ──
+  // Sync state with storage to prevent Back-Forward Cache (BF Cache) mismatch
   useEffect(() => {
-    const cachedUser = localStorage.getItem('user');
-    if (!cachedUser) {
-      return;
+    const hasUser = !!localStorage.getItem('user');
+    if (isAuthenticated && !hasUser) {
+      dispatch(logout());
     }
+  }, [isAuthenticated, dispatch]);
 
-    const restoreSession = async () => {
-      const startMs = Date.now();
-      try {
-        const res = await authAPI.getProfile();
-        if (res.success && res.user) {
-          dispatch(updateUser(res.user));
-          // Log successful restoration to audit (best-effort, fire-and-forget)
-          _logRestoreAudit('SESSION_RESTORE_SUCCESS', {
-            durationMs: Date.now() - startMs,
-            reason: 'Session validated via /api/auth/me',
-          });
-        } else {
-          _logRestoreAudit('SESSION_RESTORE_FAILED', {
-            durationMs: Date.now() - startMs,
-            failureCause: 'Profile endpoint returned failure',
-          });
-          dispatch(logout());
-        }
-      } catch (err) {
-        const status = err?.response?.status;
-        const failureCause =
-          status === 401 ? '401 Unauthorized — refresh token invalid or expired'
-          : status === 403 ? '403 Forbidden — account disabled or deleted'
-          : err?.message?.includes('Network') ? 'Network Failure'
-          : `HTTP ${status || 'unknown'}`;
 
-        _logRestoreAudit('SESSION_RESTORE_FAILED', {
-          durationMs: Date.now() - startMs,
-          failureCause,
-        });
-
-        if (status === 401 || status === 403) {
-          dispatch(logout());
-        }
-      }
-    };
-
-    restoreSession();
-  }, [dispatch]);
 
 
   // ── Multi-tab synchronization via BroadcastChannel + localStorage fallback ─────
   useEffect(() => {
     const handleSync = (msg) => {
       if (!msg || !msg.type) return;
+      window.__authLogger?.(`subscribeToAuthSync Message Received: ${msg.type}`, { msg });
       switch (msg.type) {
         case 'LOGOUT':
         case 'FORCED_LOGOUT':
         case 'PASSWORD_CHANGED':
         case 'SESSION_REVOKED':
           // Another tab logged out — clear this tab too
+          window.__authLogger?.(`dispatch(logout()) forced from sync event: ${msg.type}`);
           dispatch(logout());
           break;
         case 'LOGIN':
@@ -111,34 +54,14 @@ const App = () => {
             } catch (_) {}
           }
           break;
-        case 'SESSION_RESTORE':
-          // Another tab restored a session — no action needed, we have our own restore flow
-          break;
         default:
           break;
       }
     };
 
-    // BroadcastChannel listener
-    if (_bc) {
-      _bc.onmessage = (event) => handleSync(event.data);
-    }
-
-    // localStorage fallback listener
-    const handleStorage = (event) => {
-      if (event.key === 'hms_auth_sync' && event.newValue) {
-        try {
-          const msg = JSON.parse(event.newValue);
-          handleSync(msg);
-        } catch (_) {}
-      }
-    };
-    window.addEventListener('storage', handleStorage);
-
-    return () => {
-      if (_bc) _bc.onmessage = null;
-      window.removeEventListener('storage', handleStorage);
-    };
+    // Use unified synchronization handler (only fires on manual/administrative actions)
+    const unsubscribe = subscribeToAuthSync(handleSync);
+    return () => unsubscribe();
   }, [dispatch, store]);
 
   // ── Auto-load hospital branding when user logs in ───────────────────────────
@@ -279,6 +202,7 @@ const App = () => {
       document.removeEventListener('wheel', handleGlobalWheel);
     };
   }, []);
+
 
   return (
     <div style={{ width: '100%', maxWidth: '100vw', overflowX: 'hidden' }}>

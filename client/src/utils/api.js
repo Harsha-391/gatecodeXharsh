@@ -16,106 +16,32 @@ const baseURL = getBaseURL();
 const apiClient = axios.create({
     baseURL: baseURL,
     headers: { 'Content-Type': 'application/json' },
-    withCredentials: true,
+    withCredentials: false,
 });
 
-// Request Interceptor — reset activity timer
+// Request Interceptor — attach Bearer token from localStorage
 apiClient.interceptors.request.use(
     (config) => {
         if (typeof window !== 'undefined') {
             config.headers['X-Tenant-Domain'] = window.location.hostname;
+            // Attach stored access token as Authorization header
+            const token = localStorage.getItem('accessToken');
+            if (token) {
+                config.headers['Authorization'] = `Bearer ${token}`;
+            }
         }
-        // Sliding session: any API call counts as activity
-        try {
-            import('./sessionManager').then(sm => sm.resetActivityTimer()).catch(() => {});
-        } catch (_) {}
-
         return config;
     },
     (error) => Promise.reject(error)
 );
 
-// Track whether a token refresh is already in progress to avoid duplicate calls
-let _refreshing = false;
-let _refreshSubscribers = [];
-
-function _onRefreshed(success) {
-    _refreshSubscribers.forEach(cb => cb(success));
-    _refreshSubscribers = [];
-}
-
-async function _tryRefreshAndRetry(originalRequest) {
-    if (_refreshing) {
-        // Queue this request until refresh completes
-        return new Promise((resolve, reject) => {
-            _refreshSubscribers.push((success) => {
-                if (success) {
-                    resolve(apiClient(originalRequest));
-                } else {
-                    reject(new Error('Session expired'));
-                }
-            });
-        });
-    }
-
-    _refreshing = true;
-    try {
-        // Use the same absolute base URL as the axios client.
-        // A relative URL ('/api/auth/refresh') hits Vercel's SPA router in production → 405.
-        const res = await fetch(`${baseURL}/api/auth/refresh`, {
-            method: 'POST',
-            credentials: 'include',
-            headers: {
-                'X-Tenant-Domain': typeof window !== 'undefined' ? window.location.hostname : ''
-            }
-        });
-        const data = await res.json();
-
-        if (data.success) {
-            _onRefreshed(true);
-            return apiClient(originalRequest);
-        } else {
-            _onRefreshed(false);
-            return null; // Signal to response interceptor to logout
-        }
-    } catch {
-        _onRefreshed(false);
-        return null;
-    } finally {
-        _refreshing = false;
-    }
-}
-
-// Response Interceptor — auto-refresh on 401, then logout if refresh fails
+// Simple response interceptor — no auto-refresh, no redirect, just pass errors through
 apiClient.interceptors.response.use(
     (response) => response,
-    async (error) => {
-        const status = error.response?.status;
-        const originalRequest = error.config;
-
-        // Attempt silent refresh on 401 (token expired) — but not for the refresh or logout endpoints
-        if (status === 401 && !originalRequest._retried &&
-            !originalRequest.url?.includes('/auth/refresh') &&
-            !originalRequest.url?.includes('/auth/logout')) {
-
-            originalRequest._retried = true;
-            const retried = await _tryRefreshAndRetry(originalRequest);
-            if (retried) return retried;
-
-            // Refresh failed — clear user session info and redirect
-            localStorage.removeItem('user');
-            if (!window.location.pathname.includes('/login')) {
-                window.location.href = '/login?reason=session_expired';
-            }
-        }
-
-        if (status === 403) {
-            // 403 Forbidden — not a session issue, just reject
-        }
-
-        return Promise.reject(error);
-    }
+    (error) => Promise.reject(error)
 );
+
+
 
 export const authAPI = {
     login: async (email, password, hospitalId) => {
@@ -141,8 +67,10 @@ export const authAPI = {
         return response.data;
     },
     logout: async () => {
-        const response = await apiClient.post('/api/auth/logout');
-        return response.data;
+        // Fire-and-forget server logout (blacklist the JTI). Not critical if it fails.
+        try {
+            await apiClient.post('/api/auth/logout');
+        } catch (_) {}
     },
 };
 

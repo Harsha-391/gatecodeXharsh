@@ -1,12 +1,31 @@
 import React from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../store/hooks';
 
 const ProtectedRoute = ({ children, requiredPermissions = [], allowedRoles = [] }) => {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, isRestoring } = useAuth();
+  const location = useLocation();
 
-  // If not authenticated and route has restrictions, redirect to login
-  if (!isAuthenticated && (requiredPermissions.length > 0 || allowedRoles.length > 0)) {
+  // Print guard evaluation trace log
+  window.__authLogger?.('ProtectedRoute evaluated', { 
+    route: location.pathname, 
+    isAuthenticated, 
+    isRestoring, 
+    requiredPermissions, 
+    allowedRoles, 
+    role: user?.role, 
+    permissions: user?.effectivePermissions || user?.permissions 
+  });
+
+  // NEVER decide navigation or redirect while session restoration is still in progress
+  if (isRestoring) {
+    console.debug(`[ProtectedRoute] Suppressing routing decision while session restoration is in progress. Route: ${location.pathname}`);
+    return null;
+  }
+
+  // If not authenticated, redirect to login
+  if (!isAuthenticated) {
+    window.__authLogger?.('ProtectedRoute redirecting unauthenticated user to /login', { route: location.pathname });
     return <Navigate to="/login" replace />;
   }
 
@@ -34,10 +53,12 @@ const ProtectedRoute = ({ children, requiredPermissions = [], allowedRoles = [] 
     if (requiredPermissions.length > 0 && allowedRoles.length > 0) {
       if (!hasRequiredPermission && !hasAllowedRole) {
         const dashboardPath = user.dashboardPath || '/my-dashboard';
+        window.__authLogger?.('ProtectedRoute redirecting due to lack of role/permission', { dashboardPath, route: location.pathname });
         return <Navigate to={dashboardPath} replace />;
       }
     } else if (!hasRequiredPermission || !hasAllowedRole) {
       const dashboardPath = user.dashboardPath || '/my-dashboard';
+      window.__authLogger?.('ProtectedRoute redirecting due to lack of role/permission', { dashboardPath, route: location.pathname });
       return <Navigate to={dashboardPath} replace />;
     }
   }

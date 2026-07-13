@@ -30,7 +30,7 @@ const validatePassword = require('../utils/validatePassword');
 function getCookieOptions(res) {
     const req = res.req;
     const hostname = req ? (req.hostname || '') : '';
-    const isLocal = hostname === 'localhost' || hostname === '127.0.0.1';
+    const isLocal = hostname === 'localhost' || hostname === '127.0.0.1' || hostname.endsWith('.localhost');
 
     // In production, backend (Render) and frontend (Vercel) are cross-origin.
     // sameSite:'none' + secure:true is required.
@@ -41,25 +41,7 @@ function getCookieOptions(res) {
     return { secure, sameSite };
 }
 
-function setCookies(res, accessToken, rawRefreshToken) {
-    const { secure, sameSite } = getCookieOptions(res);
 
-    res.cookie('accessToken', accessToken, {
-        httpOnly: true,
-        secure,
-        sameSite,
-        maxAge: 30 * 60 * 1000, // 30 minutes
-        path: '/',
-    });
-
-    res.cookie('refreshToken', rawRefreshToken, {
-        httpOnly: true,
-        secure,
-        sameSite,
-        maxAge: REFRESH_TOKEN_EXPIRES_MS,
-        path: '/',
-    });
-}
 
 const { hospitalCreationLimiter } = require('../middleware/rateLimiter');
 
@@ -873,8 +855,7 @@ router.post('/admin/login', async (req, res) => {
             device: parsedInfo.device,
             userAgent: uaInfo,
         });
-
-        setCookies(res, token, rawRefreshToken);
+        // Cookies no longer used for session tracking
 
         // Audit successful hospital admin login — write to tenant DB
         await writeAuditLog(user.hospitalId, {

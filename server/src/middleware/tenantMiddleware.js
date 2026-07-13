@@ -12,6 +12,9 @@
 
 const { getTenantConnection } = require('../db/tenantDb');
 
+// Simple in-memory cache for hospital active checks (5-minute TTL)
+const hospitalActiveCache = new Map();
+
 /**
  * Middleware: resolves the tenant DB from req.user.hospitalId (set by verifyToken).
  * Attach req.tenantDb for use in route handlers.
@@ -43,10 +46,22 @@ exports.resolveTenant = async (req, res, next) => {
             return next();
         }
 
-        // Check if hospital is deactivated/inactive
-        const Hospital = require('../models/hospital.model');
-        const hospital = await Hospital.findById(hospitalId).select('isActive');
-        if (hospital && hospital.isActive === false) {
+        // Check cache first for active status to avoid redundant DB reads on every API call
+        const cacheKey = String(hospitalId);
+        const cached = hospitalActiveCache.get(cacheKey);
+        const now = Date.now();
+        
+        let isActive = true;
+        if (cached && (now - cached.timestamp < 300000)) { // 5-minute TTL
+            isActive = cached.isActive;
+        } else {
+            const Hospital = require('../models/hospital.model');
+            const hospital = await Hospital.findById(hospitalId).select('isActive').lean();
+            isActive = hospital ? hospital.isActive !== false : true;
+            hospitalActiveCache.set(cacheKey, { isActive, timestamp: now });
+        }
+
+        if (isActive === false) {
             return res.status(403).json({
                 success: false,
                 message: 'Your hospital access has been deactivated. Please contact the system administrator.'

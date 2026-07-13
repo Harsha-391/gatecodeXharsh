@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useDispatch } from 'react-redux';
+import { logoutUser } from '../../store/slices/authSlice';
 import { adminAPI, uploadAPI, authAPI } from '../../utils/api';
 import './SuperAdmin.css';
 
 const SuperAdmin = () => {
     const navigate = useNavigate();
+    const dispatch = useDispatch();
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
     const [users, setUsers] = useState([]);
@@ -188,13 +191,7 @@ const SuperAdmin = () => {
     };
 
     const handleLogout = async () => {
-        try {
-            await authAPI.logout();
-        } catch (err) {
-            console.error('Logout error:', err);
-        }
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
+        await dispatch(logoutUser());
         navigate('/supremeadmin/login');
     };
 
