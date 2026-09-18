@@ -1,5 +1,8 @@
 const mongoose = require('mongoose');
 const dns = require('dns');
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
+require('dotenv').config({ path: path.resolve(__dirname, '../../../.env') });
 
 // Force Google's public DNS for SRV record resolution.
 // Many ISP routers block or refuse SRV-type DNS queries needed by mongodb+srv:// URIs.

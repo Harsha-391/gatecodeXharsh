@@ -467,10 +467,13 @@ router.post('/login', loginLimiter, async (req, res) => {
     const userRoleStr = roleData.name ? roleData.name.toLowerCase() : '';
     const isGlobalAdmin = globalAdminRoles.includes(userRoleStr);
 
-    // Detect if request is coming from localhost (dev environment)
+    // Detect if request is coming from localhost, LAN IP, or mobile client (dev environment)
     const origin = req.headers.origin || req.headers.referer || '';
     const isLocalhost = origin.includes('localhost') || origin.includes('127.0.0.1') ||
-      req.hostname === 'localhost' || req.hostname === '127.0.0.1';
+      req.hostname === 'localhost' || req.hostname === '127.0.0.1' ||
+      /^(192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(req.hostname) ||
+      req.headers['x-client-type'] === 'mobile' ||
+      process.env.NODE_ENV !== 'production';
 
     if (!isGlobalAdmin) {
       if (hospitalId) {

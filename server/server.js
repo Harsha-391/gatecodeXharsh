@@ -1,5 +1,7 @@
 // server/server.js - restarted
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '.env') });
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 const dns = require('dns');
 
 // Force Google's public DNS (8.8.8.8) for SRV record resolution.
@@ -223,4 +225,4 @@ server.listen(PORT, '0.0.0.0', () => {
         scheduleNoShowJob();
     }, 3000);
 });
-// Trigger Restart 7
+// Trigger Restart 8

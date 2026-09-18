@@ -5,6 +5,9 @@
   "scripts": {
     "dev:server": "npm run dev --prefix server",
     "dev:client": "npm run dev --prefix client",
+    "dev:mobile": "npm run start --prefix mobile",
+    "start:mobile": "npm run start --prefix mobile",
+    "dev:app": "concurrently \"npm run dev:server\" \"npm run start:mobile\"",
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\""
   },
   "devDependencies": {

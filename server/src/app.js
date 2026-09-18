@@ -176,9 +176,11 @@ app.use(express.urlencoded({ extended: false, limit: '10mb' }));
 
 // ── CORS ──────────────────────────────────────────────────────────────────────
 const LOCALHOST_RE = /^https?:\/\/([a-z0-9-]+\.)?(localhost|127\.0\.0\.1)(:\d+)?$/i;
+const PRIVATE_IP_RE = /^https?:\/\/(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$/i;
 const isAllowedOrigin = (origin) => {
     if (!origin) return true;
     if (LOCALHOST_RE.test(origin)) return true;
+    if (PRIVATE_IP_RE.test(origin)) return true;
     
     if (process.env.CORS_ORIGIN) {
         const envOrigins = process.env.CORS_ORIGIN.split(',').map(o => o.trim().toLowerCase());
@@ -304,8 +306,8 @@ app.use('/api/mfa', mfaRoutes);
 app.use('/api/sessions', sessionsRoutes);
 app.use('/api/encounters', patientEncounterRoutes);
 
-// ── Health Check Endpoint ───────────────────────────────────────────────────
-app.get('/health', async (req, res) => {
+// ── Health Check Endpoints ─────────────────────────────────────────────────
+const healthCheckHandler = async (req, res) => {
     try {
         const mongoose = require('mongoose');
         const dbState = mongoose.connection.readyState;
@@ -342,7 +344,10 @@ app.get('/health', async (req, res) => {
     } catch (err) {
         res.status(500).json({ status: 'DOWN', error: err.message });
     }
-});
+};
+
+app.get('/health', healthCheckHandler);
+app.get('/api/health', healthCheckHandler);
 
 // Prometheus Metrics Endpoint
 app.get('/metrics', (req, res) => {
